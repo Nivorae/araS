@@ -39,8 +39,8 @@ export function InvestmentChart({ data }: { data: InvestmentPoint[] }) {
             verticalAlign="top"
             align="left"
           />
-          <Bar dataKey="totalAssets" name="資產總值" fill="#a8a4e8" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="netWorth" name="帳面損益" fill="#5856d6" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="totalAssets" name="資產總值" fill="#374254" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="netWorth" name="帳面損益" fill="#66788E" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -79,7 +79,7 @@ export function PolicySummaryCard({ insurance, onUpdate, onViewDetail }: Props) 
       {/* 10yr projection hint */}
       <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-[#f2f2f7] px-3 py-2">
         <span className="text-[11px] text-[#8e8e93]">10 年後預估</span>
-        <span className="text-[13px] font-semibold text-[#34c759]">{formatUSD(tenYearValue)}</span>
+        <span className="text-[13px] font-semibold text-[#0e1424]">{formatUSD(tenYearValue)}</span>
         <span className="ml-auto text-[10px] text-[#aeaeb2]">
           @{insurance.declaredRate.toFixed(1)}%/年
         </span>
@@ -98,7 +98,7 @@ export function PolicySummaryCard({ insurance, onUpdate, onViewDetail }: Props) 
             <p className="text-[11px] text-[#8e8e93]">未實現損益</p>
             <p
               className="mt-0.5 text-[14px] font-bold"
-              style={{ color: unrealizedGain >= 0 ? "#34c759" : "#ff3b30" }}
+              style={{ color: unrealizedGain >= 0 ? "#0e1424" : "#ff3b30" }}
             >
               {unrealizedGain >= 0 ? "+" : ""}
               {formatUSD(unrealizedGain)}
@@ -115,7 +115,7 @@ export function PolicySummaryCard({ insurance, onUpdate, onViewDetail }: Props) 
       <div className="mt-4 flex gap-2">
         <button
           onClick={onUpdate}
-          className="flex-1 rounded-xl bg-[#007aff] py-2.5 text-[14px] font-semibold text-white active:opacity-80"
+          className="flex-1 rounded-xl bg-[#374254] py-2.5 text-[14px] font-semibold text-white active:opacity-80"
         >
           更新數值
         </button>

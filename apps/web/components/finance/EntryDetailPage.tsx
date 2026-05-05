@@ -26,7 +26,7 @@ const METAL_YF_SYMBOL: Record<string, string> = {
 };
 
 function getCategoryColor(topCategory: string): string {
-  return CATEGORIES.find((c) => c.name === topCategory)?.color ?? "#007aff";
+  return CATEGORIES.find((c) => c.name === topCategory)?.color ?? "#374254";
 }
 
 function formatDelta(delta: number): string {
@@ -298,7 +298,7 @@ export function EntryDetailPage({
                   {totalPnL != null && (
                     <p
                       className="text-[14px] font-semibold"
-                      style={{ color: totalPnL >= 0 ? "#34c759" : "#ff3b30" }}
+                      style={{ color: totalPnL >= 0 ? "#0e1424" : "#ff3b30" }}
                     >
                       {formatDelta(totalPnL)}
                       {totalPnLPct != null && (
@@ -404,7 +404,7 @@ export function EntryDetailPage({
                         <p
                           className="text-[14px] font-semibold"
                           style={{
-                            color: h.delta >= 0 ? (isLiability ? "#ff3b30" : "#34c759") : "#ff3b30",
+                            color: h.delta >= 0 ? (isLiability ? "#ff3b30" : "#0e1424") : "#ff3b30",
                           }}
                         >
                           {formatDelta(h.delta)}
@@ -415,7 +415,7 @@ export function EntryDetailPage({
                         {recordPnL != null && (
                           <p
                             className="mt-0.5 text-[12px] font-medium"
-                            style={{ color: recordPnL >= 0 ? "#34c759" : "#ff3b30" }}
+                            style={{ color: recordPnL >= 0 ? "#0e1424" : "#ff3b30" }}
                           >
                             盈虧 {formatDelta(recordPnL)}
                           </p>

@@ -97,6 +97,7 @@ export default function AssetsPage() {
       {
         name,
         color: catConfig.color,
+        textColor: catConfig.textColor,
         isLiability: catConfig.isLiability,
         entries: catEntries,
         total: catEntries.reduce((s, e) => s + e.value, 0),
@@ -134,7 +135,7 @@ export default function AssetsPage() {
 
   const openFormFromDetail = (entry: Entry, mode: "add" | "adjust") => {
     const topCat = getTopCategory(entry.topCategory);
-    const color = topCat?.color ?? "#007aff";
+    const color = topCat?.color ?? "#374254";
     const icon = getNodeIcon(entry.topCategory, entry.subCategory);
     setFormConfig({
       topCategory: entry.topCategory,
@@ -227,7 +228,7 @@ export default function AssetsPage() {
               onClick={() => setShowMenu(true)}
               className="mx-4 w-full rounded-2xl bg-white px-4 py-12 text-center shadow-sm active:bg-[#f2f2f7]"
             >
-              <p className="text-[15px] font-medium text-[#007aff]">+ 新增第一筆資產</p>
+              <p className="text-[15px] font-medium text-[#374254]">+ 新增第一筆資產</p>
               <p className="mt-1 text-[13px] text-[#8e8e93]">記錄你的資產與負債</p>
             </button>
           </div>
@@ -262,7 +263,7 @@ export default function AssetsPage() {
         onSaved={closeAll}
         topCategory={formConfig?.topCategory ?? ""}
         isLiability={formConfig?.isLiability ?? false}
-        categoryColor={formConfig?.color ?? "#007aff"}
+        categoryColor={formConfig?.color ?? "#374254"}
         subCategoryName={formConfig?.subCategoryName ?? ""}
         SubCategoryIcon={formConfig?.SubCategoryIcon ?? Wallet}
         editItem={editItem}

@@ -152,7 +152,7 @@ export function PolicyUpdateForm({ open, insurance, onClose, onSaved }: Props) {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="w-full rounded-2xl bg-[#007aff] py-4 text-[16px] font-semibold text-white shadow-sm active:opacity-80 disabled:opacity-50"
+            className="w-full rounded-2xl bg-[#374254] py-4 text-[16px] font-semibold text-white shadow-sm active:opacity-80 disabled:opacity-50"
           >
             {saving ? "儲存中..." : "儲存"}
           </button>

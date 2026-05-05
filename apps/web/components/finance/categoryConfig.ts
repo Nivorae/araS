@@ -28,6 +28,7 @@ export interface CategoryNode {
 export interface TopCategory {
   name: string;
   color: string;
+  textColor: string;
   isLiability: boolean;
   children: CategoryNode[];
 }
@@ -35,7 +36,8 @@ export interface TopCategory {
 export const CATEGORIES: TopCategory[] = [
   {
     name: "流動資金",
-    color: "#ececec",
+    color: "#FFFFFF",
+    textColor: "#1c1c1e",
     isLiability: false,
     children: [
       { name: "現金", icon: Wallet },
@@ -51,21 +53,21 @@ export const CATEGORIES: TopCategory[] = [
       { name: "其他", icon: LayoutGrid },
     ],
   },
-
   {
-    name: "固定資產",
-    color: "#66788E",
-    isLiability: false,
+    name: "負債",
+    color: "#C7C7D4",
+    textColor: "#1c1c1e",
+    isLiability: true,
     children: [
-      { name: "房屋", icon: Home },
-      { name: "車輛", icon: Car },
-      { name: "其他資產", icon: Building2 },
-      { name: "保險", icon: Shield },
+      { name: "貸款", icon: Landmark },
+      { name: "信用卡", icon: CreditCard },
+      { name: "其他負債", icon: HandCoins },
     ],
   },
   {
     name: "投資",
-    color: "#374254",
+    color: "#66788E",
+    textColor: "#ffffff",
     isLiability: false,
     children: [
       { name: "投資基金", icon: TrendingUp },
@@ -83,20 +85,24 @@ export const CATEGORIES: TopCategory[] = [
     ],
   },
   {
+    name: "固定資產",
+    color: "#374254",
+    textColor: "#ffffff",
+    isLiability: false,
+    children: [
+      { name: "房屋", icon: Home },
+      { name: "車輛", icon: Car },
+      { name: "其他資產", icon: Building2 },
+      { name: "保險", icon: Shield },
+    ],
+  },
+
+  {
     name: "應收款",
     color: "#0e1424",
+    textColor: "#ffffff",
     isLiability: false,
     children: [{ name: "一般應收款", icon: Receipt }],
-  },
-  {
-    name: "負債",
-    color: "#C7C7D4",
-    isLiability: true,
-    children: [
-      { name: "貸款", icon: Landmark },
-      { name: "信用卡", icon: CreditCard },
-      { name: "其他負債", icon: HandCoins },
-    ],
   },
 ];
 

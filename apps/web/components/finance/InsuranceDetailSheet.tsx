@@ -137,7 +137,7 @@ export function InsuranceDetailSheet({ open, insurance, color, onClose, onRateUp
             <p className="mb-1 text-[12px] text-[#8e8e93]">累積報酬</p>
             <p
               className="text-[20px] font-bold"
-              style={{ color: growth >= 0 ? "#34c759" : "#ff3b30" }}
+              style={{ color: growth >= 0 ? "#0e1424" : "#ff3b30" }}
             >
               {growth >= 0 ? "+" : ""}
               {formatCurrencyValue(growth)}{" "}
@@ -226,7 +226,7 @@ export function InsuranceDetailSheet({ open, insurance, color, onClose, onRateUp
                       <td className="py-1.5 text-[12px] text-[#1c1c1e]">
                         第 {row.policyYear} 年
                         {isCurrentYear && (
-                          <span className="ml-1 text-[10px] text-[#34c759]">▶</span>
+                          <span className="ml-1 text-[10px] text-[#0e1424]">▶</span>
                         )}
                       </td>
                       <td className="py-1.5 text-right text-[12px] text-[#1c1c1e]">

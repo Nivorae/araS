@@ -243,7 +243,7 @@ function InfoModal({ content, onClose }: { content: ModalContent; onClose: () =>
         <div className="mt-4 text-center">
           <button
             onClick={onClose}
-            className="rounded-xl bg-[#007aff] px-6 py-2 text-[13px] font-medium text-white"
+            className="rounded-xl bg-[#374254] px-6 py-2 text-[13px] font-medium text-white"
           >
             了解了
           </button>
@@ -529,11 +529,11 @@ export function RetirementPage() {
   );
 
   // Derived colors
-  const goalColor = calcs.goalPct >= 70 ? "#34c759" : calcs.goalPct >= 30 ? "#ff9500" : "#ff3b30";
+  const goalColor = calcs.goalPct >= 70 ? "#0e1424" : calcs.goalPct >= 30 ? "#ff9500" : "#ff3b30";
   const fiColor =
-    calcs.fiAge !== null && calcs.fiAge <= params.retirementAge ? "#34c759" : "#ff3b30";
+    calcs.fiAge !== null && calcs.fiAge <= params.retirementAge ? "#0e1424" : "#ff3b30";
   const coverageColor =
-    calcs.passiveCoverage >= 100 ? "#34c759" : calcs.passiveCoverage >= 50 ? "#ff9500" : "#ff3b30";
+    calcs.passiveCoverage >= 100 ? "#0e1424" : calcs.passiveCoverage >= 50 ? "#ff9500" : "#ff3b30";
 
   return (
     <div className="space-y-4 px-4 pt-6 pb-8">
@@ -556,7 +556,7 @@ export function RetirementPage() {
           label="退休缺口"
           value={calcs.gap === 0 ? "已達標" : `${fmtWan(calcs.gap)} 元`}
           sub={calcs.gap === 0 ? "恭喜達成！" : "尚需累積"}
-          color={calcs.gap === 0 ? "#34c759" : "#ff3b30"}
+          color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
           icon={AlertTriangle}
           onClick={() => setOpenModal("gap")}
         />
@@ -727,13 +727,13 @@ export function RetirementPage() {
         <Row
           label="淨資產"
           value={`NT$ ${fmtWan(netAssets)}`}
-          color={netAssets >= 0 ? "#34c759" : "#ff3b30"}
+          color={netAssets >= 0 ? "#0e1424" : "#ff3b30"}
         />
         <Row label="退休目標總額" value={`NT$ ${fmtWan(calcs.tt)}`} />
         <Row
           label="退休缺口"
           value={calcs.gap === 0 ? "已達標 ✓" : `NT$ ${fmtWan(calcs.gap)}`}
-          color={calcs.gap === 0 ? "#34c759" : "#ff3b30"}
+          color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
         />
         <div className="mt-2 border-t border-[#f2f2f7] pt-2 text-[11px] text-[#8e8e93]">
           通膨調整後退休月支出：NT$ {fmtWan(Math.round(calcs.fme))} ／月 （今日購買力 NT${" "}
@@ -799,12 +799,12 @@ export function RetirementPage() {
           <AreaChart data={projData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="rGradBase" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#007aff" stopOpacity={0.18} />
-                <stop offset="100%" stopColor="#007aff" stopOpacity={0} />
+                <stop offset="0%" stopColor="#374254" stopOpacity={0.18} />
+                <stop offset="100%" stopColor="#374254" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="rGradOpt" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#34c759" stopOpacity={0.1} />
-                <stop offset="100%" stopColor="#34c759" stopOpacity={0} />
+                <stop offset="0%" stopColor="#0e1424" stopOpacity={0.1} />
+                <stop offset="100%" stopColor="#0e1424" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="rGradCons" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ff9500" stopOpacity={0.1} />
@@ -847,12 +847,12 @@ export function RetirementPage() {
             {calcs.tt > 0 && (
               <ReferenceLine
                 y={calcs.tt}
-                stroke="#34c759"
+                stroke="#0e1424"
                 strokeDasharray="4 3"
                 label={{
                   value: "目標",
                   position: "right",
-                  fill: "#34c759",
+                  fill: "#0e1424",
                   fontSize: 10,
                 }}
               />
@@ -880,7 +880,7 @@ export function RetirementPage() {
             <Area
               type="monotone"
               dataKey="opt"
-              stroke="#34c759"
+              stroke="#0e1424"
               strokeWidth={1}
               fill="url(#rGradOpt)"
               dot={false}
@@ -889,7 +889,7 @@ export function RetirementPage() {
             <Area
               type="monotone"
               dataKey="base"
-              stroke="#007aff"
+              stroke="#374254"
               strokeWidth={2}
               fill="url(#rGradBase)"
               dot={false}
@@ -900,8 +900,8 @@ export function RetirementPage() {
         <div className="mt-2 flex justify-center gap-4">
           {(
             [
-              { color: "#34c759", label: `樂觀 (+2%)` },
-              { color: "#007aff", label: "基準" },
+              { color: "#0e1424", label: `樂觀 (+2%)` },
+              { color: "#374254", label: "基準" },
               { color: "#ff9500", label: `保守 (-2%)` },
             ] as const
           ).map(({ color, label }) => (
@@ -931,7 +931,7 @@ export function RetirementPage() {
             step={0.5}
             value={sensRate}
             onChange={(e) => setSensRate(parseFloat(e.target.value))}
-            className="w-full accent-[#007aff]"
+            className="w-full accent-[#374254]"
           />
           <div className="flex justify-between text-[10px] text-[#8e8e93]">
             <span>1%</span>
@@ -951,7 +951,7 @@ export function RetirementPage() {
             step={1}
             value={sensAge}
             onChange={(e) => setSensAge(parseInt(e.target.value))}
-            className="w-full accent-[#007aff]"
+            className="w-full accent-[#374254]"
           />
           <div className="flex justify-between text-[10px] text-[#8e8e93]">
             <span>40歲</span>
@@ -977,7 +977,7 @@ export function RetirementPage() {
                   className="text-[17px] font-bold"
                   style={{
                     color:
-                      sensCalc.delta === 0 ? "#8e8e93" : sensCalc.delta < 0 ? "#34c759" : "#ff3b30",
+                      sensCalc.delta === 0 ? "#8e8e93" : sensCalc.delta < 0 ? "#0e1424" : "#ff3b30",
                   }}
                 >
                   {sensCalc.delta === 0
@@ -1012,7 +1012,7 @@ export function RetirementPage() {
                   style={{
                     color:
                       stress.crash20 >= 30
-                        ? "#34c759"
+                        ? "#0e1424"
                         : stress.crash20 >= 20
                           ? "#ff9500"
                           : "#ff3b30",
@@ -1038,7 +1038,7 @@ export function RetirementPage() {
                   style={{
                     color:
                       stress.highInfl >= 30
-                        ? "#34c759"
+                        ? "#0e1424"
                         : stress.highInfl >= 20
                           ? "#ff9500"
                           : "#ff3b30",
@@ -1089,7 +1089,7 @@ export function RetirementPage() {
                     <tr key={row.age} className="border-b border-[#f2f2f7] last:border-0">
                       <td className="py-1.5 pr-2 text-[#1c1c1e]">{row.age}歲</td>
                       <td className="py-1.5 pr-2 text-right text-[#8e8e93]">{row.year}</td>
-                      <td className="py-1.5 pr-2 text-right text-[#34c759]">
+                      <td className="py-1.5 pr-2 text-right text-[#0e1424]">
                         +{fmtWan(row.returns)}
                       </td>
                       <td className="py-1.5 pr-2 text-right text-[#ff3b30]">

@@ -44,7 +44,7 @@ function CustomTooltip({ active, payload, showTWD }: CustomTooltipProps) {
       <p className="font-semibold text-[#1c1c1e]">
         {row.age}歲 ({row.year})
       </p>
-      <p className="text-[#34c759]">{formatted}</p>
+      <p className="text-[#0e1424]">{formatted}</p>
     </div>
   );
 }
@@ -86,8 +86,8 @@ export default function RetirementProjectionChart({ insurance, exchangeRate }: P
         <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="retirementGreen" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#34c759" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#34c759" stopOpacity={0} />
+              <stop offset="0%" stopColor="#0e1424" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#0e1424" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis
@@ -119,11 +119,11 @@ export default function RetirementProjectionChart({ insurance, exchangeRate }: P
           <Area
             type="monotone"
             dataKey="displayValue"
-            stroke="#34c759"
+            stroke="#0e1424"
             strokeWidth={2}
             fill="url(#retirementGreen)"
             dot={false}
-            activeDot={{ r: 4, fill: "#34c759" }}
+            activeDot={{ r: 4, fill: "#0e1424" }}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -140,7 +140,7 @@ export default function RetirementProjectionChart({ insurance, exchangeRate }: P
             step={0.25}
             value={declaredRate}
             onChange={(e) => setDeclaredRate(parseFloat(e.target.value))}
-            className="w-full accent-[#34c759]"
+            className="w-full accent-[#0e1424]"
           />
           <div className="flex justify-between text-[10px] text-[#8e8e93]">
             <span>1%</span>
@@ -153,7 +153,7 @@ export default function RetirementProjectionChart({ insurance, exchangeRate }: P
           <button
             onClick={() => setShowTWD(false)}
             className={`rounded-full px-3 py-1 text-[12px] ${
-              !showTWD ? "bg-[#34c759] text-white" : "bg-[#f2f2f7] text-[#8e8e93]"
+              !showTWD ? "bg-[#0e1424] text-white" : "bg-[#f2f2f7] text-[#8e8e93]"
             }`}
           >
             USD
@@ -161,7 +161,7 @@ export default function RetirementProjectionChart({ insurance, exchangeRate }: P
           <button
             onClick={() => setShowTWD(true)}
             className={`rounded-full px-3 py-1 text-[12px] ${
-              showTWD ? "bg-[#34c759] text-white" : "bg-[#f2f2f7] text-[#8e8e93]"
+              showTWD ? "bg-[#0e1424] text-white" : "bg-[#f2f2f7] text-[#8e8e93]"
             }`}
           >
             TWD

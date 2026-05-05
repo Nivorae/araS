@@ -9,10 +9,10 @@
   --color-foreground-secondary: #8e8e93;
   --color-foreground-tertiary: #c7c7cc;
   --color-separator: #e5e5ea;
-  --color-finance-green: #34c759;
+  --color-finance-green: #0e1424;
   --color-finance-red: #ff3b30;
-  --color-finance-blue: #007aff;
-  --color-primary: #007aff;
+  --color-finance-blue: #374254;
+  --color-primary: #374254;
   --color-primary-foreground: #ffffff;
   --color-card: #ffffff;
   --color-card-foreground: #1c1c1e;
@@ -20,7 +20,7 @@
   --color-muted-foreground: #8e8e93;
   --color-border: #e5e5ea;
   --color-input: #f2f2f7;
-  --color-ring: #007aff;
+  --color-ring: #374254;
   --radius: 0.75rem;
   --radius-lg: 1rem;
   --radius-md: 0.625rem;

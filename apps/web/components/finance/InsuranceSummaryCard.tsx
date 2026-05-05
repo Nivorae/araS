@@ -53,7 +53,7 @@ export function InsuranceSummaryCard({ insuranceEntries }: Props) {
       </div>
 
       {/* Current value */}
-      <p className="text-[28px] font-bold" style={{ color: "#34c759" }}>
+      <p className="text-[28px] font-bold" style={{ color: "#0e1424" }}>
         ${totalCurrentValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
       </p>
       <p className="mt-0.5 text-[12px] text-[#8e8e93]">
@@ -73,7 +73,7 @@ export function InsuranceSummaryCard({ insuranceEntries }: Props) {
         <div className="h-2 overflow-hidden rounded-full bg-[#f2f2f7]">
           <div
             className="h-full rounded-full transition-all"
-            style={{ width: `${progressWidth}%`, backgroundColor: "#34c759" }}
+            style={{ width: `${progressWidth}%`, backgroundColor: "#0e1424" }}
           />
         </div>
       </div>

@@ -48,7 +48,7 @@ export default function TransactionsPage() {
     ];
   }, [tab, liquidityData, investmentData]);
 
-  const activeTabColor = tab === "investment" ? "#5856D6" : "#34C759";
+  const activeTabColor = tab === "investment" ? "#66788E" : "#0e1424";
 
   return (
     <div className="px-4 pt-6">

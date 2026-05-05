@@ -19,6 +19,7 @@ const ASSET_ICON_MAP: Record<string, string> = {
 export interface StackCategory {
   name: string;
   color: string;
+  textColor: string;
   isLiability: boolean;
   entries: Entry[];
   total: number;
@@ -120,8 +121,10 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
             >
               {/* Always-visible header */}
               <div className="flex flex-col items-center pt-[14px]">
-                <p className="text-[18px] font-extrabold text-[#1c1c1e]">{cat.name}</p>
-                <p className="mt-[3px] text-[12px] text-black/45">
+                <p className="text-[18px] font-extrabold" style={{ color: cat.textColor }}>
+                  {cat.name}
+                </p>
+                <p className="mt-[3px] text-[12px]" style={{ color: cat.textColor, opacity: 0.5 }}>
                   {hideBalance ? "••••••" : formatCurrency(cat.total)}
                 </p>
               </div>

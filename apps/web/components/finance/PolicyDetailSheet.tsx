@@ -152,7 +152,7 @@ export function PolicyDetailSheet({ open, insurance, onClose, onRateUpdated }: P
                 ≈ {twd(insurance.surrenderValue, rate)}
               </p>
               {insurance.accumulatedBonus > 0 && (
-                <p className="mt-1.5 text-[11px] text-[#34c759]">
+                <p className="mt-1.5 text-[11px] text-[#0e1424]">
                   含增值回饋金 +{usd(insurance.accumulatedBonus)}
                 </p>
               )}
@@ -174,7 +174,7 @@ export function PolicyDetailSheet({ open, insurance, onClose, onRateUpdated }: P
                   </span>
                   <button
                     onClick={openRatePicker}
-                    className="flex items-center gap-1 rounded-full bg-[#007aff] px-2.5 py-1 text-[11px] font-semibold text-white active:opacity-80"
+                    className="flex items-center gap-1 rounded-full bg-[#374254] px-2.5 py-1 text-[11px] font-semibold text-white active:opacity-80"
                   >
                     <RefreshCw size={11} />
                     同步利率
@@ -251,7 +251,7 @@ export function PolicyDetailSheet({ open, insurance, onClose, onRateUpdated }: P
                         className="text-[13px] font-semibold"
                         style={
                           colored
-                            ? { color: usdVal >= 0 ? "#34c759" : "#ff3b30" }
+                            ? { color: usdVal >= 0 ? "#0e1424" : "#ff3b30" }
                             : { color: "#1c1c1e" }
                         }
                       >
@@ -333,7 +333,7 @@ export function PolicyDetailSheet({ open, insurance, onClose, onRateUpdated }: P
                           <p className="mt-0.5 text-[11px] text-[#8e8e93]">{r.prod_id}</p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-[18px] font-bold text-[#007aff]">{r.rate_m}%</p>
+                          <p className="text-[18px] font-bold text-[#374254]">{r.rate_m}%</p>
                           {applyingRate === r.rate_m && (
                             <p className="text-[10px] text-[#8e8e93]">套用中...</p>
                           )}

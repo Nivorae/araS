@@ -8,6 +8,7 @@ import { CATEGORIES, type CategoryNode, type TopCategory } from "./categoryConfi
 interface DrillTarget {
   title: string;
   color: string;
+  textColor: string;
   isLiability: boolean;
   topCategory: string;
   items: CategoryNode[];
@@ -57,6 +58,7 @@ export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
       setDrillTarget({
         title: node.name,
         color: topCat.color,
+        textColor: topCat.textColor,
         isLiability: topCat.isLiability,
         topCategory: topCat.name,
         items: node.children,
@@ -107,6 +109,9 @@ export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
           <div className="space-y-2 pb-8">
             {drillTarget.items.map((node) => {
               const Icon = node.icon;
+              const isDark = drillTarget.textColor === "#ffffff";
+              const iconColor = isDark ? drillTarget.color : "#3c3c3e";
+              const iconBg = isDark ? drillTarget.color + "20" : "rgba(0,0,0,0.06)";
               return (
                 <button
                   key={node.name}
@@ -115,9 +120,9 @@ export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
                 >
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-xl"
-                    style={{ backgroundColor: drillTarget.color + "20" }}
+                    style={{ backgroundColor: iconBg }}
                   >
-                    <Icon size={20} style={{ color: drillTarget.color }} />
+                    <Icon size={20} style={{ color: iconColor }} />
                   </div>
                   <p className="text-[16px] font-medium text-[#1c1c1e]">{node.name}</p>
                 </button>
@@ -142,11 +147,13 @@ export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
                     className="flex w-full items-center justify-between px-5 py-5 active:opacity-80"
                     style={{ backgroundColor: topCat.color }}
                   >
-                    <p className="text-[18px] font-semibold text-[#1c1c1e]">{topCat.name}</p>
+                    <p className="text-[18px] font-semibold" style={{ color: topCat.textColor }}>
+                      {topCat.name}
+                    </p>
                     {isExpanded ? (
-                      <ChevronDown size={18} className="text-[#1c1c1e] opacity-60" />
+                      <ChevronDown size={18} style={{ color: topCat.textColor, opacity: 0.6 }} />
                     ) : (
-                      <ChevronRight size={18} className="text-[#1c1c1e] opacity-60" />
+                      <ChevronRight size={18} style={{ color: topCat.textColor, opacity: 0.6 }} />
                     )}
                   </button>
 
@@ -161,6 +168,9 @@ export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
                           const Icon = node.icon;
                           const hasChildren = !!(node.children && node.children.length > 0);
                           const isLast = idx === topCat.children.length - 1;
+                          const isDark = topCat.textColor === "#ffffff";
+                          const iconColor = isDark ? topCat.color : "#3c3c3e";
+                          const iconBg = isDark ? topCat.color + "20" : "rgba(0,0,0,0.06)";
                           return (
                             <div key={node.name}>
                               <button
@@ -169,9 +179,9 @@ export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
                               >
                                 <div
                                   className="flex h-9 w-9 items-center justify-center rounded-xl"
-                                  style={{ backgroundColor: topCat.color + "20" }}
+                                  style={{ backgroundColor: iconBg }}
                                 >
-                                  <Icon size={18} style={{ color: topCat.color }} />
+                                  <Icon size={18} style={{ color: iconColor }} />
                                 </div>
                                 <p className="flex-1 text-[15px] font-medium text-[#1c1c1e]">
                                   {node.name}

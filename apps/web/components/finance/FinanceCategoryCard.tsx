@@ -224,7 +224,7 @@ export function FinanceCategoryCard({
                           {item.gain != null && (
                             <p
                               className="text-[12px] font-medium"
-                              style={{ color: item.gain >= 0 ? "#34c759" : "#ff3b30" }}
+                              style={{ color: item.gain >= 0 ? "#0e1424" : "#ff3b30" }}
                             >
                               {item.gain >= 0 ? "+" : ""}
                               {formatCurrency(item.gain)}

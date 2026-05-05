@@ -542,7 +542,7 @@ export function AccountFormPage({
                           />
                           <button
                             onClick={() => setIsPriceManual(false)}
-                            className="shrink-0 text-[12px] text-[#007aff]"
+                            className="shrink-0 text-[12px] text-[#374254]"
                           >
                             自動
                           </button>
@@ -569,7 +569,7 @@ export function AccountFormPage({
                               {currency} × {exchangeRate.toFixed(2)}
                             </p>
                           )}
-                          <p className="mt-0.5 text-[11px] text-[#007aff]">手動輸入</p>
+                          <p className="mt-0.5 text-[11px] text-[#374254]">手動輸入</p>
                         </button>
                       )}
                     </div>
@@ -690,7 +690,7 @@ export function AccountFormPage({
               <button
                 onClick={() => setIncludeInChart((v) => !v)}
                 className={`relative h-[30px] w-[52px] rounded-full transition-colors duration-200 ${
-                  includeInChart ? "bg-[#34c759]" : "bg-[#e5e5ea]"
+                  includeInChart ? "bg-[#0e1424]" : "bg-[#e5e5ea]"
                 }`}
               >
                 <span
