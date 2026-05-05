@@ -27,7 +27,7 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+    <nav className="fixed top-3 left-1/2 z-50 -translate-x-1/2">
       <div className="flex items-center gap-1 rounded-full bg-white/70 px-3 py-2 shadow-lg ring-1 ring-black/5 backdrop-blur-xl">
         {tabs.map(({ href, icon: Icon, label }) => {
           const active = pathname === href;
