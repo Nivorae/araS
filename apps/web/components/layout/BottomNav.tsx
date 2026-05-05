@@ -40,7 +40,7 @@ export function BottomNav() {
               onClick={() => navigate(href)}
               aria-label={label}
               disabled={loading}
-              className={`flex items-center justify-center rounded-full p-3 transition-colors ${
+              className={`flex cursor-pointer items-center justify-center rounded-full p-3 transition-colors ${
                 active ? "bg-black/8 text-black" : "text-[#c7c7cc] hover:text-[#8e8e93]"
               }`}
             >
@@ -59,7 +59,7 @@ export function BottomNav() {
             <button
               onClick={addAction}
               aria-label="新增"
-              className="flex h-9 w-9 items-center justify-center rounded-full active:opacity-80"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full active:opacity-80"
               style={{ backgroundColor: "#374254" }}
             >
               <Plus size={18} className="text-white" />

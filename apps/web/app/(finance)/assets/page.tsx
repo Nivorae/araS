@@ -175,7 +175,7 @@ export default function AssetsPage() {
     );
   }
 
-  const topHeightPct = isCardExpanded ? 28 : 50;
+  const topHeightPct = isCardExpanded ? 28 : 40;
   const bottomHeightPct = 100 - topHeightPct;
 
   return (
@@ -194,7 +194,10 @@ export default function AssetsPage() {
       >
         <div className="mb-1 flex items-center gap-2">
           <p className="text-[12px] font-semibold text-[#8e8e93]">Net Worth (TWD)</p>
-          <button onClick={() => setHideBalance((v) => !v)} className="active:opacity-60">
+          <button
+            onClick={() => setHideBalance((v) => !v)}
+            className="cursor-pointer active:opacity-60"
+          >
             {hideBalance ? (
               <EyeOff size={14} className="text-[#8e8e93]" />
             ) : (
@@ -202,8 +205,8 @@ export default function AssetsPage() {
             )}
           </button>
         </div>
-        <p className="text-[34px] font-bold tracking-tight text-[#1c1c1e]">
-          {hideBalance ? "••••••" : formatCurrency(netWorth)}
+        <p className="text-[40px] font-bold tracking-tight text-[#1c1c1e]">
+          {hideBalance ? "araS" : formatCurrency(netWorth)}
         </p>
       </motion.div>
 

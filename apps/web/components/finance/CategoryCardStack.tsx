@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useImperativeHandle, forwardRef } from "react";
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Image from "next/image";
 import type { LucideIcon } from "lucide-react";
@@ -33,8 +33,8 @@ interface Props {
   onExpandChange: (expanded: boolean) => void;
 }
 
-const CARD_WIDTHS = [92, 84, 76, 68];
-const STACK_SPACING = 70;
+const MAX_STACK_SPACING = 70;
+const FRONT_CARD_HEADER_HEIGHT = 80; // px reserved so front card header is always visible
 
 export interface CategoryCardStackHandle {
   collapse: () => void;
@@ -47,6 +47,18 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
   ) {
     const [selectedName, setSelectedName] = useState<string | null>(null);
     const [hoveredName, setHoveredName] = useState<string | null>(null);
+    const [zoneHeight, setZoneHeight] = useState(400);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const ro = new ResizeObserver(([entry]) => {
+        if (entry) setZoneHeight(entry.contentRect.height);
+      });
+      ro.observe(el);
+      return () => ro.disconnect();
+    }, []);
 
     const collapse = () => {
       setSelectedName(null);
@@ -66,9 +78,17 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
     };
 
     const total = categories.length;
+    const spacing =
+      total > 1
+        ? Math.min(
+            MAX_STACK_SPACING,
+            Math.floor((zoneHeight - FRONT_CARD_HEADER_HEIGHT) / (total - 1))
+          )
+        : 0;
 
     return (
       <div
+        ref={containerRef}
         className="relative h-full w-full"
         onClick={() => {
           if (selectedName !== null) collapse();
@@ -77,9 +97,9 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
         {categories.map((cat, index) => {
           const isSelected = selectedName === cat.name;
           const isHovered = hoveredName === cat.name;
-          const widthPct = CARD_WIDTHS[Math.min(index, CARD_WIDTHS.length - 1)] ?? 68;
+          const widthPct = Math.max(50, 92 - index * 8);
           const leftPct = (100 - widthPct) / 2;
-          const defaultY = (total - 1 - index) * STACK_SPACING;
+          const defaultY = (total - 1 - index) * spacing;
           const zIndex = isSelected ? total + 1 : total - index;
 
           let animY: number;
@@ -110,13 +130,14 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                 e.stopPropagation();
                 handleCardClick(cat.name);
               }}
-              className="absolute top-0 cursor-pointer overflow-hidden rounded-[26px]"
+              className="absolute top-0 cursor-pointer overflow-hidden"
               style={{
                 width: `${widthPct}%`,
                 left: `${leftPct}%`,
                 height: isSelected ? "100%" : 420,
                 backgroundColor: cat.color,
                 boxShadow: "0 -2px 12px rgba(0,0,0,0.08)",
+                borderRadius: isSelected ? "26px 26px 0 0" : "26px",
               }}
             >
               {/* Always-visible header */}
