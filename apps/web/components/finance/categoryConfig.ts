@@ -13,13 +13,9 @@ import {
   Building2,
   Receipt,
   Landmark,
-  ArrowDownLeft,
-  WalletCards,
-  GraduationCap,
-  ShoppingCart,
   Flag,
-  Minus,
   Shield,
+  HandCoins,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -39,7 +35,7 @@ export interface TopCategory {
 export const CATEGORIES: TopCategory[] = [
   {
     name: "流動資金",
-    color: "#4CAF50",
+    color: "#ececec",
     isLiability: false,
     children: [
       { name: "現金", icon: Wallet },
@@ -55,9 +51,21 @@ export const CATEGORIES: TopCategory[] = [
       { name: "其他", icon: LayoutGrid },
     ],
   },
+
+  {
+    name: "固定資產",
+    color: "#66788E",
+    isLiability: false,
+    children: [
+      { name: "房屋", icon: Home },
+      { name: "車輛", icon: Car },
+      { name: "其他資產", icon: Building2 },
+      { name: "保險", icon: Shield },
+    ],
+  },
   {
     name: "投資",
-    color: "#5856D6",
+    color: "#374254",
     isLiability: false,
     children: [
       { name: "投資基金", icon: TrendingUp },
@@ -75,19 +83,8 @@ export const CATEGORIES: TopCategory[] = [
     ],
   },
   {
-    name: "固定資產",
-    color: "#7B7EC4",
-    isLiability: false,
-    children: [
-      { name: "房屋", icon: Home },
-      { name: "車輛", icon: Car },
-      { name: "其他資產", icon: Building2 },
-      { name: "保險", icon: Shield },
-    ],
-  },
-  {
     name: "應收款",
-    color: "#A0A8D8",
+    color: "#0e1424",
     isLiability: false,
     children: [{ name: "一般應收款", icon: Receipt }],
   },
@@ -96,20 +93,9 @@ export const CATEGORIES: TopCategory[] = [
     color: "#C7C7D4",
     isLiability: true,
     children: [
+      { name: "貸款", icon: Landmark },
       { name: "信用卡", icon: CreditCard },
-      {
-        name: "貸款",
-        icon: Landmark,
-        children: [
-          { name: "房屋貸款", icon: Home },
-          { name: "汽車貸款", icon: Car },
-          { name: "消費貸款", icon: ShoppingCart },
-          { name: "學生貸款", icon: GraduationCap },
-          { name: "其他貸款", icon: Minus },
-        ],
-      },
-      { name: "應付款", icon: ArrowDownLeft },
-      { name: "其他負債", icon: WalletCards },
+      { name: "其他負債", icon: HandCoins },
     ],
   },
 ];

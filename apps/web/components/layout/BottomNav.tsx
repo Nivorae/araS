@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, BarChart3, Shield, Landmark, Loader2, PiggyBank } from "lucide-react";
+import { Building2, BarChart3, Shield, Landmark, Loader2, PiggyBank, Plus } from "lucide-react";
+import { useNavContext } from "../../app/(finance)/nav-context";
 
 const tabs = [
   { href: "/assets", icon: Building2, label: "資產" },
@@ -17,6 +18,7 @@ export function BottomNav() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const { addAction } = useNavContext();
 
   const navigate = (href: string) => {
     if (href === pathname) return;
@@ -50,6 +52,20 @@ export function BottomNav() {
             </button>
           );
         })}
+
+        {addAction && (
+          <>
+            <div className="mx-1 h-5 w-px bg-black/10" />
+            <button
+              onClick={addAction}
+              aria-label="新增"
+              className="flex h-9 w-9 items-center justify-center rounded-full active:opacity-80"
+              style={{ backgroundColor: "#374254" }}
+            >
+              <Plus size={18} className="text-white" />
+            </button>
+          </>
+        )}
       </div>
     </nav>
   );

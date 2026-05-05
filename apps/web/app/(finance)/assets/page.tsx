@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Eye, EyeOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Wallet } from "lucide-react";
+import { useNavContext } from "../nav-context";
 import type { LucideIcon } from "lucide-react";
 import { motion } from "motion/react";
 import type { Entry } from "@repo/shared";
@@ -21,10 +22,11 @@ import { InsuranceDetailSheet } from "../../../components/finance/InsuranceDetai
 import type { Insurance } from "@repo/shared";
 import {
   CategoryCardStack,
+  type CategoryCardStackHandle,
   type StackCategory,
 } from "../../../components/finance/CategoryCardStack";
 
-const CARD_ORDER = ["流動資金", "負債", "固定資產", "應收款", "投資"];
+const CARD_ORDER = CATEGORIES.map((c) => c.name);
 
 interface FormConfig {
   topCategory: string;
@@ -43,6 +45,7 @@ interface EditItem {
 
 export default function AssetsPage() {
   const { fetchAll, entries, loading } = useFinanceStore();
+  const { setAddAction } = useNavContext();
   const [showMenu, setShowMenu] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [detailEntry, setDetailEntry] = useState<Entry | null>(null);
@@ -59,6 +62,7 @@ export default function AssetsPage() {
     color: string;
   } | null>(null);
   const [isCardExpanded, setIsCardExpanded] = useState(false);
+  const cardStackRef = useRef<CategoryCardStackHandle>(null);
 
   const loanDetailEntry =
     loanDetailLoanId != null ? entries.find((e) => e.loan?.id === loanDetailLoanId) : null;
@@ -69,6 +73,11 @@ export default function AssetsPage() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    setAddAction(() => () => setShowMenu(true));
+    return () => setAddAction(null);
+  }, [setAddAction]);
 
   const assets = entries.filter((e) => e.topCategory !== "負債");
   const liabilities = entries.filter((e) => e.topCategory === "負債");
@@ -81,13 +90,12 @@ export default function AssetsPage() {
   }, {});
 
   const stackCategories: StackCategory[] = CARD_ORDER.flatMap((name) => {
-    const catConfig = CATEGORIES.find((c) => c.name === name);
-    if (!catConfig) return [];
+    const catConfig = CATEGORIES.find((c) => c.name === name)!;
     const catEntries = groupedEntries[name] ?? [];
     if (catEntries.length === 0) return [];
     return [
       {
-        name: catConfig.name,
+        name,
         color: catConfig.color,
         isLiability: catConfig.isLiability,
         entries: catEntries,
@@ -170,16 +178,13 @@ export default function AssetsPage() {
   const bottomHeightPct = 100 - topHeightPct;
 
   return (
-    <div className="relative" style={{ height: "calc(100dvh - 64px)" }}>
-      {/* Plus button: fixed top-right, same row as BottomNav */}
-      <button
-        onClick={() => setShowMenu(true)}
-        className="fixed top-3 right-4 z-[51] flex h-9 w-9 items-center justify-center rounded-full shadow-md active:opacity-80"
-        style={{ backgroundColor: "#5856D6" }}
-      >
-        <Plus size={18} className="text-white" />
-      </button>
-
+    <div
+      className="relative overflow-hidden"
+      style={{ height: "calc(100dvh - 64px)" }}
+      onClick={() => {
+        if (isCardExpanded) cardStackRef.current?.collapse();
+      }}
+    >
       {/* Top zone: net worth centered */}
       <motion.div
         animate={{ height: `${topHeightPct}%` }}
@@ -205,10 +210,11 @@ export default function AssetsPage() {
       <motion.div
         animate={{ height: `${bottomHeightPct}%` }}
         transition={{ type: "spring", stiffness: 200, damping: 28 }}
-        className="relative overflow-hidden"
+        className="relative overflow-visible"
       >
         {stackCategories.length > 0 ? (
           <CategoryCardStack
+            ref={cardStackRef}
             categories={stackCategories}
             hideBalance={hideBalance}
             getEntryIcon={(topCategory, subCategory) => getNodeIcon(topCategory, subCategory)}
