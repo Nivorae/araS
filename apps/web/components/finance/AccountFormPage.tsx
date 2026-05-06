@@ -7,7 +7,6 @@ import type { LucideIcon } from "lucide-react";
 import { useFinanceStore } from "../../store/useFinanceStore";
 import { StockPickerPage, type StockItem } from "./StockPickerPage";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
-import { InsuranceFormFields, type InsuranceFormValues } from "./InsuranceFormFields";
 
 interface EditItem {
   id: string;
@@ -48,7 +47,6 @@ function getUnitsLabel(subCategoryName: string): string {
 const INVESTMENT_CATEGORIES = ["投資基金", "台股", "美股", "加密貨幣", "貴金屬", "其他投資"];
 const STOCK_PICKER_CATEGORIES = ["台股", "美股", "加密貨幣", "貴金屬"];
 const LOAN_SUBCATEGORIES = ["房屋貸款", "汽車貸款", "消費貸款", "學生貸款", "其他貸款"];
-const INSURANCE_SUBCATEGORY = "保險";
 
 const METAL_YF_SYMBOL: Record<string, string> = {
   xau: "GC=F", // Gold Futures
@@ -95,7 +93,6 @@ export function AccountFormPage({
   const isEdit = !!editItem;
   const isInvestment = topCategory === "投資" && INVESTMENT_CATEGORIES.includes(subCategoryName);
   const isLoan = LOAN_SUBCATEGORIES.includes(subCategoryName);
-  const isInsurance = subCategoryName === INSURANCE_SUBCATEGORY;
   const hasStockPicker = STOCK_PICKER_CATEGORIES.includes(subCategoryName);
 
   // Standard form state
@@ -129,13 +126,6 @@ export function AccountFormPage({
     startDate: new Date().toISOString().split("T")[0] ?? "",
     gracePeriodMonths: "0",
     repaymentType: "principal_interest",
-  });
-  const [insuranceValues, setInsuranceValues] = useState<InsuranceFormValues>({
-    declaredRate: 3.0,
-    premiumTotal: 0,
-    currentAge: 33,
-    startDate: new Date().toISOString().split("T")[0] ?? "",
-    cashValueData: [],
   });
 
   const computedValue = useMemo(() => {
@@ -176,16 +166,6 @@ export function AccountFormPage({
         startDate: new Date().toISOString().split("T")[0] ?? "",
         gracePeriodMonths: "0",
         repaymentType: "principal_interest",
-      });
-    }
-
-    if (isInsurance) {
-      setInsuranceValues({
-        declaredRate: 3.0,
-        premiumTotal: 0,
-        currentAge: 33,
-        startDate: new Date().toISOString().split("T")[0] ?? "",
-        cashValueData: [],
       });
     }
 
@@ -269,16 +249,7 @@ export function AccountFormPage({
     return () => {
       cancelled = true;
     };
-  }, [
-    open,
-    editItem,
-    nameSuggestion,
-    isInvestment,
-    hasStockPicker,
-    subCategoryName,
-    isInsurance,
-    isLoan,
-  ]);
+  }, [open, editItem, nameSuggestion, isInvestment, hasStockPicker, subCategoryName, isLoan]);
 
   const handleSelectStock = (stock: StockItem) => {
     setSelectedStock(stock);
@@ -362,7 +333,7 @@ export function AccountFormPage({
 
   const handleSubmit = async () => {
     if (isLoan && !validateLoan()) return;
-    if (!isLoan && !isInsurance && !validateGeneral()) return;
+    if (!isLoan && !validateGeneral()) return;
     setFormError(null);
     setSubmitting(true);
     try {
@@ -382,28 +353,6 @@ export function AccountFormPage({
           }),
         });
         if (!res.ok) throw new Error("貸款建立失敗");
-        await fetchAll();
-      } else if (isInsurance) {
-        const finalName = name.trim() || INSURANCE_SUBCATEGORY;
-        const res = await fetch("/api/insurance", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: finalName,
-            declaredRate: insuranceValues.declaredRate,
-            ...(insuranceValues.premiumTotal > 0
-              ? { premiumTotal: insuranceValues.premiumTotal }
-              : {}),
-            currentAge: insuranceValues.currentAge,
-            startDate: new Date(insuranceValues.startDate).toISOString(),
-            cashValueData: insuranceValues.cashValueData,
-          }),
-        });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => null);
-          console.error("insurance POST failed", JSON.stringify(errBody, null, 2));
-          throw new Error("保險建立失敗");
-        }
         await fetchAll();
       } else {
         const value = isInvestment ? computedValue : parseFloat(balance) || 0;
@@ -484,9 +433,7 @@ export function AccountFormPage({
 
           {/* Main form card */}
           <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-            {isInsurance ? (
-              <InsuranceFormFields values={insuranceValues} onChange={setInsuranceValues} />
-            ) : isLoan ? (
+            {isLoan ? (
               <LoanFormFields
                 values={loanValues}
                 color={categoryColor}

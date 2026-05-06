@@ -19,7 +19,6 @@ model Entry {
   updatedAt   DateTime       @updatedAt
   history     EntryHistory[]
   loan        Loan?
-  insurance   Insurance?
 
   @@index([topCategory])
 }
@@ -43,29 +42,6 @@ model Loan {
 enum RepaymentType {
   principal_interest
   principal_equal
-}
-
-model Insurance {
-  id                     String    @id @default(cuid())
-  entryId                String    @unique
-  entry                  Entry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  currency               String    @default("USD")
-  declaredRate           Float     @default(0)
-  premiumTotal           Float?
-  currentAge             Int       @default(0)
-  startDate              DateTime
-  cashValueData          Json      @default("[]")
-  // New fields for interest-sensitive whole-life policies
-  policyNumber           String?
-  insurer                String?
-  sumInsured             Float     @default(0)
-  surrenderValue         Float     @default(0)
-  accumulatedBonus       Float     @default(0)
-  accumulatedSumIncrease Float     @default(0)
-  lastUpdatedAt          DateTime?
-  isPeriodicPayout       Boolean   @default(true)
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
 }
 
 model EntryHistory {

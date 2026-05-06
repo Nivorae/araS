@@ -5,7 +5,7 @@ export class EntriesService {
   async list() {
     const entries = await prisma.entry.findMany({
       orderBy: { createdAt: "desc" },
-      include: { loan: true, insurance: true, history: { select: { units: true } } },
+      include: { loan: true, history: { select: { units: true } } },
     });
     return entries.map(({ history, ...e }) => ({
       ...e,
@@ -18,7 +18,7 @@ export class EntriesService {
   async findById(id: string) {
     return prisma.entry.findUnique({
       where: { id },
-      include: { loan: true, insurance: true },
+      include: { loan: true },
     });
   }
 

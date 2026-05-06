@@ -18,8 +18,6 @@ import {
   getTopCategory,
 } from "../../../components/finance/categoryConfig";
 import { LoanDetailSheet } from "../../../components/finance/LoanDetailSheet";
-import { InsuranceDetailSheet } from "../../../components/finance/InsuranceDetailSheet";
-import type { Insurance } from "@repo/shared";
 import {
   CategoryCardStack,
   type CategoryCardStackHandle,
@@ -56,11 +54,6 @@ export default function AssetsPage() {
   const [showLoanDetail, setShowLoanDetail] = useState(false);
   const [loanDetailLoanId, setLoanDetailLoanId] = useState<string | null>(null);
   const [loanDetailColor, setLoanDetailColor] = useState("#C7C7D4");
-  const [showInsuranceDetail, setShowInsuranceDetail] = useState(false);
-  const [insuranceDetailData, setInsuranceDetailData] = useState<{
-    insurance: Insurance;
-    color: string;
-  } | null>(null);
   const [isCardExpanded, setIsCardExpanded] = useState(false);
   const cardStackRef = useRef<CategoryCardStackHandle>(null);
 
@@ -111,10 +104,6 @@ export default function AssetsPage() {
       setLoanDetailLoanId(entry.loan.id);
       setLoanDetailColor(topCat?.color ?? "#C7C7D4");
       setShowLoanDetail(true);
-    } else if (entry.insurance) {
-      const topCat = getTopCategory(entry.topCategory);
-      setInsuranceDetailData({ insurance: entry.insurance, color: topCat?.color ?? "#7B7EC4" });
-      setShowInsuranceDetail(true);
     } else {
       setDetailEntry(entry);
       setShowDetail(true);
@@ -286,19 +275,6 @@ export default function AssetsPage() {
           onRateUpdated={fetchAll}
           onSynced={fetchAll}
           onDeleted={fetchAll}
-        />
-      )}
-
-      {insuranceDetailData && (
-        <InsuranceDetailSheet
-          open={showInsuranceDetail}
-          insurance={insuranceDetailData.insurance}
-          color={insuranceDetailData.color}
-          onClose={() => {
-            setShowInsuranceDetail(false);
-            setInsuranceDetailData(null);
-          }}
-          onRateUpdated={fetchAll}
         />
       )}
     </div>
