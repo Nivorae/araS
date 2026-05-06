@@ -252,7 +252,7 @@ export function StockPickerPage({ open, onClose, onSelect, market, color, holdin
           ) : error ? (
             <div className="py-24 text-center">
               <p className="text-[14px] text-[#ff3b30]">{error}</p>
-              <button onClick={handleRetry} className="mt-3 text-[14px] font-medium text-[#007aff]">
+              <button onClick={handleRetry} className="mt-3 text-[14px] font-medium text-[#374254]">
                 重新載入
               </button>
             </div>

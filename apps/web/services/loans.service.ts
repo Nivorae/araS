@@ -1,6 +1,43 @@
 import { prisma } from "@/lib/prisma";
+import { d } from "@/lib/serialize";
 import type { CreateLoan, UpdateLoan, UpdateLoanRate } from "@repo/shared";
 import { calculateLoanStatus } from "@repo/shared";
+
+function serializeLoan<
+  T extends {
+    id: string;
+    entryId: string;
+    loanName: string;
+    totalAmount: import("@prisma/client").Prisma.Decimal;
+    annualInterestRate: import("@prisma/client").Prisma.Decimal;
+    termMonths: number;
+    startDate: Date;
+    gracePeriodMonths: number;
+    repaymentType: import("@prisma/client").RepaymentType;
+    overrideTermMonths: number | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+>(loan: T) {
+  return {
+    ...loan,
+    totalAmount: d(loan.totalAmount),
+    annualInterestRate: d(loan.annualInterestRate),
+  };
+}
+
+function serializeEntry(entry: {
+  id: string;
+  name: string;
+  topCategory: string;
+  subCategory: string;
+  stockCode: string | null;
+  value: import("@prisma/client").Prisma.Decimal;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return { ...entry, value: d(entry.value) };
+}
 
 export class LoansService {
   async create(data: CreateLoan) {
@@ -46,15 +83,18 @@ export class LoansService {
         },
       });
 
-      return { ...entry, loan };
+      return { ...serializeEntry(entry), loan: serializeLoan(loan) };
     });
   }
 
   async findById(id: string) {
-    return prisma.loan.findUnique({
+    const loan = await prisma.loan.findUnique({
       where: { id },
       include: { entry: true },
     });
+    if (!loan) return null;
+    const { entry, ...loanRest } = loan;
+    return { ...serializeLoan(loanRest), entry: serializeEntry(entry) };
   }
 
   async update(id: string, data: UpdateLoan) {
@@ -87,18 +127,19 @@ export class LoansService {
         });
       }
 
-      if (data.totalAmount !== undefined && data.totalAmount !== loan.entry.value) {
+      if (data.totalAmount !== undefined && data.totalAmount !== d(loan.entry.value)) {
         await tx.entryHistory.create({
           data: {
             entryId: loan.entryId,
-            delta: data.totalAmount - loan.entry.value,
+            delta: data.totalAmount - d(loan.entry.value),
             balance: data.totalAmount,
             note: "手動調整餘額",
           },
         });
       }
 
-      return loan;
+      const { entry, ...loanRest } = loan;
+      return { ...serializeLoan(loanRest), entry: serializeEntry(entry) };
     });
   }
 
@@ -107,8 +148,7 @@ export class LoansService {
       where: { id },
       data: { annualInterestRate: data.annualInterestRate },
     });
-
-    return loan;
+    return serializeLoan(loan);
   }
 
   async syncBalance(

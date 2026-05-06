@@ -43,7 +43,7 @@ export function PortfolioSection({ portfolio }: Props) {
             <p>尚無投資項目</p>
             <button
               onClick={() => setShowAdd(true)}
-              className="mt-2 text-sm font-medium text-[#007aff]"
+              className="mt-2 text-sm font-medium text-[#374254]"
             >
               新增第一筆
             </button>
@@ -77,7 +77,7 @@ export function PortfolioSection({ portfolio }: Props) {
                       <span
                         className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
                           isGain
-                            ? "bg-[#34c759]/15 text-[#34c759]"
+                            ? "bg-[#0e1424]/15 text-[#0e1424]"
                             : "bg-[#ff3b30]/10 text-[#ff3b30]"
                         }`}
                       >

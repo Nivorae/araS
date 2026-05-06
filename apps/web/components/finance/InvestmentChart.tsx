@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import type { InvestmentPoint } from "../../lib/chartAggregation";
 
 function formatY(value: number): string {
@@ -8,10 +8,22 @@ function formatY(value: number): string {
   return `${value}`;
 }
 
-export function InvestmentChart({ data }: { data: InvestmentPoint[] }) {
+export function InvestmentChart({
+  data,
+  height = 220,
+}: {
+  data: InvestmentPoint[];
+  height?: number | `${number}%`;
+}) {
   return (
-    <div style={{ borderRight: "2px solid #1c1c1e", borderBottom: "2px solid #1c1c1e" }}>
-      <ResponsiveContainer width="100%" height={220}>
+    <div
+      style={{
+        borderRight: "2px solid #1c1c1e",
+        borderBottom: "2px solid #1c1c1e",
+        height: "100%",
+      }}
+    >
+      <ResponsiveContainer width="100%" height={height}>
         <BarChart
           data={data}
           barGap={2}
@@ -32,15 +44,15 @@ export function InvestmentChart({ data }: { data: InvestmentPoint[] }) {
             tick={{ fontSize: 11, fill: "#8e8e93" }}
             width={36}
           />
-          <Legend
+          {/* <Legend
             iconType="square"
             iconSize={12}
             wrapperStyle={{ fontSize: 12, paddingBottom: 8 }}
             verticalAlign="top"
             align="left"
-          />
-          <Bar dataKey="totalAssets" name="資產總值" fill="#a8a4e8" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="netWorth" name="帳面損益" fill="#5856d6" radius={[2, 2, 0, 0]} />
+          /> */}
+          <Bar dataKey="totalAssets" name="資產總值" fill="#374254" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="netWorth" name="帳面損益" fill="#66788E" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

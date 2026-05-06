@@ -1,6 +1,6 @@
 import type { Transaction, ValueSnapshot } from "@repo/shared";
 
-export type Range = "5w" | "6m" | "1y" | "4y";
+export type Range = "5w" | "5m" | "6m" | "1y" | "4y";
 
 export interface LiquidityPoint {
   period: string;
@@ -72,6 +72,12 @@ function buildPeriods(range: Range): string[] {
     for (let i = 0; i < 5; i++) {
       keys.push(d.toISOString().slice(0, 10));
       d.setDate(d.getDate() + 7);
+    }
+  } else if (range === "5m") {
+    const d = new Date(now.getFullYear(), now.getMonth() - 4, 1);
+    for (let i = 0; i < 5; i++) {
+      keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      d.setMonth(d.getMonth() + 1);
     }
   } else if (range === "6m") {
     const d = new Date(now.getFullYear(), now.getMonth() - 5, 1);

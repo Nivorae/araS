@@ -32,8 +32,8 @@ export function AddItemActionSheet({ open, onClose, onAddAsset, onAddLiability }
               }}
               className="flex w-full items-center gap-3 border-b border-[#f2f2f7] px-5 py-4 transition-colors active:bg-[#f2f2f7]"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#34c759]/15">
-                <Building2 size={16} className="text-[#34c759]" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0e1424]/15">
+                <Building2 size={16} className="text-[#0e1424]" />
               </div>
               <div className="text-left">
                 <p className="text-[15px] font-medium text-[#1c1c1e]">新增資產</p>
@@ -58,7 +58,7 @@ export function AddItemActionSheet({ open, onClose, onAddAsset, onAddLiability }
           </div>
           <button
             onClick={onClose}
-            className="w-full rounded-2xl bg-white py-4 text-[17px] font-semibold text-[#007aff] transition-colors active:bg-[#f2f2f7]"
+            className="w-full rounded-2xl bg-white py-4 text-[17px] font-semibold text-[#374254] transition-colors active:bg-[#f2f2f7]"
           >
             取消
           </button>

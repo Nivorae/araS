@@ -10,9 +10,9 @@ interface Props {
 }
 
 const COLORS = [
-  "#34c759", // green — 流動資金
-  "#5856d6", // indigo — 投資
-  "#007aff", // blue — 固定資產
+  "#0e1424", // green — 流動資金
+  "#66788E", // indigo — 投資
+  "#374254", // blue — 固定資產
   "#af52de", // purple
   "#ff9500", // orange
   "#ff3b30", // red — 負債

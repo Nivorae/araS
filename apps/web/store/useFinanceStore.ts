@@ -48,6 +48,7 @@ interface FinanceState {
   valueSnapshots: ValueSnapshot[];
   loading: boolean;
   error: string | null;
+  lastFetchedAt: number | null;
   fetchAll: () => Promise<void>;
   addEntry: (data: CreateEntry) => Promise<void>;
   updateEntry: (id: string, data: UpdateEntry) => Promise<void>;
@@ -67,8 +68,11 @@ export const useFinanceStore = create<FinanceState>()(
       valueSnapshots: [],
       loading: true,
       error: null,
+      lastFetchedAt: null,
 
       fetchAll: async () => {
+        const { lastFetchedAt } = get();
+        if (lastFetchedAt && Date.now() - lastFetchedAt < 30_000) return;
         set({ loading: true, error: null });
         try {
           const [entries, transactions, portfolio] = await Promise.all([
@@ -81,7 +85,14 @@ export const useFinanceStore = create<FinanceState>()(
               s.valueSnapshots.length === 0 && entries.length > 0
                 ? [makeSnapshot(entries)]
                 : s.valueSnapshots;
-            return { entries, transactions, portfolio, valueSnapshots: snapshots, loading: false };
+            return {
+              entries,
+              transactions,
+              portfolio,
+              valueSnapshots: snapshots,
+              loading: false,
+              lastFetchedAt: Date.now(),
+            };
           });
         } catch (e) {
           set({ loading: false, error: e instanceof Error ? e.message : "Failed to fetch data" });

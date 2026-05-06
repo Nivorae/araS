@@ -18,10 +18,13 @@ import {
   ChevronDown,
   ChevronUp,
   Activity,
+  PiggyBank,
 } from "lucide-react";
 import { useFinanceStore } from "../../store/useFinanceStore";
 
 const STORAGE_KEY = "retirement_params_v1";
+
+const WAVE_CSS = `@keyframes piggy-water-bob{from{transform:translateY(-2px)}to{transform:translateY(2px)}}@keyframes modal-slide-up{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes modal-slide-down{from{transform:translateY(0)}to{transform:translateY(100%)}}@keyframes modal-scrim-in{from{opacity:0}to{opacity:1}}@keyframes modal-scrim-out{from{opacity:1}to{opacity:0}}`;
 
 interface Params {
   currentAge: number;
@@ -135,21 +138,30 @@ function NumberInput({
 function MetricCard({
   label,
   value,
+  unit,
   sub,
   color = "#1c1c1e",
+  bg = "white",
+  labelColor = "#8e8e93",
+  iconColor = "#8e8e93",
   icon: Icon,
   onClick,
 }: {
   label: string;
   value: string;
-  sub?: string;
-  color?: string;
+  unit?: string | undefined;
+  sub?: string | undefined;
+  color?: string | undefined;
+  bg?: string | undefined;
+  labelColor?: string | undefined;
+  iconColor?: string | undefined;
   icon: React.ElementType;
-  onClick?: () => void;
+  onClick?: (() => void) | undefined;
 }) {
   return (
     <div
-      className={`rounded-2xl bg-white px-4 py-3 shadow-sm${onClick ? "cursor-pointer transition-shadow hover:shadow-md" : ""}`}
+      className={`rounded-2xl px-4 py-5 ${onClick ? "cursor-pointer active:opacity-75" : ""}`}
+      style={{ background: bg }}
       role={onClick ? "button" : undefined}
       onClick={onClick}
       onKeyDown={
@@ -165,14 +177,27 @@ function MetricCard({
       tabIndex={onClick ? 0 : undefined}
       data-testid={onClick ? `metric-${label}` : undefined}
     >
-      <div className="mb-1 flex items-center gap-1.5">
-        <Icon size={13} className="text-[#8e8e93]" />
-        <span className="text-[12px] text-[#8e8e93]">{label}</span>
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-medium tracking-wide" style={{ color: labelColor }}>
+          {label}
+        </span>
+        <Icon size={13} style={{ color: iconColor }} />
       </div>
-      <p className="text-[17px] font-bold" style={{ color }}>
-        {value}
-      </p>
-      {sub && <p className="mt-0.5 text-[11px] text-[#8e8e93]">{sub}</p>}
+      <div className="flex items-baseline gap-1">
+        <p className="text-[26px] leading-none font-bold" style={{ color }}>
+          {value}
+        </p>
+        {unit && (
+          <span className="text-[13px] font-semibold" style={{ color }}>
+            {unit}
+          </span>
+        )}
+      </div>
+      {sub && (
+        <p className="mt-2 text-[11px]" style={{ color: labelColor }}>
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
@@ -186,67 +211,112 @@ function SectionCard({ title, children }: { title: string; children: React.React
   );
 }
 
+const ANIMATION_DURATION = 330;
+
 function InfoModal({ content, onClose }: { content: ModalContent; onClose: () => void }) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(onClose, ANIMATION_DURATION);
+  };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        setIsClosing(true);
+        setTimeout(onClose, ANIMATION_DURATION);
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  const easing = "cubic-bezier(0.32,0.72,0,1)";
+  const dur = `${ANIMATION_DURATION}ms`;
+
   return (
-    <div
-      data-testid="modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      onClick={onClose}
-    >
+    <div data-testid="modal-backdrop" className="fixed inset-0 z-50" onClick={handleClose}>
+      {/* Scrim — fades in/out */}
+      <div
+        className="absolute inset-0 bg-black/30"
+        style={{
+          animation: isClosing
+            ? `modal-scrim-out ${dur} ${easing} forwards`
+            : `modal-scrim-in ${dur} ${easing}`,
+        }}
+      />
+
+      {/* Full-height bottom sheet */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={content.title}
-        className="w-full max-w-[320px] rounded-2xl bg-white p-5 shadow-xl"
+        className="absolute right-0 bottom-0 left-0 flex flex-col overflow-hidden rounded-t-3xl"
+        style={{
+          top: "54px",
+          overscrollBehavior: "contain",
+          animation: isClosing
+            ? `modal-slide-down ${dur} ${easing} forwards`
+            : `modal-slide-up ${dur} ${easing}`,
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 flex items-start justify-between">
-          <div>
-            <p className="text-[11px] text-[#8e8e93]">計算說明</p>
-            <p className="text-[16px] font-bold text-[#1c1c1e]">{content.title}</p>
-          </div>
-          <button
-            aria-label="關閉"
-            onClick={onClose}
-            className="text-[20px] leading-none text-[#8e8e93]"
-          >
-            ×
-          </button>
+        {/* Drag handle */}
+        <div className="pointer-events-none absolute top-3 right-0 left-0 z-10 flex justify-center">
+          <div className="h-1 w-8 rounded-full bg-white/20" />
         </div>
-        <p className="mb-3 text-[12px] leading-relaxed text-[#3c3c43]">{content.description}</p>
-        <div className="rounded-xl bg-[#f2f2f7] px-3 py-3 text-[11px]">
-          <p className="mb-2 text-[10px] font-semibold tracking-wide text-[#8e8e93] uppercase">
-            公式
+
+        {/* Block 1 — Hero: darkest, tallest */}
+        <div className="flex-shrink-0 bg-[#0e1424] px-6 pt-10 pb-8">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-[10px] font-bold tracking-widest text-white/40 uppercase">
+              計算說明
+            </span>
+            <button
+              aria-label="關閉"
+              onClick={handleClose}
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/10 text-[17px] leading-none text-white/60"
+            >
+              ×
+            </button>
+          </div>
+          <h2 className="text-[28px] font-bold text-white">{content.result.label}</h2>
+          <p className="mt-5 text-[40px] leading-none font-bold text-[#ff9500]">
+            {content.result.value}
           </p>
-          {content.steps.map((step) => (
-            <div key={step.label} className="flex justify-between py-0.5">
-              <span className="text-[#8e8e93]">{step.label}</span>
-              {step.value && (
-                <span className="ml-2 text-right font-medium text-[#1c1c1e]">{step.value}</span>
-              )}
-            </div>
-          ))}
-          <div className="my-2 border-t border-[#e5e5ea]" />
-          <div className="flex justify-between">
-            <span className="font-semibold text-[#1c1c1e]">{content.result.label}</span>
-            <span className="ml-2 text-right font-bold text-[#1c1c1e]">{content.result.value}</span>
-          </div>
+          <p className="mt-6 text-[13px] leading-relaxed text-white/70">{content.description}</p>
         </div>
-        <div className="mt-4 text-center">
-          <button
-            onClick={onClose}
-            className="rounded-xl bg-[#007aff] px-6 py-2 text-[13px] font-medium text-white"
-          >
-            了解了
-          </button>
+
+        {/* Block 3 — Formula: light gray, fills remaining space */}
+        <div className="flex-1 overflow-auto bg-[#f2f2f7] px-5 py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <p className="mb-3 text-[16px] font-bold tracking-widest text-[#8e8e93] uppercase">
+            計算公式
+          </p>
+          <div className="space-y-2">
+            {content.steps.map((step) => (
+              <div
+                key={step.label}
+                className="flex items-center justify-between rounded-2xl bg-white px-4 py-3.5"
+              >
+                <span className="text-[13px] text-[#8e8e93]">{step.label}</span>
+                {step.value && (
+                  <span className="ml-3 text-right text-[13px] font-semibold text-[#1c1c1e]">
+                    {step.value}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -529,592 +599,631 @@ export function RetirementPage() {
   );
 
   // Derived colors
-  const goalColor = calcs.goalPct >= 70 ? "#34c759" : calcs.goalPct >= 30 ? "#ff9500" : "#ff3b30";
+  const goalColor = calcs.goalPct >= 70 ? "#ff9500" : calcs.goalPct >= 30 ? "#66788E" : "#C7C7D4";
   const fiColor =
-    calcs.fiAge !== null && calcs.fiAge <= params.retirementAge ? "#34c759" : "#ff3b30";
+    calcs.fiAge !== null && calcs.fiAge <= params.retirementAge ? "#ff9500" : "#ff3C7C7D4b30";
   const coverageColor =
-    calcs.passiveCoverage >= 100 ? "#34c759" : calcs.passiveCoverage >= 50 ? "#ff9500" : "#ff3b30";
+    calcs.passiveCoverage >= 100 ? "#ff9500" : calcs.passiveCoverage >= 50 ? "#000000" : "#ffffff";
 
   return (
-    <div className="space-y-4 px-4 pt-6 pb-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-[22px] font-bold text-[#1c1c1e]">退休計劃</h1>
-        <p className="mt-0.5 text-[13px] text-[#8e8e93]">財務自由追蹤與模擬</p>
-      </div>
+    <>
+      {}
+      <style dangerouslySetInnerHTML={{ __html: WAVE_CSS }} />
+      <div className="space-y-4 px-4 pb-8">
+        {/* Header */}
+        <div
+          className="flex flex-col items-center justify-center gap-2"
+          style={{ height: "calc((100dvh - 64px) * 0.5)" }}
+        >
+          <div className="mb-1 text-center">
+            <h1 className="text-[22px] font-bold text-[#1c1c1e]">退休計劃</h1>
+            <p className="mt-0.5 text-[13px] text-[#8e8e93]">財務自由追蹤與模擬</p>
+          </div>
 
-      {/* Summary metric cards 2×2 */}
-      <div className="grid grid-cols-2 gap-3">
-        <MetricCard
-          label="目標總額"
-          value={`${fmtWan(calcs.tt)} 元`}
-          sub={`${params.swr}% SWR 法則`}
-          icon={Target}
-          onClick={() => setOpenModal("target")}
-        />
-        <MetricCard
-          label="退休缺口"
-          value={calcs.gap === 0 ? "已達標" : `${fmtWan(calcs.gap)} 元`}
-          sub={calcs.gap === 0 ? "恭喜達成！" : "尚需累積"}
-          color={calcs.gap === 0 ? "#34c759" : "#ff3b30"}
-          icon={AlertTriangle}
-          onClick={() => setOpenModal("gap")}
-        />
-        <MetricCard
-          label="財務自由預測"
-          value={calcs.fiYear ? `${calcs.fiYear} 年` : "100歲以上"}
-          sub={
-            calcs.fiAge ? `${calcs.fiAge}歲 · 距今${calcs.fiAge - params.currentAge}年` : "尚未達標"
-          }
-          color={fiColor}
-          icon={Calendar}
-          onClick={() => setOpenModal("fi")}
-        />
-        <MetricCard
-          label="被動收入覆蓋"
-          value={`${calcs.passiveCoverage.toFixed(1)}%`}
-          sub={`月 ${fmtWan(calcs.monthlyPassive)} 元`}
-          color={coverageColor}
-          icon={TrendingUp}
-          onClick={() => setOpenModal("passive")}
-        />
-      </div>
+          {/* Water-fill Piggy Bank */}
+          <button
+            data-testid="goal-progress-section"
+            onClick={() => setOpenModal("goal")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setOpenModal("goal");
+              }
+            }}
+            aria-label="目標達成率"
+            className="relative cursor-pointer focus:outline-none active:opacity-70"
+            style={{ width: 80, height: 80 }}
+          >
+            {/* Ghost outline — always full */}
+            <PiggyBank size={80} strokeWidth={1.5} className="text-[#e5e5ea]" />
+            {/* Water fill — clip sets the level, inner div bobs to mimic waves */}
+            <div
+              className="absolute inset-0"
+              style={{
+                clipPath: `inset(${Math.max(0, 100 - calcs.goalPct)}% 0 0 0)`,
+                transition: "clip-path 0.7s ease-in-out",
+              }}
+            >
+              <div style={{ animation: "piggy-water-bob 1.5s ease-in-out infinite alternate" }}>
+                <PiggyBank size={80} strokeWidth={2} style={{ color: goalColor }} />
+              </div>
+            </div>
+          </button>
 
-      {/* Goal progress bar */}
-      <div
-        data-testid="goal-progress-section"
-        className="cursor-pointer rounded-2xl bg-white px-4 py-4 shadow-sm transition-shadow hover:shadow-md"
-        onClick={() => setOpenModal("goal")}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setOpenModal("goal");
-          }
-        }}
-        tabIndex={0}
-        role="button"
-      >
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-[15px] font-semibold text-[#1c1c1e]">目標達成率</p>
-          <p className="text-[17px] font-bold" style={{ color: goalColor }}>
-            {calcs.goalPct.toFixed(1)}%
-          </p>
+          <div className="text-center">
+            <p className="text-[20px] font-bold" style={{ color: goalColor }}>
+              {calcs.goalPct.toFixed(1)}%
+            </p>
+            <p className="text-[12px] text-[#8e8e93]">目標達成率</p>
+          </div>
         </div>
-        <div className="h-3 overflow-hidden rounded-full bg-[#f2f2f7]">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${calcs.goalPct}%`, background: goalColor }}
+
+        {/* Summary metric cards 2×2 — diagonal dark/light pattern */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Top-left: darkest — authoritative weight */}
+          <MetricCard
+            label="目標總額"
+            value={fmtWan(calcs.tt)}
+            unit="元"
+            sub={`${params.swr}% SWR 法則`}
+            color="white"
+            bg="#0e1424"
+            labelColor="rgba(255,255,255,0.45)"
+            iconColor="rgba(255,255,255,0.25)"
+            icon={Target}
+            onClick={() => setOpenModal("target")}
+          />
+          {/* Top-right: white — clean contrast */}
+          <MetricCard
+            label="退休缺口"
+            value={calcs.gap === 0 ? "已達標" : fmtWan(calcs.gap)}
+            unit={calcs.gap === 0 ? undefined : "元"}
+            sub={calcs.gap === 0 ? "恭喜達成！" : "尚需累積"}
+            color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
+            bg="white"
+            icon={AlertTriangle}
+            onClick={() => setOpenModal("gap")}
+          />
+          {/* Bottom-left: navy — aspirational */}
+          <MetricCard
+            label="財務自由預測"
+            value={calcs.fiYear ? String(calcs.fiYear) : "100歲+"}
+            unit={calcs.fiYear ? "年" : undefined}
+            sub={
+              calcs.fiAge
+                ? `${calcs.fiAge}歲 · 距今${calcs.fiAge - params.currentAge}年`
+                : "尚未達標"
+            }
+            color={fiColor}
+            bg="#374254"
+            labelColor="rgba(255,255,255,0.45)"
+            iconColor="rgba(255,255,255,0.25)"
+            icon={Calendar}
+            onClick={() => setOpenModal("fi")}
+          />
+          {/* Bottom-right: light gray — supporting metric */}
+          <MetricCard
+            label="被動收入覆蓋"
+            value={calcs.passiveCoverage.toFixed(1)}
+            unit="%"
+            sub={`月 ${fmtWan(calcs.monthlyPassive)} 元`}
+            color={coverageColor}
+            bg="#C7C7D4"
+            icon={TrendingUp}
+            onClick={() => setOpenModal("passive")}
           />
         </div>
-        <div className="mt-2 flex justify-between text-[11px] text-[#8e8e93]">
-          <span>現有淨資產 NT$ {fmtWan(netAssets)}</span>
-          <span>目標 NT$ {fmtWan(calcs.tt)}</span>
-        </div>
-      </div>
 
-      {/* 1. 參數設定 (collapsible) */}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-        <button
-          onClick={() => setShowParams((v) => !v)}
-          className="flex w-full items-center justify-between px-4 py-4"
-        >
-          <p className="text-[15px] font-semibold text-[#1c1c1e]">參數設定</p>
-          {showParams ? (
-            <ChevronUp size={16} className="text-[#8e8e93]" />
-          ) : (
-            <ChevronDown size={16} className="text-[#8e8e93]" />
+        {/* 1. 參數設定 (collapsible) */}
+        <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+          <button
+            onClick={() => setShowParams((v) => !v)}
+            className="flex w-full cursor-pointer items-center justify-between px-4 py-4"
+          >
+            <p className="text-[15px] font-semibold text-[#1c1c1e]">參數設定</p>
+            {showParams ? (
+              <ChevronUp size={16} className="text-[#8e8e93]" />
+            ) : (
+              <ChevronDown size={16} className="text-[#8e8e93]" />
+            )}
+          </button>
+          {showParams && (
+            <div className="px-4 pb-4">
+              <p className="mb-1 text-[11px] font-semibold tracking-wide text-[#8e8e93] uppercase">
+                退休規劃
+              </p>
+              <NumberInput
+                label="現在年齡"
+                value={params.currentAge}
+                onChange={(v) => setParam("currentAge", Math.round(v))}
+                min={18}
+                max={80}
+                suffix="歲"
+              />
+              <NumberInput
+                label="預計退休年齡"
+                value={params.retirementAge}
+                onChange={(v) => setParam("retirementAge", Math.round(v))}
+                min={40}
+                max={80}
+                suffix="歲"
+              />
+              <NumberInput
+                label="退休後每月生活費"
+                value={params.monthlyExpense}
+                onChange={(v) => setParam("monthlyExpense", v)}
+                min={0}
+                step={1000}
+                prefix="NT$"
+              />
+              <NumberInput
+                label="政府退休金（月）"
+                value={params.govPension}
+                onChange={(v) => setParam("govPension", v)}
+                min={0}
+                step={1000}
+                prefix="NT$"
+              />
+
+              <p className="mt-4 mb-1 text-[11px] font-semibold tracking-wide text-[#8e8e93] uppercase">
+                通膨與報酬假設
+              </p>
+              <NumberInput
+                label="長期通膨率"
+                value={params.inflationRate}
+                onChange={(v) => setParam("inflationRate", v)}
+                min={0}
+                max={10}
+                step={0.1}
+                suffix="%"
+              />
+              <NumberInput
+                label="積累期年化報酬"
+                value={params.accRate}
+                onChange={(v) => setParam("accRate", v)}
+                min={0}
+                max={20}
+                step={0.1}
+                suffix="%"
+              />
+              <NumberInput
+                label="提領期年化報酬"
+                value={params.wdRate}
+                onChange={(v) => setParam("wdRate", v)}
+                min={0}
+                max={15}
+                step={0.1}
+                suffix="%"
+              />
+              <NumberInput
+                label="安全提領率（SWR）"
+                value={params.swr}
+                onChange={(v) => setParam("swr", v)}
+                min={1}
+                max={10}
+                step={0.1}
+                suffix="%"
+              />
+
+              <p className="mt-4 mb-1 text-[11px] font-semibold tracking-wide text-[#8e8e93] uppercase">
+                持續投入
+              </p>
+              <NumberInput
+                label="每月定期投入"
+                value={params.monthlyContrib}
+                onChange={(v) => setParam("monthlyContrib", v)}
+                min={0}
+                step={1000}
+                prefix="NT$"
+              />
+            </div>
           )}
-        </button>
-        {showParams && (
-          <div className="px-4 pb-4">
-            <p className="mb-1 text-[11px] font-semibold tracking-wide text-[#8e8e93] uppercase">
-              退休規劃
-            </p>
-            <NumberInput
-              label="現在年齡"
-              value={params.currentAge}
-              onChange={(v) => setParam("currentAge", Math.round(v))}
-              min={18}
-              max={80}
-              suffix="歲"
-            />
-            <NumberInput
-              label="預計退休年齡"
-              value={params.retirementAge}
-              onChange={(v) => setParam("retirementAge", Math.round(v))}
-              min={40}
-              max={80}
-              suffix="歲"
-            />
-            <NumberInput
-              label="退休後每月生活費"
-              value={params.monthlyExpense}
-              onChange={(v) => setParam("monthlyExpense", v)}
-              min={0}
-              step={1000}
-              prefix="NT$"
-            />
-            <NumberInput
-              label="政府退休金（月）"
-              value={params.govPension}
-              onChange={(v) => setParam("govPension", v)}
-              min={0}
-              step={1000}
-              prefix="NT$"
-            />
-
-            <p className="mt-4 mb-1 text-[11px] font-semibold tracking-wide text-[#8e8e93] uppercase">
-              通膨與報酬假設
-            </p>
-            <NumberInput
-              label="長期通膨率"
-              value={params.inflationRate}
-              onChange={(v) => setParam("inflationRate", v)}
-              min={0}
-              max={10}
-              step={0.1}
-              suffix="%"
-            />
-            <NumberInput
-              label="積累期年化報酬"
-              value={params.accRate}
-              onChange={(v) => setParam("accRate", v)}
-              min={0}
-              max={20}
-              step={0.1}
-              suffix="%"
-            />
-            <NumberInput
-              label="提領期年化報酬"
-              value={params.wdRate}
-              onChange={(v) => setParam("wdRate", v)}
-              min={0}
-              max={15}
-              step={0.1}
-              suffix="%"
-            />
-            <NumberInput
-              label="安全提領率（SWR）"
-              value={params.swr}
-              onChange={(v) => setParam("swr", v)}
-              min={1}
-              max={10}
-              step={0.1}
-              suffix="%"
-            />
-
-            <p className="mt-4 mb-1 text-[11px] font-semibold tracking-wide text-[#8e8e93] uppercase">
-              持續投入
-            </p>
-            <NumberInput
-              label="每月定期投入"
-              value={params.monthlyContrib}
-              onChange={(v) => setParam("monthlyContrib", v)}
-              min={0}
-              step={1000}
-              prefix="NT$"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* 2. 資產整合 */}
-      <SectionCard title="資產整合與淨值計算">
-        <Row label="生息資產（投資）" value={`NT$ ${fmtWan(totalInvestment)}`} />
-        <Row label="流動資金" value={`NT$ ${fmtWan(liquidAssets)}`} />
-        <Row label="總資產" value={`NT$ ${fmtWan(totalAssets)}`} />
-        <Row label="負債（房貸等）" value={`NT$ ${fmtWan(totalLiabilities)}`} color="#ff3b30" />
-        <Row
-          label="淨資產"
-          value={`NT$ ${fmtWan(netAssets)}`}
-          color={netAssets >= 0 ? "#34c759" : "#ff3b30"}
-        />
-        <Row label="退休目標總額" value={`NT$ ${fmtWan(calcs.tt)}`} />
-        <Row
-          label="退休缺口"
-          value={calcs.gap === 0 ? "已達標 ✓" : `NT$ ${fmtWan(calcs.gap)}`}
-          color={calcs.gap === 0 ? "#34c759" : "#ff3b30"}
-        />
-        <div className="mt-2 border-t border-[#f2f2f7] pt-2 text-[11px] text-[#8e8e93]">
-          通膨調整後退休月支出：NT$ {fmtWan(Math.round(calcs.fme))} ／月 （今日購買力 NT${" "}
-          {fmtWan(params.monthlyExpense)}）
-        </div>
-      </SectionCard>
-
-      {/* 3. 動態追蹤指標 */}
-      <SectionCard title="動態追蹤指標">
-        {/* FI date */}
-        <div className="flex items-center justify-between border-b border-[#f2f2f7] py-2">
-          <div>
-            <p className="text-[13px] text-[#8e8e93]">財務自由日預測</p>
-            <p className="mt-0.5 text-[14px] font-medium text-[#1c1c1e]">
-              {calcs.fiYear ? `${calcs.fiYear} 年（${calcs.fiAge}歲）` : "超過 100 歲"}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[12px] font-medium" style={{ color: fiColor }}>
-              {calcs.fiAge !== null && calcs.fiAge <= params.retirementAge
-                ? "退休前可達標"
-                : "退休前未達標"}
-            </p>
-            <p className="text-[11px] text-[#8e8e93]">
-              {calcs.fiAge !== null ? `距今 ${calcs.fiAge - params.currentAge} 年` : "—"}
-            </p>
-          </div>
         </div>
 
-        {/* Passive income coverage */}
-        <div className="py-2">
-          <div className="flex items-center justify-between">
+        {/* 2. 資產整合 */}
+        <SectionCard title="資產整合與淨值計算">
+          <Row label="生息資產（投資）" value={`NT$ ${fmtWan(totalInvestment)}`} />
+          <Row label="流動資金" value={`NT$ ${fmtWan(liquidAssets)}`} />
+          <Row label="總資產" value={`NT$ ${fmtWan(totalAssets)}`} />
+          <Row label="負債（房貸等）" value={`NT$ ${fmtWan(totalLiabilities)}`} color="#ff3b30" />
+          <Row
+            label="淨資產"
+            value={`NT$ ${fmtWan(netAssets)}`}
+            color={netAssets >= 0 ? "#0e1424" : "#ff3b30"}
+          />
+          <Row label="退休目標總額" value={`NT$ ${fmtWan(calcs.tt)}`} />
+          <Row
+            label="退休缺口"
+            value={calcs.gap === 0 ? "已達標 ✓" : `NT$ ${fmtWan(calcs.gap)}`}
+            color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
+          />
+          <div className="mt-2 border-t border-[#f2f2f7] pt-2 text-[11px] text-[#8e8e93]">
+            通膨調整後退休月支出：NT$ {fmtWan(Math.round(calcs.fme))} ／月 （今日購買力 NT${" "}
+            {fmtWan(params.monthlyExpense)}）
+          </div>
+        </SectionCard>
+
+        {/* 3. 動態追蹤指標 */}
+        <SectionCard title="動態追蹤指標">
+          {/* FI date */}
+          <div className="flex items-center justify-between border-b border-[#f2f2f7] py-2">
             <div>
-              <p className="text-[13px] text-[#8e8e93]">被動收入覆蓋率</p>
+              <p className="text-[13px] text-[#8e8e93]">財務自由日預測</p>
               <p className="mt-0.5 text-[14px] font-medium text-[#1c1c1e]">
-                月收 NT$ {fmtWan(Math.round(calcs.monthlyPassive))}
+                {calcs.fiYear ? `${calcs.fiYear} 年（${calcs.fiAge}歲）` : "超過 100 歲"}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[17px] font-bold" style={{ color: coverageColor }}>
-                {calcs.passiveCoverage.toFixed(1)}%
+              <p className="text-[12px] font-medium" style={{ color: fiColor }}>
+                {calcs.fiAge !== null && calcs.fiAge <= params.retirementAge
+                  ? "退休前可達標"
+                  : "退休前未達標"}
               </p>
-              <p className="text-[11px] text-[#8e8e93]">4% 股息假設</p>
+              <p className="text-[11px] text-[#8e8e93]">
+                {calcs.fiAge !== null ? `距今 ${calcs.fiAge - params.currentAge} 年` : "—"}
+              </p>
             </div>
           </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#f2f2f7]">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${calcs.passiveCoverage}%`,
-                background: coverageColor,
-              }}
-            />
-          </div>
-        </div>
-      </SectionCard>
 
-      {/* 4. 資產成長趨勢圖 */}
-      <div className="rounded-2xl bg-white px-4 py-4 shadow-sm">
-        <p className="mb-1 text-[15px] font-semibold text-[#1c1c1e]">資產成長趨勢圖</p>
-        <p className="mb-3 text-[12px] text-[#8e8e93]">三種報酬情境下的資產路徑</p>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={projData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="rGradBase" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#007aff" stopOpacity={0.18} />
-                <stop offset="100%" stopColor="#007aff" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="rGradOpt" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#34c759" stopOpacity={0.1} />
-                <stop offset="100%" stopColor="#34c759" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="rGradCons" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ff9500" stopOpacity={0.1} />
-                <stop offset="100%" stopColor="#ff9500" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis
-              dataKey="age"
-              ticks={xTicks}
-              tick={{ fontSize: 11, fill: "#8e8e93" }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tickFormatter={fmtY}
-              tick={{ fontSize: 11, fill: "#8e8e93" }}
-              axisLine={false}
-              tickLine={false}
-              width={44}
-            />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length) return null;
-                const age = label as number;
-                const year = currentYear + (age - params.currentAge);
-                return (
-                  <div className="rounded-xl border border-[#e5e5ea] bg-white px-3 py-2 text-[12px] shadow-md">
-                    <p className="mb-1 font-semibold text-[#1c1c1e]">
-                      {age}歲 ({year})
-                    </p>
-                    {payload.map((p) => (
-                      <p key={p.name} style={{ color: p.color as string }}>
-                        {p.name}：NT$ {fmtWan(p.value as number)}
+          {/* Passive income coverage */}
+          <div className="py-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] text-[#8e8e93]">被動收入覆蓋率</p>
+                <p className="mt-0.5 text-[14px] font-medium text-[#1c1c1e]">
+                  月收 NT$ {fmtWan(Math.round(calcs.monthlyPassive))}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[17px] font-bold" style={{ color: coverageColor }}>
+                  {calcs.passiveCoverage.toFixed(1)}%
+                </p>
+                <p className="text-[11px] text-[#8e8e93]">4% 股息假設</p>
+              </div>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#f2f2f7]">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${calcs.passiveCoverage}%`,
+                  background: coverageColor,
+                }}
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* 4. 資產成長趨勢圖 */}
+        <div className="rounded-2xl bg-white px-4 py-4 shadow-sm">
+          <p className="mb-1 text-[15px] font-semibold text-[#1c1c1e]">資產成長趨勢圖</p>
+          <p className="mb-3 text-[12px] text-[#8e8e93]">三種報酬情境下的資產路徑</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={projData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="rGradBase" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#374254" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="#374254" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="rGradOpt" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0e1424" stopOpacity={0.1} />
+                  <stop offset="100%" stopColor="#0e1424" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="rGradCons" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ff9500" stopOpacity={0.1} />
+                  <stop offset="100%" stopColor="#ff9500" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="age"
+                ticks={xTicks}
+                tick={{ fontSize: 11, fill: "#8e8e93" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={fmtY}
+                tick={{ fontSize: 11, fill: "#8e8e93" }}
+                axisLine={false}
+                tickLine={false}
+                width={44}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const age = label as number;
+                  const year = currentYear + (age - params.currentAge);
+                  return (
+                    <div className="rounded-xl border border-[#e5e5ea] bg-white px-3 py-2 text-[12px] shadow-md">
+                      <p className="mb-1 font-semibold text-[#1c1c1e]">
+                        {age}歲 ({year})
                       </p>
-                    ))}
-                  </div>
-                );
-              }}
-            />
-            {calcs.tt > 0 && (
+                      {payload.map((p) => (
+                        <p key={p.name} style={{ color: p.color as string }}>
+                          {p.name}：NT$ {fmtWan(p.value as number)}
+                        </p>
+                      ))}
+                    </div>
+                  );
+                }}
+              />
+              {calcs.tt > 0 && (
+                <ReferenceLine
+                  y={calcs.tt}
+                  stroke="#0e1424"
+                  strokeDasharray="4 3"
+                  label={{
+                    value: "目標",
+                    position: "right",
+                    fill: "#0e1424",
+                    fontSize: 10,
+                  }}
+                />
+              )}
               <ReferenceLine
-                y={calcs.tt}
-                stroke="#34c759"
+                x={params.retirementAge}
+                stroke="#ff9500"
                 strokeDasharray="4 3"
                 label={{
-                  value: "目標",
-                  position: "right",
-                  fill: "#34c759",
+                  value: "退休",
+                  position: "top",
+                  fill: "#ff9500",
                   fontSize: 10,
                 }}
               />
-            )}
-            <ReferenceLine
-              x={params.retirementAge}
-              stroke="#ff9500"
-              strokeDasharray="4 3"
-              label={{
-                value: "退休",
-                position: "top",
-                fill: "#ff9500",
-                fontSize: 10,
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="cons"
-              stroke="#ff9500"
-              strokeWidth={1}
-              fill="url(#rGradCons)"
-              dot={false}
-              name="保守"
-            />
-            <Area
-              type="monotone"
-              dataKey="opt"
-              stroke="#34c759"
-              strokeWidth={1}
-              fill="url(#rGradOpt)"
-              dot={false}
-              name="樂觀"
-            />
-            <Area
-              type="monotone"
-              dataKey="base"
-              stroke="#007aff"
-              strokeWidth={2}
-              fill="url(#rGradBase)"
-              dot={false}
-              name="基準"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-        <div className="mt-2 flex justify-center gap-4">
-          {(
-            [
-              { color: "#34c759", label: `樂觀 (+2%)` },
-              { color: "#007aff", label: "基準" },
-              { color: "#ff9500", label: `保守 (-2%)` },
-            ] as const
-          ).map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-1">
-              <div className="h-0.5 w-4 rounded" style={{ background: color }} />
-              <span className="text-[11px] text-[#8e8e93]">{label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 5. 敏感度分析 */}
-      <SectionCard title="敏感度分析">
-        <p className="mb-4 text-[12px] text-[#8e8e93]">
-          調整假設情境，即時觀察對財務自由年份的影響（不影響主要參數）
-        </p>
-
-        <div className="mb-4">
-          <div className="mb-1 flex justify-between">
-            <label className="text-[13px] text-[#8e8e93]">年化報酬率</label>
-            <span className="text-[13px] font-semibold text-[#1c1c1e]">{sensRate.toFixed(1)}%</span>
-          </div>
-          <input
-            type="range"
-            min={1}
-            max={15}
-            step={0.5}
-            value={sensRate}
-            onChange={(e) => setSensRate(parseFloat(e.target.value))}
-            className="w-full accent-[#007aff]"
-          />
-          <div className="flex justify-between text-[10px] text-[#8e8e93]">
-            <span>1%</span>
-            <span>15%</span>
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <div className="mb-1 flex justify-between">
-            <label className="text-[13px] text-[#8e8e93]">退休年齡</label>
-            <span className="text-[13px] font-semibold text-[#1c1c1e]">{sensAge} 歲</span>
-          </div>
-          <input
-            type="range"
-            min={40}
-            max={75}
-            step={1}
-            value={sensAge}
-            onChange={(e) => setSensAge(parseInt(e.target.value))}
-            className="w-full accent-[#007aff]"
-          />
-          <div className="flex justify-between text-[10px] text-[#8e8e93]">
-            <span>40歲</span>
-            <span>75歲</span>
-          </div>
-        </div>
-
-        <div className="mt-1 rounded-xl bg-[#f2f2f7] px-3 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[12px] text-[#8e8e93]">假設情境財務自由</p>
-              <p className="text-[15px] font-semibold text-[#1c1c1e]">
-                {sensCalc.fiYear ? `${sensCalc.fiYear} 年（${sensCalc.fiAge}歲）` : "100歲以上"}
-              </p>
-              <p className="mt-0.5 text-[11px] text-[#8e8e93]">
-                目標：NT$ {fmtWan(Math.round(sensCalc.target))}
-              </p>
-            </div>
-            {sensCalc.delta !== null && (
-              <div className="text-right">
-                <p className="text-[11px] text-[#8e8e93]">vs 基準</p>
-                <p
-                  className="text-[17px] font-bold"
-                  style={{
-                    color:
-                      sensCalc.delta === 0 ? "#8e8e93" : sensCalc.delta < 0 ? "#34c759" : "#ff3b30",
-                  }}
-                >
-                  {sensCalc.delta === 0
-                    ? "相同"
-                    : `${sensCalc.delta > 0 ? "+" : ""}${sensCalc.delta}年`}
-                </p>
+              <Area
+                type="monotone"
+                dataKey="cons"
+                stroke="#ff9500"
+                strokeWidth={1}
+                fill="url(#rGradCons)"
+                dot={false}
+                name="保守"
+              />
+              <Area
+                type="monotone"
+                dataKey="opt"
+                stroke="#0e1424"
+                strokeWidth={1}
+                fill="url(#rGradOpt)"
+                dot={false}
+                name="樂觀"
+              />
+              <Area
+                type="monotone"
+                dataKey="base"
+                stroke="#374254"
+                strokeWidth={2}
+                fill="url(#rGradBase)"
+                dot={false}
+                name="基準"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          <div className="mt-2 flex justify-center gap-4">
+            {(
+              [
+                { color: "#0e1424", label: `樂觀 (+2%)` },
+                { color: "#374254", label: "基準" },
+                { color: "#ff9500", label: `保守 (-2%)` },
+              ] as const
+            ).map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-1">
+                <div className="h-0.5 w-4 rounded" style={{ background: color }} />
+                <span className="text-[11px] text-[#8e8e93]">{label}</span>
               </div>
-            )}
+            ))}
           </div>
         </div>
-      </SectionCard>
 
-      {/* 6. 壓力測試 */}
-      <SectionCard title="壓力測試">
-        <p className="mb-3 text-[12px] text-[#8e8e93]">
-          模擬退休時發生意外事件，評估退休金可支撐年限
-        </p>
+        {/* 5. 敏感度分析 */}
+        <SectionCard title="敏感度分析">
+          <p className="mb-4 text-[12px] text-[#8e8e93]">
+            調整假設情境，即時觀察對財務自由年份的影響（不影響主要參數）
+          </p>
 
-        <div className="space-y-3">
-          <div className="rounded-xl border border-[#ff3b30]/20 bg-[#ff3b30]/5 px-3 py-3">
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={14} className="mt-0.5 flex-shrink-0 text-[#ff3b30]" />
-              <div className="flex-1">
-                <p className="text-[13px] font-medium text-[#1c1c1e]">市場崩盤 −20%</p>
+          <div className="mb-4">
+            <div className="mb-1 flex justify-between">
+              <label className="text-[13px] text-[#8e8e93]">年化報酬率</label>
+              <span className="text-[13px] font-semibold text-[#1c1c1e]">
+                {sensRate.toFixed(1)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={15}
+              step={0.5}
+              value={sensRate}
+              onChange={(e) => setSensRate(parseFloat(e.target.value))}
+              className="w-full accent-[#374254]"
+            />
+            <div className="flex justify-between text-[10px] text-[#8e8e93]">
+              <span>1%</span>
+              <span>15%</span>
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <div className="mb-1 flex justify-between">
+              <label className="text-[13px] text-[#8e8e93]">退休年齡</label>
+              <span className="text-[13px] font-semibold text-[#1c1c1e]">{sensAge} 歲</span>
+            </div>
+            <input
+              type="range"
+              min={40}
+              max={75}
+              step={1}
+              value={sensAge}
+              onChange={(e) => setSensAge(parseInt(e.target.value))}
+              className="w-full accent-[#374254]"
+            />
+            <div className="flex justify-between text-[10px] text-[#8e8e93]">
+              <span>40歲</span>
+              <span>75歲</span>
+            </div>
+          </div>
+
+          <div className="mt-1 rounded-xl bg-[#f2f2f7] px-3 py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[12px] text-[#8e8e93]">假設情境財務自由</p>
+                <p className="text-[15px] font-semibold text-[#1c1c1e]">
+                  {sensCalc.fiYear ? `${sensCalc.fiYear} 年（${sensCalc.fiAge}歲）` : "100歲以上"}
+                </p>
                 <p className="mt-0.5 text-[11px] text-[#8e8e93]">
-                  退休當年資產縮水 20%，之後正常提領
+                  目標：NT$ {fmtWan(Math.round(sensCalc.target))}
                 </p>
               </div>
-              <div className="flex-shrink-0 text-right">
-                <p
-                  className="text-[15px] font-bold"
-                  style={{
-                    color:
-                      stress.crash20 >= 30
-                        ? "#34c759"
-                        : stress.crash20 >= 20
-                          ? "#ff9500"
-                          : "#ff3b30",
-                  }}
-                >
-                  {stress.crash20 >= 60 ? "60年+" : `${stress.crash20}年`}
-                </p>
-                <p className="text-[11px] text-[#8e8e93]">可支撐</p>
+              {sensCalc.delta !== null && (
+                <div className="text-right">
+                  <p className="text-[11px] text-[#8e8e93]">vs 基準</p>
+                  <p
+                    className="text-[17px] font-bold"
+                    style={{
+                      color:
+                        sensCalc.delta === 0
+                          ? "#8e8e93"
+                          : sensCalc.delta < 0
+                            ? "#0e1424"
+                            : "#ff3b30",
+                    }}
+                  >
+                    {sensCalc.delta === 0
+                      ? "相同"
+                      : `${sensCalc.delta > 0 ? "+" : ""}${sensCalc.delta}年`}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* 6. 壓力測試 */}
+        <SectionCard title="壓力測試">
+          <p className="mb-3 text-[12px] text-[#8e8e93]">
+            模擬退休時發生意外事件，評估退休金可支撐年限
+          </p>
+
+          <div className="space-y-3">
+            <div className="rounded-xl border border-[#ff3b30]/20 bg-[#ff3b30]/5 px-3 py-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="mt-0.5 flex-shrink-0 text-[#ff3b30]" />
+                <div className="flex-1">
+                  <p className="text-[13px] font-medium text-[#1c1c1e]">市場崩盤 −20%</p>
+                  <p className="mt-0.5 text-[11px] text-[#8e8e93]">
+                    退休當年資產縮水 20%，之後正常提領
+                  </p>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <p
+                    className="text-[15px] font-bold"
+                    style={{
+                      color:
+                        stress.crash20 >= 30
+                          ? "#0e1424"
+                          : stress.crash20 >= 20
+                            ? "#ff9500"
+                            : "#ff3b30",
+                    }}
+                  >
+                    {stress.crash20 >= 60 ? "60年+" : `${stress.crash20}年`}
+                  </p>
+                  <p className="text-[11px] text-[#8e8e93]">可支撐</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#ff9500]/20 bg-[#ff9500]/5 px-3 py-3">
+              <div className="flex items-start gap-2">
+                <Activity size={14} className="mt-0.5 flex-shrink-0 text-[#ff9500]" />
+                <div className="flex-1">
+                  <p className="text-[13px] font-medium text-[#1c1c1e]">通膨劇增，生活費 ×1.5</p>
+                  <p className="mt-0.5 text-[11px] text-[#8e8e93]">退休後每年提領額提高 50%</p>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <p
+                    className="text-[15px] font-bold"
+                    style={{
+                      color:
+                        stress.highInfl >= 30
+                          ? "#0e1424"
+                          : stress.highInfl >= 20
+                            ? "#ff9500"
+                            : "#ff3b30",
+                    }}
+                  >
+                    {stress.highInfl >= 60 ? "60年+" : `${stress.highInfl}年`}
+                  </p>
+                  <p className="text-[11px] text-[#8e8e93]">可支撐</p>
+                </div>
               </div>
             </div>
           </div>
+        </SectionCard>
 
-          <div className="rounded-xl border border-[#ff9500]/20 bg-[#ff9500]/5 px-3 py-3">
-            <div className="flex items-start gap-2">
-              <Activity size={14} className="mt-0.5 flex-shrink-0 text-[#ff9500]" />
-              <div className="flex-1">
-                <p className="text-[13px] font-medium text-[#1c1c1e]">通膨劇增，生活費 ×1.5</p>
-                <p className="mt-0.5 text-[11px] text-[#8e8e93]">退休後每年提領額提高 50%</p>
-              </div>
-              <div className="flex-shrink-0 text-right">
-                <p
-                  className="text-[15px] font-bold"
-                  style={{
-                    color:
-                      stress.highInfl >= 30
-                        ? "#34c759"
-                        : stress.highInfl >= 20
-                          ? "#ff9500"
-                          : "#ff3b30",
-                  }}
-                >
-                  {stress.highInfl >= 60 ? "60年+" : `${stress.highInfl}年`}
-                </p>
-                <p className="text-[11px] text-[#8e8e93]">可支撐</p>
-              </div>
+        {/* 7. 退休金流排程表 (collapsible) */}
+        <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+          <button
+            onClick={() => setShowSchedule((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-4"
+          >
+            <div className="text-left">
+              <p className="text-[15px] font-semibold text-[#1c1c1e]">退休金流排程表</p>
+              <p className="mt-0.5 text-[12px] text-[#8e8e93]">退休後每年提領與剩餘明細</p>
             </div>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* 7. 退休金流排程表 (collapsible) */}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-        <button
-          onClick={() => setShowSchedule((v) => !v)}
-          className="flex w-full items-center justify-between px-4 py-4"
-        >
-          <div className="text-left">
-            <p className="text-[15px] font-semibold text-[#1c1c1e]">退休金流排程表</p>
-            <p className="mt-0.5 text-[12px] text-[#8e8e93]">退休後每年提領與剩餘明細</p>
-          </div>
-          {showSchedule ? (
-            <ChevronUp size={16} className="flex-shrink-0 text-[#8e8e93]" />
-          ) : (
-            <ChevronDown size={16} className="flex-shrink-0 text-[#8e8e93]" />
-          )}
-        </button>
-        {showSchedule && (
-          <div className="overflow-x-auto px-4 pb-4">
-            {schedule.length === 0 ? (
-              <p className="py-4 text-center text-[13px] text-[#8e8e93]">請先完成參數設定</p>
+            {showSchedule ? (
+              <ChevronUp size={16} className="flex-shrink-0 text-[#8e8e93]" />
             ) : (
-              <table className="w-full min-w-[280px] text-[12px]">
-                <thead>
-                  <tr className="border-b border-[#f2f2f7] text-[#8e8e93]">
-                    <th className="py-2 pr-2 text-left font-medium">年齡</th>
-                    <th className="py-2 pr-2 text-right font-medium">年份</th>
-                    <th className="py-2 pr-2 text-right font-medium">投報</th>
-                    <th className="py-2 pr-2 text-right font-medium">提領</th>
-                    <th className="py-2 text-right font-medium">餘額</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {schedule.map((row) => (
-                    <tr key={row.age} className="border-b border-[#f2f2f7] last:border-0">
-                      <td className="py-1.5 pr-2 text-[#1c1c1e]">{row.age}歲</td>
-                      <td className="py-1.5 pr-2 text-right text-[#8e8e93]">{row.year}</td>
-                      <td className="py-1.5 pr-2 text-right text-[#34c759]">
-                        +{fmtWan(row.returns)}
-                      </td>
-                      <td className="py-1.5 pr-2 text-right text-[#ff3b30]">
-                        -{fmtWan(row.withdrawal)}
-                      </td>
-                      <td
-                        className="py-1.5 text-right font-medium"
-                        style={{
-                          color: row.balance > 0 ? "#1c1c1e" : "#ff3b30",
-                        }}
-                      >
-                        {fmtWan(row.balance)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ChevronDown size={16} className="flex-shrink-0 text-[#8e8e93]" />
             )}
-          </div>
+          </button>
+          {showSchedule && (
+            <div className="overflow-x-auto px-4 pb-4">
+              {schedule.length === 0 ? (
+                <p className="py-4 text-center text-[13px] text-[#8e8e93]">請先完成參數設定</p>
+              ) : (
+                <table className="w-full min-w-[280px] text-[12px]">
+                  <thead>
+                    <tr className="border-b border-[#f2f2f7] text-[#8e8e93]">
+                      <th className="py-2 pr-2 text-left font-medium">年齡</th>
+                      <th className="py-2 pr-2 text-right font-medium">年份</th>
+                      <th className="py-2 pr-2 text-right font-medium">投報</th>
+                      <th className="py-2 pr-2 text-right font-medium">提領</th>
+                      <th className="py-2 text-right font-medium">餘額</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedule.map((row) => (
+                      <tr key={row.age} className="border-b border-[#f2f2f7] last:border-0">
+                        <td className="py-1.5 pr-2 text-[#1c1c1e]">{row.age}歲</td>
+                        <td className="py-1.5 pr-2 text-right text-[#8e8e93]">{row.year}</td>
+                        <td className="py-1.5 pr-2 text-right text-[#0e1424]">
+                          +{fmtWan(row.returns)}
+                        </td>
+                        <td className="py-1.5 pr-2 text-right text-[#ff3b30]">
+                          -{fmtWan(row.withdrawal)}
+                        </td>
+                        <td
+                          className="py-1.5 text-right font-medium"
+                          style={{
+                            color: row.balance > 0 ? "#1c1c1e" : "#ff3b30",
+                          }}
+                        >
+                          {fmtWan(row.balance)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+
+        {openModal && modalContents[openModal] && (
+          <InfoModal content={modalContents[openModal]} onClose={() => setOpenModal(null)} />
         )}
       </div>
-
-      {openModal && modalContents[openModal] && (
-        <InfoModal content={modalContents[openModal]} onClose={() => setOpenModal(null)} />
-      )}
-    </div>
+    </>
   );
 }

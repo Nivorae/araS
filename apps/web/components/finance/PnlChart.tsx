@@ -8,10 +8,22 @@ function formatY(value: number): string {
   return `${value}`;
 }
 
-export function PnlChart({ data }: { data: LiquidityPoint[] }) {
+export function PnlChart({
+  data,
+  height = 220,
+}: {
+  data: LiquidityPoint[];
+  height?: number | `${number}%`;
+}) {
   return (
-    <div style={{ borderRight: "2px solid #1c1c1e", borderBottom: "2px solid #1c1c1e" }}>
-      <ResponsiveContainer width="100%" height={220}>
+    <div
+      style={{
+        borderRight: "2px solid #1c1c1e",
+        borderBottom: "2px solid #1c1c1e",
+        height: "100%",
+      }}
+    >
+      <ResponsiveContainer width="100%" height={height}>
         <BarChart
           data={data}
           barGap={2}
@@ -39,7 +51,7 @@ export function PnlChart({ data }: { data: LiquidityPoint[] }) {
             verticalAlign="top"
             align="left"
           />
-          <Bar dataKey="income" name="收入" fill="#34c759" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="income" name="收入" fill="#0e1424" radius={[2, 2, 0, 0]} />
           <Bar dataKey="expense" name="支出" fill="#c7c7cc" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>

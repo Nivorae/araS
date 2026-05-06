@@ -25,6 +25,7 @@
     "@repo/ui": "workspace:*",
     "@tailwindcss/postcss": "^4.2.1",
     "lucide-react": "^1.7.0",
+    "motion": "^12.38.0",
     "next": "^15.1.0",
     "postcss": "^8.4.49",
     "react": "^19.0.0",

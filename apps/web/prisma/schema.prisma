@@ -14,7 +14,7 @@ model Entry {
   topCategory String
   subCategory String
   stockCode   String?
-  value       Float
+  value       Decimal
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   history     EntryHistory[]
@@ -29,8 +29,8 @@ model Loan {
   entryId            String        @unique
   entry              Entry         @relation(fields: [entryId], references: [id], onDelete: Cascade)
   loanName           String
-  totalAmount        Float
-  annualInterestRate Float
+  totalAmount        Decimal
+  annualInterestRate Decimal
   termMonths         Int
   startDate          DateTime
   gracePeriodMonths  Int           @default(0)
@@ -45,36 +45,13 @@ enum RepaymentType {
   principal_equal
 }
 
-model Insurance {
-  id                     String    @id @default(cuid())
-  entryId                String    @unique
-  entry                  Entry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  currency               String    @default("USD")
-  declaredRate           Float     @default(0)
-  premiumTotal           Float?
-  currentAge             Int       @default(0)
-  startDate              DateTime
-  cashValueData          Json      @default("[]")
-  // New fields for interest-sensitive whole-life policies
-  policyNumber           String?
-  insurer                String?
-  sumInsured             Float     @default(0)
-  surrenderValue         Float     @default(0)
-  accumulatedBonus       Float     @default(0)
-  accumulatedSumIncrease Float     @default(0)
-  lastUpdatedAt          DateTime?
-  isPeriodicPayout       Boolean   @default(true)
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-}
-
 model EntryHistory {
   id        String   @id @default(cuid())
   entryId   String
   entry     Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  delta     Float
-  balance   Float
-  units     Float?
+  delta     Decimal
+  balance   Decimal
+  units     Decimal?
   note      String?
   createdAt DateTime @default(now())
 
@@ -84,7 +61,7 @@ model EntryHistory {
 model Transaction {
   id        String   @id @default(cuid())
   type      String
-  amount    Float
+  amount    Decimal
   category  String
   source    String
   note      String?
@@ -98,8 +75,30 @@ model PortfolioItem {
   id        String   @id @default(cuid())
   symbol    String   @unique
   name      String
-  avgCost   Float
-  shares    Float
+  avgCost   Decimal
+  shares    Decimal
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Insurance {
+  id                     String    @id @default(cuid())
+  entryId                String    @unique
+  entry                  Entry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  currency               String    @default("USD")
+  declaredRate           Decimal   @default(0)
+  premiumTotal           Decimal?
+  currentAge             Int       @default(0)
+  startDate              DateTime
+  cashValueData          Json      @default("[]")
+  insurer                String?
+  policyNumber           String?
+  sumInsured             Decimal   @default(0)
+  surrenderValue         Decimal   @default(0)
+  accumulatedBonus       Decimal   @default(0)
+  accumulatedSumIncrease Decimal   @default(0)
+  isPeriodicPayout       Boolean   @default(true)
+  lastUpdatedAt          DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 }

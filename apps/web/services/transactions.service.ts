@@ -1,5 +1,19 @@
 import { prisma } from "@/lib/prisma";
+import { d } from "@/lib/serialize";
 import type { CreateTransaction } from "@repo/shared";
+
+function serializeTransaction(tx: {
+  id: string;
+  type: string;
+  amount: import("@prisma/client").Prisma.Decimal;
+  category: string;
+  source: string;
+  note: string | null;
+  date: Date;
+  createdAt: Date;
+}) {
+  return { ...tx, amount: d(tx.amount) };
+}
 
 export class TransactionsService {
   async list(month?: string) {
@@ -12,14 +26,16 @@ export class TransactionsService {
         where = { date: { gte: start, lt: end } };
       }
     }
-    return prisma.transaction.findMany({ where, orderBy: { date: "desc" } });
+    const rows = await prisma.transaction.findMany({ where, orderBy: { date: "desc" } });
+    return rows.map(serializeTransaction);
   }
 
   async create(data: CreateTransaction) {
     const { date, note, ...rest } = data;
-    return prisma.transaction.create({
+    const row = await prisma.transaction.create({
       data: { ...rest, date: new Date(date), note: note ?? null },
     });
+    return serializeTransaction(row);
   }
 
   async delete(id: string) {
