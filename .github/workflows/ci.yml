@@ -13,8 +13,9 @@ concurrency:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
-  # Dummy DB URL so prisma generate works in CI without a real database
+  # Dummy DB URLs so prisma generate works in CI without a real database
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ci
 
 jobs:
   lint:

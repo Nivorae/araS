@@ -160,7 +160,7 @@ function MetricCard({
 }) {
   return (
     <div
-      className={`rounded-2xl px-4 py-5${onClick ? "cursor-pointer active:opacity-75" : ""}`}
+      className={`rounded-2xl px-4 py-5 ${onClick ? "cursor-pointer active:opacity-75" : ""}`}
       style={{ background: bg }}
       role={onClick ? "button" : undefined}
       onClick={onClick}
@@ -603,7 +603,7 @@ export function RetirementPage() {
   const fiColor =
     calcs.fiAge !== null && calcs.fiAge <= params.retirementAge ? "#ff9500" : "#ff3C7C7D4b30";
   const coverageColor =
-    calcs.passiveCoverage >= 100 ? "#ff9500" : calcs.passiveCoverage >= 50 ? "#66788E" : "#C7C7D4";
+    calcs.passiveCoverage >= 100 ? "#ff9500" : calcs.passiveCoverage >= 50 ? "#000000" : "#ffffff";
 
   return (
     <>
@@ -708,7 +708,7 @@ export function RetirementPage() {
             unit="%"
             sub={`月 ${fmtWan(calcs.monthlyPassive)} 元`}
             color={coverageColor}
-            bg="#f2f2f7"
+            bg="#C7C7D4"
             icon={TrendingUp}
             onClick={() => setOpenModal("passive")}
           />
@@ -718,7 +718,7 @@ export function RetirementPage() {
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
           <button
             onClick={() => setShowParams((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-4"
+            className="flex w-full cursor-pointer items-center justify-between px-4 py-4"
           >
             <p className="text-[15px] font-semibold text-[#1c1c1e]">參數設定</p>
             {showParams ? (
