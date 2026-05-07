@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,15 +10,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-TW">
-      <head>
-        <meta name="theme-color" content="#f2f2f7" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="財務管家" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-      </head>
-      <body suppressHydrationWarning>{children}</body>
-    </html>
+    <ClerkProvider>
+      <html lang="zh-TW">
+        <head>
+          <meta name="theme-color" content="#f2f2f7" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+          <meta name="apple-mobile-web-app-title" content="財務管家" />
+          <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        </head>
+        <body suppressHydrationWarning>{children}</body>
+      </html>
+    </ClerkProvider>
   );
 }
