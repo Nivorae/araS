@@ -209,7 +209,7 @@ export default function RootPage() {
         {/* 登入 — dark primary glass */}
         <Link
           href="/sign-in"
-          className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80"
+          className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[#374254]/60 focus-visible:ring-offset-2 focus-visible:outline-none"
           style={{
             minWidth: 200,
             padding: "14px 40px",
@@ -236,7 +236,7 @@ export default function RootPage() {
         {/* 註冊 — light glass */}
         <Link
           href="/sign-up"
-          className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80"
+          className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[#374254]/60 focus-visible:ring-offset-2 focus-visible:outline-none"
           style={{
             minWidth: 200,
             padding: "14px 40px",
@@ -265,7 +265,7 @@ export default function RootPage() {
         {/* 訪客 — ghost */}
         <Link
           href="/assets"
-          className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80"
+          className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[#374254]/60 focus-visible:ring-offset-2 focus-visible:outline-none"
           style={{
             minWidth: 160,
             padding: "11px 40px",
