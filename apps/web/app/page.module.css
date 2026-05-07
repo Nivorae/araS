@@ -1,0 +1,53 @@
+@keyframes breatheNear {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes breatheMid {
+  0%,
+  100% {
+    transform: scale(0.93);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes breatheFar {
+  0%,
+  100% {
+    transform: scale(0.82);
+  }
+  50% {
+    transform: scale(0.91);
+  }
+}
+
+.near {
+  animation-name: breatheNear;
+  animation-duration: var(--dur, 3.8s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.mid {
+  animation-name: breatheMid;
+  animation-duration: var(--dur, 4.5s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.far {
+  animation-name: breatheFar;
+  animation-duration: var(--dur, 5.2s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-delay: var(--delay, 0s);
+}
