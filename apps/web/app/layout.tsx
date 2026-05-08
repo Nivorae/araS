@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import NextTopLoader from "nextjs-toploader";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,7 +20,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <meta name="apple-mobile-web-app-title" content="財務管家" />
           <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         </head>
-        <body suppressHydrationWarning>{children}</body>
+        <body suppressHydrationWarning>
+          <NextTopLoader color="#374254" height={3} showSpinner={false} shadow={false} />
+          {children}
+        </body>
       </html>
     </ClerkProvider>
   );
