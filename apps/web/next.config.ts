@@ -29,13 +29,14 @@ const nextConfig = {
               "default-src 'self'",
               // Next.js dev mode needs 'unsafe-eval' for React Fast Refresh
               process.env.NODE_ENV === "development"
-                ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-                : "script-src 'self' 'unsafe-inline'",
+                ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk-telemetry.com https://*.clerk.accounts.dev"
+                : "script-src 'self' 'unsafe-inline' https://clerk-telemetry.com https://*.clerk.accounts.dev",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self' ws: wss: https://openapi.twse.com.tw",
-              "frame-src 'none'",
+              "connect-src 'self' ws: wss: https://openapi.twse.com.tw https://clerk.com https://*.clerk.accounts.dev https://clerk-telemetry.com",
+              "frame-src https://challenges.cloudflare.com",
+              "worker-src blob:",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
