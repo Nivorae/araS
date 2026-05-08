@@ -10,27 +10,33 @@ function serializeItem(item: {
   shares: import("@prisma/client").Prisma.Decimal;
   createdAt: Date;
   updatedAt: Date;
+  userId: string;
 }) {
   return { ...item, avgCost: d(item.avgCost), shares: d(item.shares) };
 }
 
 export class PortfolioService {
-  async list() {
-    const rows = await prisma.portfolioItem.findMany({ orderBy: { createdAt: "desc" } });
+  async list(userId: string) {
+    const rows = await prisma.portfolioItem.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
     return rows.map(serializeItem);
   }
 
-  async findById(id: string) {
-    const item = await prisma.portfolioItem.findUnique({ where: { id } });
+  async findById(id: string, userId: string) {
+    const item = await prisma.portfolioItem.findFirst({ where: { id, userId } });
     return item ? serializeItem(item) : null;
   }
 
-  async create(data: CreatePortfolioItem) {
-    const item = await prisma.portfolioItem.create({ data });
+  async create(data: CreatePortfolioItem, userId: string) {
+    const item = await prisma.portfolioItem.create({ data: { ...data, userId } });
     return serializeItem(item);
   }
 
-  async update(id: string, data: UpdatePortfolioItem) {
+  async update(id: string, data: UpdatePortfolioItem, userId: string) {
+    const existing = await prisma.portfolioItem.findFirst({ where: { id, userId } });
+    if (!existing) return null;
     const cleaned = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v !== undefined)
     ) as Parameters<typeof prisma.portfolioItem.update>[0]["data"];
@@ -38,8 +44,8 @@ export class PortfolioService {
     return serializeItem(item);
   }
 
-  async delete(id: string) {
-    return prisma.portfolioItem.delete({ where: { id } });
+  async delete(id: string, userId: string) {
+    return prisma.portfolioItem.deleteMany({ where: { id, userId } });
   }
 }
 
