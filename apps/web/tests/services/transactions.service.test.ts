@@ -60,7 +60,7 @@ describe("TransactionsService.create", () => {
         type: "income",
         amount: 100,
         category: "薪資",
-        source: "公司",
+        source: "daily",
         date: new Date().toISOString(),
       },
       USER_ID
