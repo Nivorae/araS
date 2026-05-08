@@ -10,6 +10,7 @@ datasource db {
 
 model Entry {
   id          String         @id @default(cuid())
+  userId      String
   name        String
   topCategory String
   subCategory String
@@ -22,6 +23,7 @@ model Entry {
   insurance   Insurance?
 
   @@index([topCategory])
+  @@index([userId])
 }
 
 model Loan {
@@ -60,6 +62,7 @@ model EntryHistory {
 
 model Transaction {
   id        String   @id @default(cuid())
+  userId    String
   type      String
   amount    Decimal
   category  String
@@ -69,16 +72,21 @@ model Transaction {
   createdAt DateTime @default(now())
 
   @@index([date])
+  @@index([userId])
 }
 
 model PortfolioItem {
   id        String   @id @default(cuid())
-  symbol    String   @unique
+  userId    String
+  symbol    String
   name      String
   avgCost   Decimal
   shares    Decimal
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([userId, symbol])
+  @@index([userId])
 }
 
 model Insurance {
