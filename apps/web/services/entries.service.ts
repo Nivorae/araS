@@ -36,8 +36,9 @@ function serializeLoan(loan: {
 }
 
 export class EntriesService {
-  async list() {
+  async list(userId: string) {
     const entries = await prisma.entry.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
       include: { loan: true, history: { select: { units: true } } },
     });
@@ -51,9 +52,9 @@ export class EntriesService {
     }));
   }
 
-  async findById(id: string) {
-    const entry = await prisma.entry.findUnique({
-      where: { id },
+  async findById(id: string, userId: string) {
+    const entry = await prisma.entry.findFirst({
+      where: { id, userId },
       include: { loan: true },
     });
     if (!entry) return null;
@@ -61,13 +62,14 @@ export class EntriesService {
     return { ...rest, value: d(rest.value), loan: loan ? serializeLoan(loan) : null };
   }
 
-  async create(data: CreateEntry) {
+  async create(data: CreateEntry, userId: string) {
     const { units, stockCode, createdAt, ...rest } = data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
     const entry = await prisma.entry.create({
       data: {
         ...rest,
+        userId,
         stockCode: stockCode ?? null,
         ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
       },
@@ -86,8 +88,9 @@ export class EntriesService {
     return { ...entry, value: d(entry.value) };
   }
 
-  async update(id: string, data: UpdateEntry) {
-    const existing = await prisma.entry.findUnique({ where: { id } });
+  async update(id: string, data: UpdateEntry, userId: string) {
+    const existing = await prisma.entry.findFirst({ where: { id, userId } });
+    if (!existing) return null;
     const { units, ...updateData } = data;
     const cleaned = Object.fromEntries(
       Object.entries(updateData).filter(([, v]) => v !== undefined)
@@ -102,8 +105,8 @@ export class EntriesService {
     return { ...entry, value: d(entry.value) };
   }
 
-  async delete(id: string) {
-    return prisma.entry.delete({ where: { id } });
+  async delete(id: string, userId: string) {
+    return prisma.entry.deleteMany({ where: { id, userId } });
   }
 
   async listHistory(id: string) {
@@ -190,6 +193,13 @@ export class EntriesService {
     if (data.createdAt) payload.createdAt = data.createdAt;
     const row = await prisma.entryHistory.create({ data: payload });
     return serializeHistory(row);
+  }
+
+  async verifyHistoryOwnership(historyId: string, userId: string): Promise<boolean> {
+    const row = await prisma.entryHistory.findFirst({
+      where: { id: historyId, entry: { userId } },
+    });
+    return row !== null;
   }
 }
 
