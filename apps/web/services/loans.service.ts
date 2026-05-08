@@ -40,7 +40,7 @@ function serializeEntry(entry: {
 }
 
 export class LoansService {
-  async create(data: CreateLoan) {
+  async create(data: CreateLoan, userId: string) {
     const {
       loanName,
       category,
@@ -55,6 +55,7 @@ export class LoansService {
     return prisma.$transaction(async (tx) => {
       const entry = await tx.entry.create({
         data: {
+          userId,
           name: loanName,
           topCategory: "負債",
           subCategory: category,
@@ -87,9 +88,9 @@ export class LoansService {
     });
   }
 
-  async findById(id: string) {
-    const loan = await prisma.loan.findUnique({
-      where: { id },
+  async findById(id: string, userId: string) {
+    const loan = await prisma.loan.findFirst({
+      where: { id, entry: { userId } },
       include: { entry: true },
     });
     if (!loan) return null;
