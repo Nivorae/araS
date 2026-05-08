@@ -26,7 +26,7 @@ const BUTTONS = [
     label: "登入",
     loadingLabel: "登入中",
     style: {
-      minWidth: 160,
+      minWidth: 200,
       padding: "14px 40px",
       borderRadius: 100,
       fontSize: 15,
@@ -49,7 +49,7 @@ const BUTTONS = [
     label: "註冊",
     loadingLabel: "註冊中",
     style: {
-      minWidth: 160,
+      minWidth: 200,
       padding: "14px 40px",
       borderRadius: 100,
       fontSize: 15,
@@ -116,7 +116,7 @@ export function LandingButtons() {
             key={btn.href}
             onClick={() => handleClick(btn.href)}
             disabled={isDisabled}
-            className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[#374254]/60 focus-visible:ring-offset-2 focus-visible:outline-none"
+            className="relative flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[#374254]/60 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none"
             style={{
               ...btn.style,
               opacity: isActive ? 0.7 : isDisabled ? 0.5 : 1,
