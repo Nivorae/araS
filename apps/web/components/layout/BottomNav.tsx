@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, BarChart3, Loader2, PiggyBank, Plus } from "lucide-react";
+import { Building2, BarChart3, Loader2, PiggyBank, Plus, Home, LogOut } from "lucide-react";
 import { useNavContext } from "../../app/(finance)/nav-context";
+import { useAuth, useClerk } from "@clerk/nextjs";
 
 const tabs = [
   { href: "/assets", icon: Building2, label: "資產" },
@@ -17,6 +18,8 @@ export function BottomNav() {
   const [isPending, startTransition] = useTransition();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const { addAction } = useNavContext();
+  const { isSignedIn } = useAuth();
+  const { signOut } = useClerk();
 
   const navigate = (href: string) => {
     if (href === pathname) return;
@@ -25,6 +28,18 @@ export function BottomNav() {
       router.push(href);
     });
   };
+
+  const handleLastButton = () => {
+    if (isSignedIn) {
+      signOut({ redirectUrl: "/" });
+    } else {
+      navigate("/");
+    }
+  };
+
+  const LastIcon = isSignedIn ? LogOut : Home;
+  const lastLabel = isSignedIn ? "登出" : "首頁";
+  const lastActive = !isSignedIn && pathname === "/";
 
   return (
     <nav className="fixed top-6 left-1/2 z-50 -translate-x-1/2">
@@ -104,6 +119,18 @@ export function BottomNav() {
             </button>
           );
         })}
+
+        {/* Home (guest) or Logout (signed in) */}
+        <button
+          onClick={handleLastButton}
+          aria-label={lastLabel}
+          className="relative z-10 flex cursor-pointer items-center justify-center rounded-full p-3 transition-all duration-200"
+          style={{
+            color: lastActive ? "rgba(30,30,40,0.85)" : "rgba(30,30,40,0.32)",
+          }}
+        >
+          <LastIcon size={22} strokeWidth={lastActive ? 2.5 : 1.5} />
+        </button>
 
         {addAction && (
           <>
