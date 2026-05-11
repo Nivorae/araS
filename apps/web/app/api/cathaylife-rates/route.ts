@@ -14,17 +14,22 @@ interface CathayRateRow {
 
 export async function GET() {
   try {
-    const res = await fetch(
-      "https://www.cathaylife.com.tw/cathaylifeins/api/DTODBHZ6/getAllByJoinZ5",
-      {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    let res: Response;
+    try {
+      res = await fetch("https://www.cathaylife.com.tw/cathaylifeins/api/DTODBHZ6/getAllByJoinZ5", {
+        signal: ctl.signal,
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible)",
           Referer: "https://www.cathaylife.com.tw/cathaylifeins/common/rate",
           Accept: "application/json",
         },
         next: { revalidate: 43200 },
-      }
-    );
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) {
       return NextResponse.json({ error: "upstream fetch failed" }, { status: 502 });

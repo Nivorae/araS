@@ -21,9 +21,10 @@ export function InvestmentChart({
         borderRight: "2px solid #1c1c1e",
         borderBottom: "2px solid #1c1c1e",
         height: "100%",
+        minHeight: 0,
       }}
     >
-      <ResponsiveContainer width="100%" height={height}>
+      <ResponsiveContainer width="100%" height={height} minHeight={0}>
         <BarChart
           data={data}
           barGap={2}

@@ -12,9 +12,9 @@ let cachedAt = 0;
 let cachedResult: { 公司代號: string; 公司簡稱: string }[] | null = null;
 const CACHE_MS = 60 * 60 * 1000; // 1 hour
 
-async function fetchJSON(url: string): Promise<Record<string, string>[]> {
+async function fetchJSON(url: string, signal: AbortSignal): Promise<Record<string, string>[]> {
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store", signal });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -28,11 +28,20 @@ export async function GET() {
       return NextResponse.json(cachedResult);
     }
 
-    const [allSecurities, companies, tpexSecurities] = await Promise.all([
-      fetchJSON(TWSE_ALL),
-      fetchJSON(TWSE_COMPANIES),
-      fetchJSON(TPEX_ALL),
-    ]);
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    let allSecurities: Record<string, string>[],
+      companies: Record<string, string>[],
+      tpexSecurities: Record<string, string>[];
+    try {
+      [allSecurities, companies, tpexSecurities] = await Promise.all([
+        fetchJSON(TWSE_ALL, ctl.signal),
+        fetchJSON(TWSE_COMPANIES, ctl.signal),
+        fetchJSON(TPEX_ALL, ctl.signal),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
 
     const nameMap = new Map<string, string>();
     for (const item of companies) {

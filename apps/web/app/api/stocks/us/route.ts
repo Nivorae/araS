@@ -109,10 +109,18 @@ export async function GET() {
       return NextResponse.json(cachedResult);
     }
 
-    const res = await fetch(SEC_TICKERS_URL, {
-      cache: "no-store",
-      headers: { "User-Agent": "araS-finance-app contact@example.com" },
-    });
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    let res: Response;
+    try {
+      res = await fetch(SEC_TICKERS_URL, {
+        signal: ctl.signal,
+        cache: "no-store",
+        headers: { "User-Agent": "araS-finance-app contact@example.com" },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) {
       return NextResponse.json({ error: "Failed to fetch" }, { status: 502 });
