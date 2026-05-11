@@ -79,7 +79,10 @@ export function BankPickerPage({ open, onClose, onSelect, selectedCode }: Props)
                       if (fallback) fallback.style.display = "flex";
                     }}
                   />
-                  <div className="absolute inset-0 hidden items-center justify-center rounded-xl bg-[#e5e5ea] text-[11px] font-bold text-[#636366]">
+                  <div
+                    className="absolute inset-0 flex items-center justify-center rounded-xl bg-[#e5e5ea] text-[11px] font-bold text-[#636366]"
+                    style={{ display: "none" }}
+                  >
                     {bank.name[0]}
                   </div>
                 </div>
