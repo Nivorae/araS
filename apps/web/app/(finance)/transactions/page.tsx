@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceStore } from "../../../store/useFinanceStore";
 import { PnlChart } from "../../../components/finance/PnlChart";
 import { InvestmentChart } from "../../../components/finance/InvestmentChart";
@@ -16,9 +16,40 @@ type Tab = "investment" | "liquidity";
 function BalanceScale({ assets, liabilities }: { assets: number; liabilities: number }) {
   const total = assets + liabilities;
   const assetRatio = total > 0 ? assets / total : 0.5;
-  // Negative rotation = left (assets) pan goes down
   const rotation = (0.5 - assetRatio) * 28;
-  const dur = "1.3s cubic-bezier(0.34, 1.56, 0.64, 1)";
+
+  const [mounted, setMounted] = useState(false);
+  const [bump, setBump] = useState(0);
+  const [isJiggling, setIsJiggling] = useState(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    return () => timers.current.forEach(clearTimeout);
+  }, []);
+
+  const displayRotation = mounted ? rotation : 0;
+  const currentRotation = displayRotation + bump;
+  const dur = isJiggling ? "0.18s ease-in-out" : "1.3s cubic-bezier(0.34, 1.56, 0.64, 1)";
+
+  function handleClick(side: "left" | "right") {
+    if (isJiggling) return;
+    timers.current.forEach(clearTimeout);
+    const dir = side === "left" ? -1 : 1;
+    setIsJiggling(true);
+    setBump(dir * 11);
+    timers.current = [
+      setTimeout(() => setBump(dir * -8), 200),
+      setTimeout(() => setBump(dir * 5), 400),
+      setTimeout(() => setBump(dir * -2), 580),
+      setTimeout(() => setBump(0), 740),
+      setTimeout(() => setIsJiggling(false), 960),
+    ];
+  }
 
   return (
     <div style={{ position: "relative", width: 220, height: 108 }}>
@@ -60,12 +91,13 @@ function BalanceScale({ assets, liabilities }: { assets: number; liabilities: nu
           background: "#1c1c1e",
           borderRadius: 2,
           transformOrigin: "center center",
-          transform: `rotate(${rotation}deg)`,
+          transform: `rotate(${currentRotation}deg)`,
           transition: `transform ${dur}`,
         }}
       >
         {/* Left (assets) — string + pan */}
         <div
+          onClick={() => handleClick("left")}
           style={{
             position: "absolute",
             left: 0,
@@ -75,8 +107,9 @@ function BalanceScale({ assets, liabilities }: { assets: number; liabilities: nu
             flexDirection: "column",
             alignItems: "center",
             transformOrigin: "top center",
-            transform: `rotate(${-rotation}deg)`,
+            transform: `rotate(${-currentRotation}deg)`,
             transition: `transform ${dur}`,
+            cursor: "pointer",
           }}
         >
           <div style={{ width: 3, height: 30, background: "#8e8e93" }} />
@@ -92,6 +125,7 @@ function BalanceScale({ assets, liabilities }: { assets: number; liabilities: nu
 
         {/* Right (liabilities) — string + pan */}
         <div
+          onClick={() => handleClick("right")}
           style={{
             position: "absolute",
             right: 0,
@@ -101,8 +135,9 @@ function BalanceScale({ assets, liabilities }: { assets: number; liabilities: nu
             flexDirection: "column",
             alignItems: "center",
             transformOrigin: "top center",
-            transform: `rotate(${-rotation}deg)`,
+            transform: `rotate(${-currentRotation}deg)`,
             transition: `transform ${dur}`,
+            cursor: "pointer",
           }}
         >
           <div style={{ width: 3, height: 30, background: "#8e8e93" }} />
