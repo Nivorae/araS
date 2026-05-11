@@ -139,6 +139,7 @@ export const useFinanceStore = create<FinanceState>()(
             ...data,
             id: `demo-${Date.now()}`,
             stockCode: (data as { stockCode?: string | null }).stockCode ?? null,
+            bankCode: (data as { bankCode?: string | null }).bankCode ?? null,
             loan: null,
             units: null,
             createdAt: new Date().toISOString(),
