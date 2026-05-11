@@ -1,6 +1,14 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-export default clerkMiddleware();
+const isProtectedProxy = createRouteMatcher([
+  "/api/stocks(.*)",
+  "/api/exchange-rate(.*)",
+  "/api/cathaylife-rates(.*)",
+]);
+
+export default clerkMiddleware((auth, req) => {
+  if (isProtectedProxy(req)) auth.protect();
+});
 
 export const config = {
   matcher: [

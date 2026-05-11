@@ -7,9 +7,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ dividendRate: null, dividendYield: null });
   }
 
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 5000);
   try {
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=summaryDetail`;
     const res = await fetch(url, {
+      signal: ctl.signal,
       cache: "no-store",
       headers: { "User-Agent": "Mozilla/5.0" },
     });
@@ -29,5 +32,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ dividendRate, dividendYield });
   } catch {
     return NextResponse.json({ dividendRate: null, dividendYield: null });
+  } finally {
+    clearTimeout(timer);
   }
 }
