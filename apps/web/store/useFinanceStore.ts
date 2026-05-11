@@ -162,6 +162,7 @@ export const useFinanceStore = create<FinanceState>()(
             body: JSON.stringify({
               value: existing.value + data.value,
               ...(data.stockCode ? { stockCode: data.stockCode } : {}),
+              ...(data.bankCode ? { bankCode: data.bankCode } : {}),
               ...(data.units != null ? { units: data.units } : {}),
             }),
           });
