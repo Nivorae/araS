@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 5000);
   try {
     const res = await fetch("https://open.er-api.com/v6/latest/USD", {
+      signal: ctl.signal,
       next: { revalidate: 3600 },
     });
     if (!res.ok) throw new Error("Non-OK response");
@@ -12,5 +15,7 @@ export async function GET() {
     return NextResponse.json({ TWD: twd });
   } catch {
     return NextResponse.json({ error: "fetch failed" }, { status: 502 });
+  } finally {
+    clearTimeout(timer);
   }
 }

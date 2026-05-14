@@ -39,6 +39,7 @@ interface EditItem {
   name: string;
   value: number;
   category: string;
+  bankCode?: string | null;
 }
 
 export default function AssetsPage() {
@@ -131,7 +132,13 @@ export default function AssetsPage() {
     });
     setEditItem(
       mode === "adjust"
-        ? { id: entry.id, name: entry.name, value: entry.value, category: entry.topCategory }
+        ? {
+            id: entry.id,
+            name: entry.name,
+            value: entry.value,
+            category: entry.topCategory,
+            bankCode: entry.bankCode ?? null,
+          }
         : null
     );
     setShowForm(true);

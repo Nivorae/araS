@@ -21,10 +21,23 @@ import {
   PiggyBank,
 } from "lucide-react";
 import { useFinanceStore } from "../../store/useFinanceStore";
+import { z } from "zod";
+
+const StoredParamsSchema = z
+  .object({
+    currentAge: z.number().int().positive(),
+    retirementAge: z.number().int().positive(),
+    monthlyExpense: z.number().nonnegative(),
+    inflationRate: z.number().min(0).max(100),
+    accRate: z.number().min(0).max(100),
+    wdRate: z.number().min(0).max(100),
+    swr: z.number().min(0).max(100),
+    monthlyContrib: z.number().nonnegative(),
+    govPension: z.number().nonnegative(),
+  })
+  .partial();
 
 const STORAGE_KEY = "retirement_params_v1";
-
-const WAVE_CSS = `@keyframes piggy-water-bob{from{transform:translateY(-2px)}to{transform:translateY(2px)}}@keyframes modal-slide-up{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes modal-slide-down{from{transform:translateY(0)}to{transform:translateY(100%)}}@keyframes modal-scrim-in{from{opacity:0}to{opacity:1}}@keyframes modal-scrim-out{from{opacity:1}to{opacity:0}}`;
 
 interface Params {
   currentAge: number;
@@ -337,16 +350,21 @@ export function RetirementPage() {
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: Params = { ...DEFAULTS, ...JSON.parse(saved) };
-        setParams(parsed);
-        setSensRate(parsed.accRate);
-        setSensAge(parsed.retirementAge);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const result = StoredParamsSchema.safeParse(JSON.parse(saved));
+        if (result.success) {
+          const parsed: Params = { ...DEFAULTS, ...(result.data as Partial<Params>) };
+          setParams(parsed);
+          setSensRate(parsed.accRate);
+          setSensAge(parsed.retirementAge);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
       }
-    } catch {
-      // ignore invalid stored JSON
     }
     setInitialized(true);
     fetchAll();
@@ -607,8 +625,6 @@ export function RetirementPage() {
 
   return (
     <>
-      {}
-      <style dangerouslySetInnerHTML={{ __html: WAVE_CSS }} />
       <div className="space-y-4 px-4 pb-8">
         {/* Header */}
         <div

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-// CoinGecko /coins/markets — top 500 coins by market cap, no auth required
 const COINGECKO_MARKETS_URL =
   "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=";
 
@@ -14,10 +13,17 @@ export async function GET() {
       return NextResponse.json(cachedResult);
     }
 
-    const [page1, page2] = await Promise.all([
-      fetch(COINGECKO_MARKETS_URL + "1", { cache: "no-store" }),
-      fetch(COINGECKO_MARKETS_URL + "2", { cache: "no-store" }),
-    ]);
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    let page1: Response, page2: Response;
+    try {
+      [page1, page2] = await Promise.all([
+        fetch(COINGECKO_MARKETS_URL + "1", { signal: ctl.signal, cache: "no-store" }),
+        fetch(COINGECKO_MARKETS_URL + "2", { signal: ctl.signal, cache: "no-store" }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!page1.ok || !page2.ok) {
       return NextResponse.json({ error: "Failed to fetch" }, { status: 502 });

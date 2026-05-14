@@ -13,6 +13,9 @@ export const reactConfig = [
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,
       "react/react-in-jsx-scope": "off",
+      "react/no-danger": "error",
+      "no-eval": "error",
+      "no-implied-eval": "error",
     },
     settings: {
       react: { version: "detect" },

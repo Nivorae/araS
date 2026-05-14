@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { z } from "zod";
 
 const CACHE_KEY = "usd_twd_rate";
 const CACHE_TTL_MS = 86400000; // 24 hours
 const DEFAULT_RATE = 32.5;
 
-interface CachedRate {
-  rate: number;
-  timestamp: number;
-}
+const CachedRateSchema = z.object({
+  rate: z.number().positive(),
+  timestamp: z.number().int().nonnegative(),
+});
 
 export function useExchangeRate(): {
   rate: number;
@@ -24,24 +25,26 @@ export function useExchangeRate(): {
 
   useEffect(() => {
     async function loadRate() {
-      // Check localStorage cache first
       try {
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
-          const parsed: CachedRate = JSON.parse(cached);
-          const age = Date.now() - parsed.timestamp;
-          if (age < CACHE_TTL_MS && parsed.rate > 0) {
-            setRate(parsed.rate);
-            setIsManual(false);
-            setIsLoading(false);
-            return;
+          const result = CachedRateSchema.safeParse(JSON.parse(cached));
+          if (result.success) {
+            const age = Date.now() - result.data.timestamp;
+            if (age < CACHE_TTL_MS) {
+              setRate(result.data.rate);
+              setIsManual(false);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            localStorage.removeItem(CACHE_KEY);
           }
         }
       } catch {
-        // Ignore parse errors — fall through to fetch
+        localStorage.removeItem(CACHE_KEY);
       }
 
-      // Fetch fresh rate via server-side proxy (avoids CSP restrictions)
       try {
         const res = await fetch("/api/exchange-rate");
         if (!res.ok) throw new Error("Non-OK response");
@@ -49,12 +52,10 @@ export function useExchangeRate(): {
         const fetched = data.TWD;
         if (!fetched || fetched <= 0) throw new Error("Invalid rate");
 
-        const cached: CachedRate = { rate: fetched, timestamp: Date.now() };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ rate: fetched, timestamp: Date.now() }));
         setRate(fetched);
         setIsManual(false);
       } catch {
-        // Fall back to manual / default
         setIsManual(true);
         setRate(DEFAULT_RATE);
       } finally {
@@ -69,8 +70,7 @@ export function useExchangeRate(): {
     setRate(newRate);
     setIsManual(true);
     try {
-      const cached: CachedRate = { rate: newRate, timestamp: Date.now() };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ rate: newRate, timestamp: Date.now() }));
     } catch {
       // Ignore storage errors
     }

@@ -15,6 +15,7 @@ model Entry {
   topCategory String
   subCategory String
   stockCode   String?
+  bankCode    String?
   value       Decimal
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt

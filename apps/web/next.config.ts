@@ -2,8 +2,21 @@ import withPWAInit from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
   dest: "public",
-  cacheOnFrontEndNav: true,
+  cacheOnFrontEndNav: false,
   disable: process.env.NODE_ENV === "development",
+  workboxOptions: {
+    runtimeCaching: [
+      {
+        urlPattern: /^https?:\/\/[^/]+\/api\/(loans|transactions|entries|portfolio).*/,
+        handler: "NetworkOnly",
+      },
+      {
+        urlPattern: /^https?:\/\/[^/]+\/api\/(stocks|exchange-rate|cathaylife-rates).*/,
+        handler: "StaleWhileRevalidate",
+        options: { cacheName: "public-data", expiration: { maxAgeSeconds: 300 } },
+      },
+    ],
+  },
 });
 
 const nextConfig = {
@@ -19,6 +32,7 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           {
             key: "Strict-Transport-Security",
             value: "max-age=31536000; includeSubDomains; preload",
@@ -27,7 +41,6 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              // Next.js dev mode needs 'unsafe-eval' for React Fast Refresh
               process.env.NODE_ENV === "development"
                 ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk-telemetry.com https://*.clerk.accounts.dev https://challenges.cloudflare.com"
                 : "script-src 'self' 'unsafe-inline' https://clerk-telemetry.com https://*.clerk.accounts.dev https://challenges.cloudflare.com",
@@ -42,6 +55,13 @@ const nextConfig = {
               "form-action 'self'",
             ].join("; "),
           },
+        ],
+      },
+      {
+        source: "/api/(loans|transactions|entries|portfolio)/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+          { key: "Vary", value: "Cookie, Authorization" },
         ],
       },
     ];

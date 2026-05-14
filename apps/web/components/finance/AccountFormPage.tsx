@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Check, Info, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Info, RefreshCw, Landmark } from "lucide-react";
 import { Spinner } from "../ui/Spinner";
 import type { LucideIcon } from "lucide-react";
 import { useFinanceStore } from "../../store/useFinanceStore";
 import { StockPickerPage, type StockItem } from "./StockPickerPage";
+import { BankPickerPage, BANKS, type BankItem } from "./BankPickerPage";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 
 interface EditItem {
@@ -13,6 +14,7 @@ interface EditItem {
   name: string;
   value: number;
   category: string;
+  bankCode?: string | null;
 }
 
 interface Props {
@@ -110,6 +112,8 @@ export function AccountFormPage({
   const [showStockPicker, setShowStockPicker] = useState(false);
   const [selectedStock, setSelectedStock] = useState<StockItem | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [selectedBank, setSelectedBank] = useState<BankItem | null>(null);
+  const [showBankPicker, setShowBankPicker] = useState(false);
 
   const [name, setName] = useState("");
   const [includeInChart, setIncludeInChart] = useState(true);
@@ -146,6 +150,9 @@ export function AccountFormPage({
     setNote("");
     setDate(new Date().toISOString().split("T")[0] ?? "");
     setSelectedStock(null);
+    setSelectedBank(
+      editItem?.bankCode ? (BANKS.find((b) => b.code === editItem.bankCode) ?? null) : null
+    );
     setOriginalPrice(0);
     setCurrency("TWD");
     setExchangeRate(1);
@@ -367,6 +374,7 @@ export function AccountFormPage({
             value,
             ...(selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
+            ...(selectedBank ? { bankCode: selectedBank.code } : {}),
           });
         } else {
           await addEntry({
@@ -376,6 +384,7 @@ export function AccountFormPage({
             value,
             ...(selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
+            ...(selectedBank ? { bankCode: selectedBank.code } : {}),
             createdAt: date,
           });
         }
@@ -412,7 +421,7 @@ export function AccountFormPage({
                   <Spinner size={20} />
                 </span>
               ) : (
-                <Check size={20} style={{ color: categoryColor }} strokeWidth={2.5} />
+                <Check size={20} style={{ color: "black" }} strokeWidth={2.5} />
               )}
             </button>
           </div>
@@ -601,6 +610,47 @@ export function AccountFormPage({
 
             <div className="mx-5 h-px bg-[#f2f2f7]" />
 
+            {/* Icon — only for 金融卡 */}
+            {subCategoryName === "金融卡" && !isLoan && (
+              <>
+                <button
+                  onClick={() => setShowBankPicker(true)}
+                  className="flex w-full items-center justify-between px-5 py-4 active:bg-[#f2f2f7]"
+                >
+                  <p className="text-[16px] font-medium text-[#1c1c1e]">Icon</p>
+                  <div className="flex items-center gap-2">
+                    {selectedBank ? (
+                      <div className="relative h-8 w-8">
+                        <img
+                          src={`/banks/${selectedBank.code}.png`}
+                          alt={selectedBank.name}
+                          className="h-full w-full rounded-lg object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            const fallback = e.currentTarget
+                              .nextElementSibling as HTMLElement | null;
+                            if (fallback) fallback.style.display = "flex";
+                          }}
+                        />
+                        <div
+                          className="absolute inset-0 flex items-center justify-center rounded-lg bg-[#e5e5ea] text-[10px] font-bold text-[#636366]"
+                          style={{ display: "none" }}
+                        >
+                          {selectedBank.name[0]}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f2f2f7]">
+                        <Landmark size={16} className="text-[#8e8e93]" />
+                      </div>
+                    )}
+                    <ChevronRight size={16} className="text-[#c7c7cc]" />
+                  </div>
+                </button>
+                <div className="mx-5 h-px bg-[#f2f2f7]" />
+              </>
+            )}
+
             {/* Account Name */}
             <div className="flex items-center justify-between px-5 py-4">
               <p className="shrink-0 text-[16px] font-medium text-[#1c1c1e]">帳戶名稱</p>
@@ -696,6 +746,12 @@ export function AccountFormPage({
         market={subCategoryName}
         color={categoryColor}
         {...(subCategoryName === "台股" && { holdings: twHoldings })}
+      />
+      <BankPickerPage
+        open={showBankPicker}
+        onClose={() => setShowBankPicker(false)}
+        onSelect={(bank) => setSelectedBank(bank)}
+        selectedCode={selectedBank?.code ?? null}
       />
     </>
   );

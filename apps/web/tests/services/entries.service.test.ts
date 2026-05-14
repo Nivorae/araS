@@ -106,3 +106,69 @@ describe("EntriesService.verifyHistoryOwnership", () => {
     expect(result).toBe(false);
   });
 });
+
+describe("EntriesService.create — bankCode", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("passes bankCode to prisma when provided", async () => {
+    const fakeEntry = {
+      id: "e1",
+      name: "Test",
+      topCategory: "銀行",
+      subCategory: "金融卡",
+      stockCode: null,
+      bankCode: "ctbc",
+      value: { toNumber: () => 5000 },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      userId: USER_ID,
+    };
+    vi.mocked(prisma.entry.create).mockResolvedValue(fakeEntry as never);
+    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+
+    await entriesService.create(
+      {
+        name: "Test",
+        topCategory: "銀行",
+        subCategory: "金融卡",
+        value: 5000,
+        bankCode: "ctbc",
+      },
+      USER_ID
+    );
+
+    expect(prisma.entry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ bankCode: "ctbc" }),
+      })
+    );
+  });
+
+  it("sets bankCode to null when not provided", async () => {
+    const fakeEntry = {
+      id: "e2",
+      name: "Test",
+      topCategory: "銀行",
+      subCategory: "金融卡",
+      stockCode: null,
+      bankCode: null,
+      value: { toNumber: () => 5000 },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      userId: USER_ID,
+    };
+    vi.mocked(prisma.entry.create).mockResolvedValue(fakeEntry as never);
+    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+
+    await entriesService.create(
+      { name: "Test", topCategory: "銀行", subCategory: "金融卡", value: 5000 },
+      USER_ID
+    );
+
+    expect(prisma.entry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ bankCode: null }),
+      })
+    );
+  });
+});
