@@ -31,6 +31,8 @@ export const BANKS: BankItem[] = [
   { code: "post", name: "中華郵政" },
   { code: "hsbc", name: "匯豐銀行" },
   { code: "dbs", name: "星展銀行" },
+  { code: "line", name: "Line Bank" },
+  { code: "ubot", name: "聯邦銀行" },
 ];
 
 export function BankPickerPage({ open, onClose, onSelect, selectedCode }: Props) {
@@ -57,12 +59,12 @@ export function BankPickerPage({ open, onClose, onSelect, selectedCode }: Props)
         </div>
 
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-          <div className="grid grid-cols-5 gap-3 p-4">
+          <div className="grid grid-cols-4 gap-3 p-4">
             {BANKS.map((bank) => (
               <button
                 key={bank.code}
                 onClick={() => handleSelect(bank)}
-                className={`flex items-center justify-center rounded-xl p-1.5 transition-all active:bg-[#f2f2f7] ${
+                className={`flex flex-col items-center justify-start rounded-xl p-2 transition-all active:bg-[#f2f2f7] ${
                   selectedCode === bank.code
                     ? "outline outline-2 outline-offset-1 outline-[#374254]"
                     : ""
@@ -86,6 +88,9 @@ export function BankPickerPage({ open, onClose, onSelect, selectedCode }: Props)
                     {bank.name[0]}
                   </div>
                 </div>
+                <span className="mt-1 max-w-full truncate text-center text-[10px] leading-tight text-[#1c1c1e]">
+                  {bank.name}
+                </span>
               </button>
             ))}
           </div>

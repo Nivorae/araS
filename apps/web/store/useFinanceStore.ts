@@ -182,7 +182,7 @@ export const useFinanceStore = create<FinanceState>()(
           body: JSON.stringify(data),
         });
         set((s) => {
-          const newEntries = [entry, ...s.entries];
+          const newEntries = [entry, ...s.entries.filter((e) => e.id !== entry.id)];
           return {
             entries: newEntries,
             valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],

@@ -46,6 +46,16 @@ function getUnitsLabel(subCategoryName: string): string {
   }
 }
 
+function getBalanceLabel(topCategory: string): string {
+  if (topCategory === "應收款") {
+    return "應收餘額";
+  }
+  if (topCategory === "負債") {
+    return "負債金額";
+  }
+  return "帳戶餘額";
+}
+
 const INVESTMENT_CATEGORIES = ["投資基金", "台股", "美股", "加密貨幣", "貴金屬", "其他投資"];
 const STOCK_PICKER_CATEGORIES = ["台股", "美股", "加密貨幣", "貴金屬"];
 const LOAN_SUBCATEGORIES = ["房屋貸款", "汽車貸款", "消費貸款", "學生貸款", "其他貸款"];
@@ -77,6 +87,7 @@ export function AccountFormPage({
   SubCategoryIcon,
   editItem,
   nameSuggestion,
+  isLiability = false,
 }: Props) {
   const { addEntry, updateEntry, fetchAll, entries } = useFinanceStore();
 
@@ -330,7 +341,7 @@ export function AccountFormPage({
       }
     } else {
       if (!balance || isNaN(parseFloat(balance))) {
-        setFormError("請輸入帳戶餘額");
+        setFormError(`請輸入${getBalanceLabel(topCategory)}`);
         return false;
       }
     }
@@ -586,11 +597,13 @@ export function AccountFormPage({
             ) : (
               /* Standard balance */
               <div className="flex items-center justify-between px-5 py-4">
-                <div>
-                  <p className="text-[16px] font-medium text-[#1c1c1e]">帳戶</p>
-                  <p className="text-[16px] font-medium text-[#1c1c1e]">餘額</p>
-                </div>
+                <p className="text-[16px] font-medium text-[#1c1c1e]">
+                  {getBalanceLabel(topCategory)}
+                </p>
                 <div className="flex items-center gap-2">
+                  {isLiability && (
+                    <span className="text-[20px] font-semibold text-[#ff3b30]">−</span>
+                  )}
                   <input
                     type="number"
                     value={balance}
@@ -599,9 +612,11 @@ export function AccountFormPage({
                       setFormError(null);
                     }}
                     placeholder="0"
-                    className="w-24 bg-transparent text-right text-[20px] font-semibold text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+                    className={`w-24 bg-transparent text-right text-[20px] font-semibold outline-none placeholder:text-[#c7c7cc] ${isLiability ? "text-[#ff3b30]" : "text-[#1c1c1e]"}`}
                   />
-                  <span className="rounded-full bg-[#1c1c1e] px-2.5 py-1 text-[11px] font-bold text-white">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isLiability ? "bg-[#ff3b30] text-white" : "bg-[#1c1c1e] text-white"}`}
+                  >
                     TWD
                   </span>
                 </div>
@@ -617,12 +632,12 @@ export function AccountFormPage({
                   onClick={() => setShowBankPicker(true)}
                   className="flex w-full items-center justify-between px-5 py-4 active:bg-[#f2f2f7]"
                 >
-                  <p className="text-[16px] font-medium text-[#1c1c1e]">Icon</p>
+                  <p className="text-[16px] font-medium text-[#1c1c1e]">銀行圖示</p>
                   <div className="flex items-center gap-2">
                     {selectedBank ? (
                       <div className="relative h-8 w-8">
                         <img
-                          src={`/banks/${selectedBank.code}.png`}
+                          src={`/banks/${selectedBank.code}.svg`}
                           alt={selectedBank.name}
                           className="h-full w-full rounded-lg object-contain"
                           onError={(e) => {

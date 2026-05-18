@@ -115,6 +115,7 @@
       "topCategory": "流動資金",
       "subCategory": "金融卡",
       "stockCode": null,
+      "bankCode": "esun",
       "value": 100000,
       "createdAt": "2026-04-16T00:00:00.000Z",
       "updatedAt": "2026-04-16T04:27:27.467Z",
@@ -127,6 +128,7 @@
       "topCategory": "流動資金",
       "subCategory": "金融卡",
       "stockCode": null,
+      "bankCode": "bot",
       "value": 60000,
       "createdAt": "2026-04-16T00:00:00.000Z",
       "updatedAt": "2026-04-16T04:56:42.614Z",
@@ -143,7 +145,8 @@
       "createdAt": "2026-04-16T00:00:00.000Z",
       "updatedAt": "2026-04-16T04:54:22.640Z",
       "loan": null,
-      "units": null
+      "units": null,
+      "bankCode": "line"
     },
     {
       "id": "cmo0zbfri0003la043gc3gj12",
@@ -155,7 +158,8 @@
       "createdAt": "2026-04-16T00:00:00.000Z",
       "updatedAt": "2026-04-16T04:28:26.233Z",
       "loan": null,
-      "units": null
+      "units": null,
+      "bankCode": "sinopac"
     },
     {
       "id": "cmo0zcqzx0006la04cimklji9",
@@ -167,7 +171,8 @@
       "createdAt": "2026-04-16T00:00:00.000Z",
       "updatedAt": "2026-05-01T11:14:00.881Z",
       "loan": null,
-      "units": null
+      "units": null,
+      "bankCode": "ubot"
     },
     {
       "id": "cmo18lfiv0000fuooch2yjxc7",
@@ -187,6 +192,7 @@
       "topCategory": "流動資金",
       "subCategory": "金融卡",
       "stockCode": null,
+      "bankCode": "cathay",
       "value": 1000000,
       "createdAt": "2026-03-13T07:19:26.440Z",
       "updatedAt": "2026-03-16T04:53:04.174Z",
@@ -194,11 +200,12 @@
       "units": null
     },
     {
-      "id": "cmnwv3sqd0006fub4mceisc6h",
+      "id": "cmnwv3sqd0007fub4mceisc7i",
       "name": "郵局",
       "topCategory": "流動資金",
       "subCategory": "金融卡",
       "stockCode": null,
+      "bankCode": "post",
       "value": 1751348,
       "createdAt": "2026-03-13T07:19:26.440Z",
       "updatedAt": "2026-03-16T04:53:04.174Z",

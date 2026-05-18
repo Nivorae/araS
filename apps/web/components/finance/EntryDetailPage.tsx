@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Pencil, MoreHorizontal, Trash2 } from "lucide-react";
+import { X, Pencil, Trash2 } from "lucide-react";
 import { Spinner } from "../ui/Spinner";
 import type { Entry, EntryHistory } from "@repo/shared";
 import { formatCurrency } from "../../lib/format";
@@ -14,6 +14,7 @@ interface Props {
   onAddEntry: () => void;
   onAdjust: () => void;
   onEntryUpdated?: () => void;
+  onDelete?: (id: string) => Promise<void>;
 }
 
 const STOCK_PICKER_CATEGORIES = ["台股", "美股", "加密貨幣", "貴金屬"];
@@ -52,11 +53,14 @@ export function EntryDetailPage({
   onAddEntry,
   onAdjust,
   onEntryUpdated,
+  onDelete,
 }: Props) {
   const [history, setHistory] = useState<EntryHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Dividend state
   const [dividendRate, setDividendRate] = useState<number | null>(null);
@@ -249,9 +253,14 @@ export function EntryDetailPage({
             >
               <Pencil size={16} className="text-[#1c1c1e]" />
             </button>
-            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
-              <MoreHorizontal size={18} className="text-[#1c1c1e]" />
-            </button>
+            {onDelete && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
+              >
+                <Trash2 size={16} className="text-[#ff3b30]" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -260,12 +269,30 @@ export function EntryDetailPage({
           {/* Icon + name */}
           <div className="mb-4 flex items-center gap-3">
             <div
-              className="flex h-11 w-11 items-center justify-center rounded-full"
+              className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full"
               style={{ backgroundColor: color + "20" }}
             >
-              <span className="text-[13px] font-bold" style={{ color }}>
-                {entry.subCategory.slice(0, 2)}
-              </span>
+              {entry.bankCode ? (
+                <>
+                  <img
+                    src={`/banks/${entry.bankCode}.svg`}
+                    alt={entry.name}
+                    className="h-full w-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                      if (fallback) fallback.style.display = "inline";
+                    }}
+                  />
+                  <span className="text-[13px] font-bold" style={{ color, display: "none" }}>
+                    {entry.subCategory.slice(0, 2)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[13px] font-bold" style={{ color }}>
+                  {entry.subCategory.slice(0, 2)}
+                </span>
+              )}
             </div>
             <div>
               <p className="text-[17px] font-semibold text-[#1c1c1e]">{entry.name}</p>
@@ -429,6 +456,48 @@ export function EntryDetailPage({
           )}
         </div>
       </div>
+
+      {/* Delete entry confirmation bottom sheet */}
+      {showDeleteConfirm && (
+        <>
+          <div
+            className="fixed inset-0 z-[80] bg-black/40"
+            onClick={() => setShowDeleteConfirm(false)}
+          />
+          <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e5e5ea]" />
+            <p className="mb-2 text-center text-[16px] font-semibold text-[#1c1c1e]">刪除項目</p>
+            <p className="mb-6 text-center text-[13px] text-[#8e8e93]">
+              確定要刪除「{entry.name}」？此操作無法復原。
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 rounded-full border border-[#e5e5ea] py-3 text-[15px] font-semibold text-[#1c1c1e] active:bg-[#f2f2f7]"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  if (!onDelete) return;
+                  setDeleteLoading(true);
+                  try {
+                    await onDelete(entry.id);
+                    setShowDeleteConfirm(false);
+                  } finally {
+                    setDeleteLoading(false);
+                  }
+                }}
+                disabled={deleteLoading}
+                className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#ff3b30] py-3 text-[15px] font-semibold text-white active:opacity-80 disabled:opacity-40"
+              >
+                {deleteLoading && <Spinner size={14} />}
+                {deleteLoading ? "刪除中..." : "確認刪除"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Edit history bottom sheet */}
       {editingHistory && (

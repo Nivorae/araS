@@ -2,19 +2,9 @@
 
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import Image from "next/image";
 import type { LucideIcon } from "lucide-react";
 import type { Entry } from "@repo/shared";
 import { formatCurrency } from "../../lib/format";
-
-const ASSET_ICON_MAP: Record<string, string> = {
-  "Bank of Taiwan": "/assets_icons/Bank of Taiwan.png",
-  "Cathay United Bank": "/assets_icons/Cathay United Bank.jpg",
-  Dawho: "/assets_icons/Dawho.png",
-  "Esun Bank": "/assets_icons/Esun Bank.jpg",
-  "Line Bank": "/assets_icons/Line Bank.png",
-  "New New Bank": "/assets_icons/New New Bank.png",
-};
 
 export interface StackCategory {
   name: string;
@@ -31,6 +21,7 @@ interface Props {
   getEntryIcon: (topCategory: string, subCategory: string) => LucideIcon;
   onEntryClick: (entry: Entry) => void;
   onExpandChange: (expanded: boolean) => void;
+  onAddClick?: (categoryName: string) => void;
 }
 
 const MAX_STACK_SPACING = 70;
@@ -42,7 +33,7 @@ export interface CategoryCardStackHandle {
 
 export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
   function CategoryCardStack(
-    { categories, hideBalance, getEntryIcon, onEntryClick, onExpandChange }: Props,
+    { categories, hideBalance, getEntryIcon, onEntryClick, onExpandChange, onAddClick }: Props,
     ref
   ) {
     const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -172,17 +163,29 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                           style={{ background: "rgba(255,255,255,0.55)" }}
                         >
                           <div
-                            className="flex h-[28px] w-[28px] shrink-0 items-center justify-center overflow-hidden rounded-[8px]"
+                            className="relative flex h-[28px] w-[28px] shrink-0 items-center justify-center overflow-hidden rounded-[8px]"
                             style={{ background: "rgba(255,255,255,0.7)" }}
                           >
-                            {ASSET_ICON_MAP[entry.name] ? (
-                              <Image
-                                src={ASSET_ICON_MAP[entry.name]!}
-                                alt={entry.name}
-                                width={28}
-                                height={28}
-                                className="h-full w-full object-cover"
-                              />
+                            {entry.bankCode ? (
+                              <>
+                                <img
+                                  src={`/banks/${entry.bankCode}.svg`}
+                                  alt={entry.name}
+                                  className="h-full w-full object-contain"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                    const fallback = e.currentTarget
+                                      .nextElementSibling as HTMLElement | null;
+                                    if (fallback) fallback.style.display = "flex";
+                                  }}
+                                />
+                                <div
+                                  className="absolute inset-0 items-center justify-center text-[9px] font-bold text-[#636366]"
+                                  style={{ display: "none" }}
+                                >
+                                  {entry.name[0]}
+                                </div>
+                              </>
                             ) : (
                               <EntryIcon size={15} className="text-[#1c1c1e]" />
                             )}
@@ -197,6 +200,18 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                         </button>
                       );
                     })}
+                    {onAddClick && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddClick(cat.name);
+                        }}
+                        className="mt-1 mb-3 flex w-full items-center justify-center rounded-[14px] px-[14px] py-[10px] active:opacity-70"
+                        style={{ background: "rgba(255,255,255,0.55)" }}
+                      >
+                        <span className="text-[13px] font-semibold text-[#1c1c1e]">+ 新增</span>
+                      </button>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

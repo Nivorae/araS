@@ -43,7 +43,7 @@ interface EditItem {
 }
 
 export default function AssetsPage() {
-  const { fetchAll, entries, loading } = useFinanceStore();
+  const { fetchAll, entries, loading, deleteEntry } = useFinanceStore();
   const { setAddAction } = useNavContext();
   const [showMenu, setShowMenu] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -216,6 +216,9 @@ export default function AssetsPage() {
             getEntryIcon={(topCategory, subCategory) => getNodeIcon(topCategory, subCategory)}
             onEntryClick={openDetail}
             onExpandChange={setIsCardExpanded}
+            onAddClick={(_categoryName) => {
+              setShowMenu(true);
+            }}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -249,6 +252,10 @@ export default function AssetsPage() {
         }}
         onAdjust={() => {
           if (detailEntry) openFormFromDetail(detailEntry, "adjust");
+        }}
+        onDelete={async (id) => {
+          await deleteEntry(id);
+          closeAll();
         }}
       />
 
