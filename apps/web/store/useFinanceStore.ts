@@ -11,6 +11,9 @@ import type {
   ValueSnapshot,
   CreateTransaction,
   CreatePortfolioItem,
+  Recurrence,
+  CreateRecurrence,
+  UpdateRecurrence,
 } from "@repo/shared";
 
 function uuid() {
@@ -45,6 +48,7 @@ interface FinanceState {
   entries: Entry[];
   transactions: Transaction[];
   portfolio: PortfolioItem[];
+  recurrences: Recurrence[];
   valueSnapshots: ValueSnapshot[];
   loading: boolean;
   error: string | null;
@@ -58,6 +62,9 @@ interface FinanceState {
   deleteTransaction: (id: string) => Promise<void>;
   addPortfolioItem: (data: CreatePortfolioItem) => Promise<void>;
   deletePortfolioItem: (id: string) => Promise<void>;
+  addRecurrence: (data: CreateRecurrence) => Promise<void>;
+  updateRecurrence: (id: string, data: UpdateRecurrence) => Promise<void>;
+  deleteRecurrence: (id: string) => Promise<void>;
 }
 
 export const useFinanceStore = create<FinanceState>()(
@@ -66,6 +73,7 @@ export const useFinanceStore = create<FinanceState>()(
       entries: [],
       transactions: [],
       portfolio: [],
+      recurrences: [],
       valueSnapshots: [],
       loading: true,
       error: null,
@@ -109,10 +117,14 @@ export const useFinanceStore = create<FinanceState>()(
         // Signed in: original API fetch logic
         set({ isGuest: false, loading: true, error: null });
         try {
-          const [entries, transactions, portfolio] = await Promise.all([
+          const [entries, portfolio] = await Promise.all([
             apiFetch<Entry[]>("/api/entries"),
-            apiFetch<Transaction[]>("/api/transactions"),
             apiFetch<PortfolioItem[]>("/api/portfolio"),
+          ]);
+          await apiFetch<{ created: number }>("/api/recurrences/process", { method: "POST" });
+          const [recurrences, updatedTransactions] = await Promise.all([
+            apiFetch<Recurrence[]>("/api/recurrences"),
+            apiFetch<Transaction[]>("/api/transactions"),
           ]);
           set((s) => {
             const snapshots =
@@ -121,8 +133,9 @@ export const useFinanceStore = create<FinanceState>()(
                 : s.valueSnapshots;
             return {
               entries,
-              transactions,
+              transactions: updatedTransactions,
               portfolio,
+              recurrences,
               valueSnapshots: snapshots,
               loading: false,
               lastFetchedAt: Date.now(),
@@ -285,6 +298,29 @@ export const useFinanceStore = create<FinanceState>()(
 
         await apiFetch(`/api/portfolio/${id}`, { method: "DELETE" });
         set((s) => ({ portfolio: s.portfolio.filter((p) => p.id !== id) }));
+      },
+
+      addRecurrence: async (data) => {
+        const item = await apiFetch<Recurrence>("/api/recurrences", {
+          method: "POST",
+          body: JSON.stringify(data),
+        });
+        set((s) => ({ recurrences: [...s.recurrences, item] }));
+      },
+
+      updateRecurrence: async (id, data) => {
+        const item = await apiFetch<Recurrence>(`/api/recurrences/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        });
+        set((s) => ({
+          recurrences: s.recurrences.map((r) => (r.id === id ? item : r)),
+        }));
+      },
+
+      deleteRecurrence: async (id) => {
+        await apiFetch(`/api/recurrences/${id}`, { method: "DELETE" });
+        set((s) => ({ recurrences: s.recurrences.filter((r) => r.id !== id) }));
       },
     }),
     {

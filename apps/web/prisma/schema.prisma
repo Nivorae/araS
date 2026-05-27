@@ -22,6 +22,7 @@ model Entry {
   history     EntryHistory[]
   loan        Loan?
   insurance   Insurance?
+  recurrences Recurrence[]
 
   @@index([topCategory])
   @@index([userId])
@@ -46,6 +47,13 @@ model Loan {
 enum RepaymentType {
   principal_interest
   principal_equal
+}
+
+enum RecurrenceFreq {
+  MONTHLY
+  WEEKLY
+  BIWEEKLY
+  YEARLY
 }
 
 model EntryHistory {
@@ -110,4 +118,29 @@ model Insurance {
   lastUpdatedAt          DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
+}
+
+model Recurrence {
+  id          String         @id @default(cuid())
+  userId      String
+  entryId     String
+  entry       Entry          @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  type        String
+  amount      Decimal
+  category    String
+  source      String         @default("daily")
+  note        String?
+  frequency   RecurrenceFreq
+  dayOfMonth  Int?
+  dayOfWeek   Int?
+  monthOfYear Int?
+  startDate   DateTime
+  nextRunAt   DateTime
+  lastRunAt   DateTime?
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([userId, nextRunAt])
+  @@index([entryId])
 }
