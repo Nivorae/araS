@@ -16,7 +16,7 @@ async function fetchJSON(url: string, signal: AbortSignal): Promise<Record<strin
   try {
     const res = await fetch(url, { cache: "no-store", signal });
     if (!res.ok) return [];
-    return res.json();
+    return await res.json();
   } catch {
     return [];
   }

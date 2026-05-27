@@ -159,6 +159,49 @@ export const QuoteSchema = z.object({
 });
 export type Quote = z.infer<typeof QuoteSchema>;
 
+// Recurrence
+export const RecurrenceFreqSchema = z.enum(["MONTHLY", "WEEKLY", "BIWEEKLY", "YEARLY"]);
+export type RecurrenceFreq = z.infer<typeof RecurrenceFreqSchema>;
+
+export const RecurrenceSchema = z.object({
+  id: z.string(),
+  entryId: z.string(),
+  type: TransactionTypeSchema,
+  amount: z.number(),
+  category: z.string(),
+  source: TransactionSourceSchema,
+  note: z.string().nullable(),
+  frequency: RecurrenceFreqSchema,
+  dayOfMonth: z.number().nullable().optional(),
+  dayOfWeek: z.number().nullable().optional(),
+  monthOfYear: z.number().nullable().optional(),
+  startDate: z.string(),
+  nextRunAt: z.string(),
+  lastRunAt: z.string().nullable().optional(),
+  active: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Recurrence = z.infer<typeof RecurrenceSchema>;
+
+export const CreateRecurrenceSchema = z.object({
+  entryId: z.string().min(1),
+  type: TransactionTypeSchema,
+  amount: z.number().positive("金額必須大於 0"),
+  category: z.string().min(1, "類別為必填"),
+  source: TransactionSourceSchema.default("daily"),
+  note: z.string().optional(),
+  frequency: RecurrenceFreqSchema,
+  dayOfMonth: z.number().int().min(1).max(31).optional(),
+  dayOfWeek: z.number().int().min(0).max(6).optional(),
+  monthOfYear: z.number().int().min(1).max(12).optional(),
+  startDate: z.string(),
+});
+export type CreateRecurrence = z.infer<typeof CreateRecurrenceSchema>;
+
+export const UpdateRecurrenceSchema = CreateRecurrenceSchema.omit({ entryId: true }).partial();
+export type UpdateRecurrence = z.infer<typeof UpdateRecurrenceSchema>;
+
 // ValueSnapshot — auto-recorded on every asset/liability mutation
 export const ValueSnapshotSchema = z.object({
   id: z.string(),
