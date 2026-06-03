@@ -26,6 +26,7 @@ interface EditItem {
   value: number;
   category: string;
   bankCode?: string | null;
+  stockCode?: string | null;
 }
 
 interface Props {
@@ -179,7 +180,9 @@ export function AccountFormPage({
     setIncludeInChart(true);
     setNote("");
     setDate(new Date().toISOString().split("T")[0] ?? "");
-    setSelectedStock(null);
+    setSelectedStock(
+      editItem?.stockCode ? { code: editItem.stockCode, name: editItem.name } : null
+    );
     setSelectedBank(
       editItem?.bankCode ? (BANKS.find((b) => b.code === editItem.bankCode) ?? null) : null
     );
@@ -204,6 +207,45 @@ export function AccountFormPage({
         gracePeriodMonths: "0",
         repaymentType: "principal_interest",
       });
+    }
+
+    // Fetch current price when editing an existing stock entry
+    if (editItem?.stockCode && hasStockPicker) {
+      let yfSymbol = "";
+      if (subCategoryName === "貴金屬") {
+        yfSymbol = METAL_YF_SYMBOL[editItem.stockCode.toLowerCase()] ?? "";
+      } else {
+        const suffix =
+          subCategoryName === "台股" ? ".TW" : subCategoryName === "加密貨幣" ? "-USD" : "";
+        yfSymbol = editItem.stockCode + suffix;
+      }
+      if (yfSymbol) {
+        setPriceLoading(true);
+        fetch(`/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`)
+          .then((r) => r.json())
+          .then(async (data) => {
+            if (typeof data.price !== "number") return;
+            setOriginalPrice(data.price as number);
+            const fetchedCurrency = (data.currency as string) ?? "TWD";
+            setCurrency(fetchedCurrency);
+            if (fetchedCurrency !== "TWD") {
+              try {
+                const fxRes = await fetch(
+                  `/api/stocks/price?symbol=${encodeURIComponent(fetchedCurrency + "TWD=X")}`
+                );
+                const fxData = await fxRes.json();
+                if (typeof fxData.price === "number") setExchangeRate(fxData.price as number);
+              } catch {
+                /* keep rate = 1 */
+              }
+            } else {
+              setExchangeRate(1);
+            }
+          })
+          .catch(() => {})
+          .finally(() => setPriceLoading(false));
+      }
+      return;
     }
 
     // Auto-select stock by name when opening "add" from a detail page
@@ -402,6 +444,7 @@ export function AccountFormPage({
             topCategory,
             subCategory: subCategoryName,
             value,
+            note: note.trim() || undefined,
             ...(selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
             ...(selectedBank ? { bankCode: selectedBank.code } : {}),
@@ -412,6 +455,7 @@ export function AccountFormPage({
             topCategory,
             subCategory: subCategoryName,
             value,
+            note: note.trim() || undefined,
             ...(selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
             ...(selectedBank ? { bankCode: selectedBank.code } : {}),
@@ -488,8 +532,8 @@ export function AccountFormPage({
                 {hasStockPicker && (
                   <>
                     <button
-                      onClick={() => !nameSuggestion && setShowStockPicker(true)}
-                      disabled={!!nameSuggestion}
+                      onClick={() => !nameSuggestion && !isEdit && setShowStockPicker(true)}
+                      disabled={!!nameSuggestion || isEdit}
                       className="flex w-full items-center justify-between px-5 py-4 active:bg-[#f2f2f7] disabled:cursor-default disabled:opacity-60"
                     >
                       <p className="text-[16px] font-medium text-[#1c1c1e]">選擇股票</p>

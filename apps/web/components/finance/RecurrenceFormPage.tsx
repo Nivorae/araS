@@ -145,8 +145,21 @@ export function RecurrenceFormPage({
         await addRecurrence(payload);
       }
       onSaved();
-    } catch {
-      setError("儲存失敗，請再試一次");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      if (e instanceof TypeError) {
+        setError("無法連線，請檢查網路連線後再試");
+      } else if (msg === "Authentication required") {
+        setError("登入逾時，請重新登入後再試");
+      } else if (msg === "Recurrence not found") {
+        setError("找不到此定期項目，可能已被刪除");
+      } else if (msg === "Invalid request data") {
+        setError("資料格式有誤，請確認輸入內容");
+      } else if (msg === "Internal server error") {
+        setError("伺服器發生錯誤，請稍後再試");
+      } else {
+        setError("儲存失敗，請再試一次");
+      }
     } finally {
       setSubmitting(false);
     }

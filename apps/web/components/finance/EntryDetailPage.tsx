@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Pencil, Trash2 } from "lucide-react";
+import { X, Pencil, Trash2, Plus } from "lucide-react";
 import { Spinner } from "../ui/Spinner";
 import type { Entry, EntryHistory } from "@repo/shared";
 import { formatCurrency } from "../../lib/format";
@@ -248,6 +248,12 @@ export function EntryDetailPage({
           </button>
           <div className="flex items-center gap-2">
             <button
+              onClick={onAddEntry}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
+            >
+              <Plus size={18} className="text-[#1c1c1e]" />
+            </button>
+            <button
               onClick={onAdjust}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
             >
@@ -303,20 +309,26 @@ export function EntryDetailPage({
           </div>
 
           {/* Value */}
-          <p className="text-[38px] font-bold tracking-tight text-[#1c1c1e]">
-            {formatCurrency(
-              isStockEntry && currentMarketValue != null ? currentMarketValue : entry.value
-            )}
-          </p>
-          {isStockEntry && currentMarketValue != null && (
-            <p className="mt-0.5 text-[13px] text-[#8e8e93]">成本 {formatCurrency(entry.value)}</p>
+          {isStockEntry && (priceLoading || loading) ? (
+            <div className="h-[46px] w-44 animate-pulse rounded-xl bg-[#e5e5ea]" />
+          ) : (
+            <p className="text-[38px] font-bold tracking-tight text-[#1c1c1e]">
+              {formatCurrency(
+                isStockEntry && currentMarketValue != null ? currentMarketValue : entry.value
+              )}
+            </p>
           )}
+          {isStockEntry && (priceLoading || loading) ? (
+            <div className="mt-1.5 h-[14px] w-28 animate-pulse rounded-lg bg-[#e5e5ea]" />
+          ) : isStockEntry && currentMarketValue != null ? (
+            <p className="mt-0.5 text-[13px] text-[#8e8e93]">成本 {formatCurrency(entry.value)}</p>
+          ) : null}
 
           {/* P&L summary (stocks only) */}
           {isStockEntry && (
             <div className="mt-2 mb-4 flex items-center gap-4">
-              {priceLoading ? (
-                <p className="text-[13px] text-[#8e8e93]">查詢股價中…</p>
+              {priceLoading || loading ? (
+                <div className="h-[16px] w-32 animate-pulse rounded-lg bg-[#e5e5ea]" />
               ) : currentPrice != null ? (
                 <>
                   <p className="text-[13px] text-[#8e8e93]">
@@ -342,22 +354,6 @@ export function EntryDetailPage({
               )}
             </div>
           )}
-
-          {/* Action buttons */}
-          <div className={`flex gap-3 ${isStockEntry ? "" : "mt-6"}`}>
-            <button
-              onClick={onAddEntry}
-              className="flex-1 rounded-full border border-[#e5e5ea] bg-white py-3 text-[15px] font-semibold text-[#1c1c1e] shadow-sm active:bg-[#f2f2f7]"
-            >
-              新增記錄
-            </button>
-            <button
-              onClick={onAdjust}
-              className="flex-1 rounded-full bg-[#1c1c1e] py-3 text-[15px] font-semibold text-white active:opacity-80"
-            >
-              調整金額
-            </button>
-          </div>
         </div>
 
         {/* Dividend estimate card — 台股 / 美股 only */}
