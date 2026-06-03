@@ -179,7 +179,7 @@ export default function RootPage() {
         style={{ top: "48%", gap: 10, zIndex: 10 }}
       >
         <Image
-          src="/icons/icon-192x192.png"
+          src="/icons/icon.svg"
           alt="araS"
           width={96}
           height={96}

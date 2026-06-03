@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <meta name="apple-mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-status-bar-style" content="default" />
           <meta name="apple-mobile-web-app-title" content="資產管理工具" />
+          <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
           <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         </head>
         <body suppressHydrationWarning>
