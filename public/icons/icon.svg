@@ -1,0 +1,82 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 白色背景的細微景深 -->
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F4F5F8"/>
+    </radialGradient>
+
+    <!-- 磨砂玻璃：清透冷調，作為漸層最淺的收尾 -->
+    <linearGradient id="glass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FFFFFF" stop-opacity="0.62"/>
+      <stop offset="50%" stop-color="#E2E7F2" stop-opacity="0.46"/>
+      <stop offset="100%" stop-color="#C3CBE0" stop-opacity="0.52"/>
+    </linearGradient>
+
+    <!-- 玻璃表面拋光高光 -->
+    <linearGradient id="sheen" x1="0%" y1="0%" x2="60%" y2="80%">
+      <stop offset="0%"  stop-color="#FFFFFF" stop-opacity="0.65"/>
+      <stop offset="35%" stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- 邊緣拋光描邊 -->
+    <linearGradient id="edge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.40"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.72"/>
+    </linearGradient>
+
+    <!-- 卡片柔和投影 -->
+    <filter id="cardShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="7" stdDeviation="14" flood-color="#1A2238" flood-opacity="0.20"/>
+    </filter>
+
+    <!-- 玻璃霧面顆粒 -->
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0"/>
+    </filter>
+
+    <clipPath id="glassClip">
+      <rect x="-129" y="-186" width="258" height="372" rx="42"/>
+    </clipPath>
+  </defs>
+
+  <!-- 背景圓角方形 -->
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bg)"/>
+
+  <!-- ===== 五張卡片（由後至前 / 由左到右 深→淺） ===== -->
+
+  <!-- 卡 1：#0E1424 -->
+  <g transform="translate(356,554) rotate(-18)">
+    <rect x="-129" y="-186" width="258" height="372" rx="42" fill="#0E1424" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1" filter="url(#cardShadow)"/>
+  </g>
+
+  <!-- 卡 2：#374254 -->
+  <g transform="translate(434,528) rotate(-9)">
+    <rect x="-129" y="-186" width="258" height="372" rx="42" fill="#374254" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1" filter="url(#cardShadow)"/>
+  </g>
+
+  <!-- 卡 3：#66788E -->
+  <g transform="translate(512,510) rotate(0)">
+    <rect x="-129" y="-186" width="258" height="372" rx="42" fill="#66788E" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1" filter="url(#cardShadow)"/>
+  </g>
+
+  <!-- 卡 4：#C7C7D4 -->
+  <g transform="translate(590,528) rotate(9)">
+    <rect x="-129" y="-186" width="258" height="372" rx="42" fill="#C7C7D4" stroke="#8A8C9C" stroke-opacity="0.18" stroke-width="1" filter="url(#cardShadow)"/>
+  </g>
+
+  <!-- 卡 5：磨砂玻璃（無符號） -->
+  <g transform="translate(668,554) rotate(17)" filter="url(#cardShadow)">
+    <rect x="-129" y="-186" width="258" height="372" rx="42" fill="url(#glass)"/>
+    <g clip-path="url(#glassClip)">
+      <rect x="-129" y="-186" width="258" height="372" filter="url(#grain)" opacity="0.10"/>
+      <rect x="-129" y="-186" width="258" height="372" fill="url(#sheen)"/>
+    </g>
+    <!-- 拋光邊緣 -->
+    <rect x="-129" y="-186" width="258" height="372" rx="42" fill="none" stroke="url(#edge)" stroke-width="2.6"/>
+    <rect x="-125.5" y="-182.5" width="251" height="365" rx="38" fill="none" stroke="#FFFFFF" stroke-width="1" opacity="0.30"/>
+  </g>
+</svg>

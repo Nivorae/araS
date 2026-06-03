@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "araS",
-  description: "個人財務管理工具",
+  description: "個人資產管理工具",
   manifest: "/manifest.json",
 };
 
@@ -18,7 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-          <meta name="apple-mobile-web-app-title" content="財務管家" />
+          <meta name="apple-mobile-web-app-title" content="資產管理工具" />
+          <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
           <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         </head>
         <body suppressHydrationWarning>

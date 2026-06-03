@@ -69,6 +69,7 @@ export const EntrySchema = z.object({
   stockCode: z.string().nullable().optional(),
   bankCode: z.string().nullable().optional(),
   units: z.number().nullable().optional(),
+  note: z.string().nullable().optional(),
   value: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -83,6 +84,7 @@ export const CreateEntrySchema = z.object({
   stockCode: z.string().optional(),
   bankCode: z.string().optional(),
   units: z.number().optional(),
+  note: z.string().max(200).optional(),
   value: z.number().positive("金額必須大於 0"),
   createdAt: z.string().optional(),
 });
@@ -92,7 +94,7 @@ export const UpdateEntrySchema = CreateEntrySchema.partial();
 export type UpdateEntry = z.infer<typeof UpdateEntrySchema>;
 
 export const UpdateEntryHistorySchema = z.object({
-  note: z.string().nullable().optional(),
+  note: z.string().max(200).nullable().optional(),
   createdAt: z.string().optional(),
   delta: z.number().optional(),
   units: z.number().nullable().optional(),
@@ -190,7 +192,7 @@ export const CreateRecurrenceSchema = z.object({
   amount: z.number().positive("金額必須大於 0"),
   category: z.string().min(1, "類別為必填"),
   source: TransactionSourceSchema.default("daily"),
-  note: z.string().optional(),
+  note: z.string().max(200).optional(),
   frequency: RecurrenceFreqSchema,
   dayOfMonth: z.number().int().min(1).max(31).optional(),
   dayOfWeek: z.number().int().min(0).max(6).optional(),

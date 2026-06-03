@@ -63,7 +63,7 @@ export class EntriesService {
   }
 
   async create(data: CreateEntry, userId: string) {
-    const { units, stockCode, bankCode, createdAt, ...rest } = data;
+    const { units, stockCode, bankCode, createdAt, note, ...rest } = data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
     const entry = await prisma.entry.create({
@@ -72,6 +72,7 @@ export class EntriesService {
         userId,
         stockCode: stockCode ?? null,
         bankCode: bankCode ?? null,
+        note: note ?? null,
         ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
       },
     });

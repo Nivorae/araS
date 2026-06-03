@@ -49,12 +49,12 @@ const CARDS: CardConfig[] = [
     boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
   },
   {
-    name: "應收帳款",
+    name: "流動資金",
     color: "#66788E",
     textColor: "#ffffff",
     value: "NT$540,000",
     depth: "mid",
-    blur: "2.5px",
+    blur: "0px",
     opacity: 0.78,
     top: 315,
     left: -28,
@@ -71,20 +71,20 @@ const CARDS: CardConfig[] = [
     blur: "7px",
     opacity: 0.55,
     top: 368,
-    right: 28,
+    right: 8,
     duration: "6.1s",
     delay: "-0.8s",
     boxShadow: "0 8px 28px rgba(55,66,84,0.30)",
   },
   {
-    name: "流動資金",
+    name: "應收帳款",
     color: "#FFFFFF",
     textColor: "#1c1c1e",
     value: "NT$15,000",
     depth: "near",
-    blur: "0px",
+    blur: "7px",
     opacity: 1,
-    top: 462,
+    top: 562,
     left: 38,
     duration: "4.2s",
     delay: "-3.0s",
@@ -179,7 +179,7 @@ export default function RootPage() {
         style={{ top: "48%", gap: 10, zIndex: 10 }}
       >
         <Image
-          src="/icons/icon-192x192.png"
+          src="/icons/icon.svg"
           alt="araS"
           width={96}
           height={96}
@@ -189,8 +189,11 @@ export default function RootPage() {
             boxShadow: "0 8px 28px rgba(55,66,84,0.28)",
           }}
         />
-        <p className="w-full text-center text-2xl font-bold whitespace-nowrap text-gray-600 italic">
-          You are stronger than you think.
+        <p className="mt-2 w-full text-center text-2xl font-bold whitespace-nowrap text-gray-600 italic">
+          araS
+        </p>
+        <p className="text-1xl w-full text-center font-bold whitespace-nowrap text-gray-600 italic">
+          個人資產管理工具
         </p>
       </div>
 

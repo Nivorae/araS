@@ -40,6 +40,7 @@ interface EditItem {
   value: number;
   category: string;
   bankCode?: string | null;
+  stockCode?: string | null;
 }
 
 export default function AssetsPage() {
@@ -138,6 +139,7 @@ export default function AssetsPage() {
             value: entry.value,
             category: entry.topCategory,
             bankCode: entry.bankCode ?? null,
+            stockCode: entry.stockCode ?? null,
           }
         : null
     );
