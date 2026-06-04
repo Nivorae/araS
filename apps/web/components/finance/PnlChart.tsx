@@ -29,7 +29,7 @@ export function PnlChart({
           data={data}
           barGap={2}
           barCategoryGap="35%"
-          margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+          margin={{ top: 10, right: 0, left: 0, bottom: 5 }}
         >
           <CartesianGrid vertical={false} stroke="#e5e5ea" />
           <XAxis
