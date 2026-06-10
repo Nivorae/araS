@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
     }
     const data = CreateRecurrenceSchema.parse(await req.json());
     const item = await recurrencesService.create(data, userId);
+    if (!item) {
+      logSecurityEvent({ type: "ownership_violation", userId, resource: "/api/recurrences" });
+      return err("NOT_FOUND", "Entry not found", 404);
+    }
     return ok(item, 201);
   } catch (e) {
     return handleError(e);
