@@ -3,7 +3,7 @@ import { logSecurityEvent } from "../../lib/security-log";
 
 describe("logSecurityEvent", () => {
   it("outputs valid JSON with type and timestamp", () => {
-    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     logSecurityEvent({ type: "auth_fail", resource: "/api/loans" });
     expect(spy).toHaveBeenCalledOnce();
     const parsed = JSON.parse(spy.mock.calls[0]?.[0] as string);
@@ -15,7 +15,7 @@ describe("logSecurityEvent", () => {
   });
 
   it("omits undefined optional fields from JSON output", () => {
-    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     logSecurityEvent({ type: "ownership_violation", userId: "user_abc" });
     const parsed = JSON.parse(spy.mock.calls[0]?.[0] as string);
     expect(parsed.userId).toBe("user_abc");

@@ -7,7 +7,7 @@ const withPWA = withPWAInit({
   workboxOptions: {
     runtimeCaching: [
       {
-        urlPattern: /^https?:\/\/[^/]+\/api\/(loans|transactions|entries|portfolio).*/,
+        urlPattern: /^https?:\/\/[^/]+\/api\/(loans|transactions|entries|portfolio|recurrences).*/,
         handler: "NetworkOnly",
       },
       {
@@ -58,7 +58,7 @@ const nextConfig = {
         ],
       },
       {
-        source: "/api/(loans|transactions|entries|portfolio)/:path*",
+        source: "/api/(loans|transactions|entries|portfolio|recurrences)/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store, max-age=0" },
           { key: "Vary", value: "Cookie, Authorization" },

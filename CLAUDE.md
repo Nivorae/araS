@@ -30,7 +30,7 @@ pnpm dev
 
 ```bash
 # Development
-pnpm dev                  # Start all via Turborepo (web :3000, api :3001)
+pnpm dev                  # Start all via Turborepo (web :3000)
 
 # Quality checks
 pnpm lint
@@ -40,7 +40,7 @@ pnpm test:coverage        # With 80% threshold enforcement
 pnpm test:e2e             # Playwright
 
 # Run a single test file
-pnpm --filter @repo/api test -- apps/api/tests/posts.test.ts
+pnpm --filter @repo/web exec vitest run tests/services/entries.service.test.ts
 
 # Database
 pnpm docker:up            # Start PostgreSQL on port 5434
@@ -55,29 +55,27 @@ Turborepo pnpm monorepo:
 
 ```
 apps/
-  web/      # Next.js 15 App Router + React 19 + Tailwind CSS 4 + Clerk (@repo/web)
-  api/      # Express 4 + Prisma 6 + Clerk (@repo/api)
+  web/      # Next.js 15 App Router + React 19 + Tailwind CSS 4 + Clerk + Prisma 6 (@repo/web)
 packages/
   ui/       # shadcn/ui shared components (@repo/ui)
   shared/   # Zod schemas + shared types (@repo/shared)
   eslint-config/  # Shared ESLint rules (@repo/eslint-config)
 ```
 
-- **`@repo/web`** — Next.js 15 App Router. `apps/web` rewrites `/api/*` to `localhost:3001/api/*` in dev. Clerk via `@clerk/nextjs`.
-- **`@repo/api`** — Express 4 + Prisma 6 + Clerk. ESM (`"type": "module"`), so imports require `.js` extensions. Uses `dotenv-cli` + `tsx watch` for dev.
-- **`@repo/shared`** — Zod schemas shared by both apps. No build step — resolved directly to source.
+- **`@repo/web`** — Next.js 15 App Router. API endpoints are Next.js Route Handlers under `apps/web/app/api/**`. Clerk via `@clerk/nextjs`. Prisma schema lives in `apps/web/prisma/schema.prisma`.
+- **`@repo/shared`** — Zod schemas shared across the monorepo. No build step — resolved directly to source.
 - **`@repo/ui`** — shadcn/ui components. No build step — exports `.tsx` source directly.
 - **`@repo/eslint-config`** — Shared ESLint rules. `index.js` (base), `react.js`, `next.js`.
 
 ### API request lifecycle
 
 ```
-Request → securityHeaders → CORS → JSON body → metricsMiddleware → clerkAuth → apiRateLimit → routes → errorHandler
+Request → middleware.ts (clerkMiddleware; auth.protect() on market-data proxies) → Route Handler (auth() check → Zod parse → service) → ok/err/handleError
 ```
 
 ### Layered architecture
 
-Controllers (`src/controllers/`) handle HTTP parsing and call services. Services (`src/services/`) contain business logic and call Prisma. Controllers use `sendSuccess` / `sendError` / `sendPaginated` from `src/lib/envelope.ts` to produce the standard `{ success, data|error, timestamp }` envelope defined in `@repo/shared`.
+Route Handlers (`apps/web/app/api/**/route.ts`) handle HTTP parsing, call `auth()` from Clerk, validate input with Zod schemas from `@repo/shared`, and call services. Services (`apps/web/services/`) contain business logic and call Prisma — every query is scoped by `userId` (ownership checks via `findFirst({ where: { id, userId } })` / `deleteMany({ where: { id, userId } })`). Route Handlers use `ok` / `err` / `handleError` from `apps/web/lib/api-response.ts` to produce the standard `{ success, data|error, timestamp }` envelope defined in `@repo/shared`. Security-relevant events (auth failures, ownership violations) are logged via `logSecurityEvent` from `apps/web/lib/security-log.ts`.
 
 ### API response envelope
 
@@ -88,18 +86,17 @@ All responses use `ApiResponse<T>` from `@repo/shared`:
 
 ### Auth
 
-Clerk is used for authentication. In `apps/api`, `clerkAuth` middleware runs globally; use `requireAuthentication` + `requireRole(...roles)` on protected routes. `requireRole` looks up the user in the Prisma `User` table by `clerkId` and attaches `req.dbUser`. Roles: `admin`, `editor`, `viewer`.
-
-In `apps/web`, `middleware.ts` uses `clerkMiddleware` to protect `/dashboard/*` and `/posts/*` routes. Server Components use `auth()` from `@clerk/nextjs/server`. Client Components use `useAuth()` from `@clerk/nextjs`.
+Clerk is used for authentication. `apps/web/middleware.ts` uses `clerkMiddleware` with `auth.protect()` on the market-data proxy routes (`/api/stocks/*`, `/api/exchange-rate`, `/api/cathaylife-rates`, `/api/quotes/*`). Every data Route Handler additionally self-protects: it calls `auth()` from `@clerk/nextjs/server` and returns 401 when there is no `userId`. Client Components use `useAuth()` from `@clerk/nextjs`.
 
 ### Data model
 
-- `User`: linked to Clerk via `clerkId`, has `role` (admin/editor/viewer)
-- `Post`: `draft`/`published`/`archived` status, soft-deleted via `deletedAt`
+Personal-finance models in `apps/web/prisma/schema.prisma`, all scoped by Clerk `userId`:
+
+- `Entry` (assets/liabilities, with `EntryHistory`), `Loan`, `Transaction`, `PortfolioItem`, `Insurance`, `Recurrence` (MONTHLY/WEEKLY/BIWEEKLY/YEARLY auto-generated transactions)
 
 ### Env vars
 
-Root `.env` is the single source of truth. `apps/web` loads it via `next dev --env-file ../../.env`. `apps/api` loads it via `dotenv -e ../../.env --`. See `.env.example`. Key vars: `DATABASE_URL`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`, `CORS_ORIGIN`.
+Root `.env` is the single source of truth. `apps/web` loads it via `next dev --env-file ../../.env`. See `.env.example`. Key vars: `DATABASE_URL`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
 ## Reference Resources
 
@@ -121,6 +118,5 @@ Root `.env` is the single source of truth. `apps/web` loads it via `next dev --e
 ## Conventions
 
 - **Commits**: Conventional Commits enforced by commitlint + husky. Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Subject must be lowercase.
-- **Tests**: `apps/api` tests mock Prisma and logger via `vi.mock`. `apps/web` tests use jsdom + React Testing Library.
-- **Imports in api**: Always use `.js` extension on relative imports (ESM requirement).
+- **Tests**: `apps/web` service tests mock Prisma via `vi.mock("@/lib/prisma")`; component tests use jsdom + React Testing Library.
 - **Tailwind**: `apps/web` uses Tailwind CSS 4 — config is in `app/globals.css` via `@theme` block, not `tailwind.config.ts`.

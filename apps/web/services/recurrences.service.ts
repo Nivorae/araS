@@ -133,6 +133,11 @@ export class RecurrencesService {
   }
 
   async create(data: CreateRecurrence, userId: string) {
+    const entry = await prisma.entry.findFirst({
+      where: { id: data.entryId, userId },
+    });
+    if (!entry) return null;
+
     const startDate = new Date(data.startDate);
     const nextRunAt = computeInitialNextRunAt(
       data.frequency as RecurrenceFreq,
