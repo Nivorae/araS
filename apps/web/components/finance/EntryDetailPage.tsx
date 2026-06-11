@@ -332,7 +332,7 @@ export function EntryDetailPage({
               ) : currentPrice != null ? (
                 <>
                   <p className="text-[13px] text-[#8e8e93]">
-                    當日股價 {currentPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    當日股價 {currentPrice.toLocaleString("zh-TW", { maximumFractionDigits: 4 })}
                   </p>
                   {totalPnL != null && (
                     <p

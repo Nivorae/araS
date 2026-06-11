@@ -508,7 +508,7 @@ export function AccountFormPage({
                 className="flex h-9 w-9 items-center justify-center rounded-xl"
                 style={{ backgroundColor: categoryColor + "25" }}
               >
-                <SubCategoryIcon size={20} style={{ color: categoryColor }} />
+                <SubCategoryIcon size={20} style={{ color: "#66788E" }} />
               </div>
               <p className="text-[18px] font-semibold text-[#1c1c1e]">{subCategoryName}</p>
             </div>
@@ -589,7 +589,7 @@ export function AccountFormPage({
                         >
                           <p className="text-[20px] font-semibold text-[#1c1c1e]">
                             {originalPrice > 0
-                              ? originalPrice.toLocaleString(undefined, {
+                              ? originalPrice.toLocaleString("zh-TW", {
                                   maximumFractionDigits: 6,
                                 })
                               : "--"}
@@ -638,7 +638,7 @@ export function AccountFormPage({
                         placeholder="0"
                         className="w-24 bg-transparent text-right text-[20px] font-semibold text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
                       />
-                      <span className="rounded-full bg-[#1c1c1e] px-2.5 py-1 text-[11px] font-bold text-white">
+                      <span className="rounded-full bg-[#66788E] px-2.5 py-1 text-[11px] font-bold text-white">
                         TWD
                       </span>
                     </div>
@@ -651,7 +651,7 @@ export function AccountFormPage({
                     <span className="text-[13px] text-[#8e8e93]">
                       =&nbsp;TWD&nbsp;
                       <span className="font-semibold text-[#1c1c1e]">
-                        {computedValue.toLocaleString()}
+                        {Math.round(computedValue).toLocaleString("zh-TW")}
                       </span>
                     </span>
                   </div>
@@ -678,7 +678,7 @@ export function AccountFormPage({
                     className={`w-24 bg-transparent text-right text-[20px] font-semibold outline-none placeholder:text-[#c7c7cc] ${isLiability ? "text-[#ff3b30]" : "text-[#1c1c1e]"}`}
                   />
                   <span
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isLiability ? "bg-[#ff3b30] text-white" : "bg-[#1c1c1e] text-white"}`}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isLiability ? "bg-[#ff3b30] text-white" : "bg-[#66788E] text-white"}`}
                   >
                     TWD
                   </span>
@@ -765,7 +765,7 @@ export function AccountFormPage({
               <button
                 onClick={() => setIncludeInChart((v) => !v)}
                 className={`relative h-[30px] w-[52px] rounded-full transition-colors duration-200 ${
-                  includeInChart ? "bg-[#0e1424]" : "bg-[#e5e5ea]"
+                  includeInChart ? "bg-[#66788E]" : "bg-[#e5e5ea]"
                 }`}
               >
                 <span
@@ -842,7 +842,7 @@ export function AccountFormPage({
                         style={{ color: rec.type === "income" ? "#34c759" : "#ff3b30" }}
                       >
                         {rec.type === "income" ? "+" : "−"}
-                        {rec.amount.toLocaleString()}
+                        {rec.amount.toLocaleString("zh-TW")}
                       </p>
                       <div className="flex gap-1">
                         <button
