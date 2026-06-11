@@ -75,14 +75,17 @@ function fmtWan(v: number): string {
   const abs = Math.abs(v);
   const sign = v < 0 ? "-" : "";
   if (abs >= 1e8) return `${sign}${(abs / 1e8).toFixed(1)}億`;
-  if (abs >= 1e4) return `${sign}${(abs / 1e4).toFixed(1)}萬`;
-  return `${sign}${Math.round(abs).toLocaleString()}`;
+  if (abs >= 1e4) {
+    const wan = abs / 1e4;
+    return `${sign}${wan.toLocaleString("zh-TW", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}萬`;
+  }
+  return `${sign}${Math.round(abs).toLocaleString("zh-TW")}`;
 }
 
 function fmtY(v: number): string {
   if (v >= 1e8) return `${(v / 1e8).toFixed(0)}億`;
-  if (v >= 1e4) return `${(v / 1e4).toFixed(0)}萬`;
-  return String(v);
+  if (v >= 1e4) return `${Math.round(v / 1e4).toLocaleString("zh-TW")}萬`;
+  return v.toLocaleString("zh-TW", { maximumFractionDigits: 0 });
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -125,6 +128,12 @@ function NumberInput({
   suffix?: string;
   prefix?: string;
 }) {
+  const [str, setStr] = useState(String(value));
+
+  useEffect(() => {
+    setStr(String(value));
+  }, [value]);
+
   return (
     <div className="flex items-center justify-between border-b border-[#f2f2f7] py-2 last:border-0">
       <label className="text-[13px] text-[#8e8e93]">{label}</label>
@@ -132,13 +141,17 @@ function NumberInput({
         {prefix && <span className="text-[13px] text-[#8e8e93]">{prefix}</span>}
         <input
           type="number"
-          value={value}
+          value={str}
           min={min}
           max={max}
           step={step}
           onChange={(e) => {
+            setStr(e.target.value);
             const v = parseFloat(e.target.value);
             if (!isNaN(v)) onChange(v);
+          }}
+          onBlur={() => {
+            if (isNaN(parseFloat(str))) setStr(String(value));
           }}
           className="w-24 [appearance:textfield] bg-transparent text-right text-[14px] font-medium text-[#1c1c1e] outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
@@ -914,7 +927,7 @@ export function RetirementPage() {
           <p className="mb-1 text-[15px] font-semibold text-[#1c1c1e]">資產成長趨勢圖</p>
           <p className="mb-3 text-[12px] text-[#8e8e93]">三種報酬情境下的資產路徑</p>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={projData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <AreaChart data={projData} margin={{ top: 20, right: 16, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="rGradBase" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#374254" stopOpacity={0.18} />
@@ -969,7 +982,7 @@ export function RetirementPage() {
                   strokeDasharray="4 3"
                   label={{
                     value: "目標",
-                    position: "right",
+                    position: "insideTopRight",
                     fill: "#0e1424",
                     fontSize: 10,
                   }}
