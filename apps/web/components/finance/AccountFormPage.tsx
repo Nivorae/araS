@@ -1,16 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  Info,
-  RefreshCw,
-  Landmark,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Info, Landmark, Pencil, Trash2 } from "lucide-react";
 import { Spinner } from "../ui/Spinner";
 import type { LucideIcon } from "lucide-react";
 import { useFinanceStore } from "../../store/useFinanceStore";
@@ -145,6 +136,7 @@ export function AccountFormPage({
   const [showBankPicker, setShowBankPicker] = useState(false);
   const [showRecurrenceForm, setShowRecurrenceForm] = useState(false);
   const [editRecurrence, setEditRecurrence] = useState<Recurrence | null>(null);
+  const [showRecurrenceInfo, setShowRecurrenceInfo] = useState(false);
 
   const [name, setName] = useState("");
   const [includeInChart, setIncludeInChart] = useState(true);
@@ -795,25 +787,34 @@ export function AccountFormPage({
 
           {/* Recurrences section */}
           <div className="mt-6">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#1c1c1e]">
-                  <RefreshCw size={16} className="text-[#1c1c1e]" />
-                </div>
-                <p className="text-[17px] font-semibold text-[#1c1c1e]">定期項目</p>
-              </div>
+            <div className="mb-3 flex items-center gap-2">
               <button
                 onClick={() => {
                   setEditRecurrence(null);
                   setShowRecurrenceForm(true);
                 }}
-                className="rounded-full border border-[#1c1c1e] px-4 py-1.5 text-[13px] font-medium text-[#1c1c1e] active:bg-[#e5e5ea]"
+                className="flex-1 rounded-full bg-[#1c1c1e] px-2 py-2 text-[14px] font-medium text-white active:bg-[#374254]"
               >
                 新增定期
               </button>
+              <button
+                onClick={() => setShowRecurrenceInfo((v) => !v)}
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-[#c7c7cc] text-[13px] font-bold text-[#8e8e93] active:bg-[#e5e5ea]"
+              >
+                !
+              </button>
             </div>
 
-            {entryRecurrences.length > 0 ? (
+            {showRecurrenceInfo && (
+              <div className="mb-3 flex gap-3 rounded-2xl bg-white p-4 shadow-sm">
+                <Info size={18} className="mt-0.5 shrink-0 text-[#8e8e93]" />
+                <p className="text-[13px] leading-relaxed text-[#8e8e93]">
+                  新增定期交易，例如帳單、薪資、租金等。可以先填入預估金額，之後再依實際情況調整。
+                </p>
+              </div>
+            )}
+
+            {entryRecurrences.length > 0 && (
               <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
                 {entryRecurrences.map((rec, idx) => (
                   <div key={rec.id}>
@@ -864,13 +865,6 @@ export function AccountFormPage({
                     </div>
                   </div>
                 ))}
-              </div>
-            ) : (
-              <div className="flex gap-3 rounded-2xl bg-white p-4 shadow-sm">
-                <Info size={18} className="mt-0.5 shrink-0 text-[#8e8e93]" />
-                <p className="text-[13px] leading-relaxed text-[#8e8e93]">
-                  新增定期交易，例如帳單、薪資、租金等。可以先填入預估金額，之後再依實際情況調整。
-                </p>
               </div>
             )}
           </div>

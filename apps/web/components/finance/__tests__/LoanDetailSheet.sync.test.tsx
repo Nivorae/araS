@@ -64,10 +64,8 @@ describe("LoanDetailSheet — currentBalance display", () => {
         onRateUpdated={onRateUpdated}
       />
     );
-    const labelEl = screen.getByText("剩餘本金");
-    const card = labelEl.parentElement!;
-    expect(card).toHaveTextContent(/850/);
-    expect(card).not.toHaveTextContent(/900/);
+    expect(screen.getByRole("spinbutton", { name: "剩餘本金" })).toHaveValue(850000);
+    expect(screen.getByRole("spinbutton", { name: "剩餘本金" })).not.toHaveValue(900000);
   });
 
   it("falls back to calculated remainingPrincipal when currentBalance is not provided", () => {
@@ -80,9 +78,7 @@ describe("LoanDetailSheet — currentBalance display", () => {
         onRateUpdated={onRateUpdated}
       />
     );
-    const labelEl = screen.getByText("剩餘本金");
-    const card = labelEl.parentElement!;
-    expect(card).toHaveTextContent(/900/);
+    expect(screen.getByRole("spinbutton", { name: "剩餘本金" })).toHaveValue(900000);
   });
 });
 
