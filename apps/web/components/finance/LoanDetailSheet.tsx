@@ -59,8 +59,10 @@ export function LoanDetailSheet({
   const effectivePaidMonths = useMemo(() => {
     if (currentBalance === undefined) return status.paidMonths;
     for (let i = 0; i < fullSchedule.length; i++) {
-      if (Math.abs(fullSchedule[i].endBalance - currentBalance) < 0.5) return i + 1;
-      if (currentBalance > fullSchedule[i].endBalance) return i;
+      const row = fullSchedule[i];
+      if (!row) continue;
+      if (Math.abs(row.endBalance - currentBalance) < 0.5) return i + 1;
+      if (currentBalance > row.endBalance) return i;
     }
     return fullSchedule.length;
   }, [currentBalance, fullSchedule, status.paidMonths]);
