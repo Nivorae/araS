@@ -2,16 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceStore } from "../../../store/useFinanceStore";
-import { PnlChart } from "../../../components/finance/PnlChart";
 import { InvestmentChart } from "../../../components/finance/InvestmentChart";
-import {
-  aggregateTransactions,
-  aggregateSnapshots,
-  getRangeDisplayLabel,
-} from "../../../lib/chartAggregation";
+import { aggregateSnapshots, getRangeDisplayLabel } from "../../../lib/chartAggregation";
 import { formatCurrency } from "../../../lib/format";
-
-type Tab = "investment" | "liquidity";
 
 function BalanceScale({ assets, liabilities }: { assets: number; liabilities: number }) {
   const total = assets + liabilities;
@@ -156,8 +149,7 @@ function BalanceScale({ assets, liabilities }: { assets: number; liabilities: nu
 }
 
 export default function TransactionsPage() {
-  const { transactions, valueSnapshots, entries } = useFinanceStore();
-  const [tab, setTab] = useState<Tab>("investment");
+  const { valueSnapshots, entries } = useFinanceStore();
 
   const totalAssets = useMemo(
     () => entries.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0),
@@ -168,11 +160,8 @@ export default function TransactionsPage() {
     [entries]
   );
 
-  const liquidityData = useMemo(() => aggregateTransactions(transactions, "5m"), [transactions]);
   const investmentData = useMemo(() => aggregateSnapshots(valueSnapshots, "5m"), [valueSnapshots]);
   const periodLabel = useMemo(() => getRangeDisplayLabel("5m"), []);
-
-  const activeColor = tab === "investment" ? "#374254" : "#0e1424";
 
   return (
     <div
@@ -185,7 +174,7 @@ export default function TransactionsPage() {
         style={{ height: "calc((100dvh - 64px) * 0.5)" }}
       >
         <div className="text-center">
-          <h1 className="text-[22px] font-bold text-[#1c1c1e]">損益統計</h1>
+          <h1 className="text-[22px] font-bold text-[#1c1c1e]">投資損益</h1>
         </div>
         <BalanceScale assets={totalAssets} liabilities={totalLiabilities} />
 
@@ -208,30 +197,9 @@ export default function TransactionsPage() {
         <p className="text-[11px] text-[#c7c7cc]">{periodLabel}</p>
       </div>
 
-      {/* Tab switcher */}
-      <div className="mx-4 mb-3 flex flex-shrink-0 rounded-full bg-[#f2f2f7] p-1">
-        {(["investment", "liquidity"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="flex-1 rounded-full py-2 text-[13px] font-semibold transition-colors"
-            style={{
-              backgroundColor: tab === t ? activeColor : "transparent",
-              color: tab === t ? "white" : "#8e8e93",
-            }}
-          >
-            {t === "investment" ? "投資損益" : "收支"}
-          </button>
-        ))}
-      </div>
-
       {/* Chart zone — fills remaining height */}
       <div className="min-h-0 flex-1 px-4 pb-4">
-        {tab === "investment" ? (
-          <InvestmentChart data={investmentData} height="100%" />
-        ) : (
-          <PnlChart data={liquidityData} height="100%" />
-        )}
+        <InvestmentChart data={investmentData} height="100%" />
       </div>
     </div>
   );

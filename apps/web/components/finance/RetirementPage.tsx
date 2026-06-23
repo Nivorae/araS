@@ -343,6 +343,12 @@ function InfoModal({ content, onClose }: { content: ModalContent; onClose: () =>
               </div>
             ))}
           </div>
+          <button
+            onClick={handleClose}
+            className="mt-6 w-full rounded-2xl bg-[#1c1c1e] py-3 text-[15px] font-semibold text-white"
+          >
+            了解了
+          </button>
         </div>
       </div>
     </div>
@@ -588,7 +594,7 @@ export function RetirementPage() {
           { label: "目標總額", value: `NT$ ${fmtWan(Math.round(calcs.tt))}` },
         ],
         result: {
-          label: "財務自由年齡",
+          label: "財務自由預測",
           value: calcs.fiAge ? `${calcs.fiAge} 歲（${calcs.fiYear} 年）` : "100 歲以上",
         },
       },
@@ -609,7 +615,7 @@ export function RetirementPage() {
           },
         ],
         result: {
-          label: "被動收入覆蓋率",
+          label: "被動收入覆蓋",
           value: `${calcs.passiveCoverage.toFixed(1)}%`,
         },
       },

@@ -49,6 +49,47 @@ export function LoanDetailSheet({
 
   const status = useMemo(() => calculateLoanStatus(loanInput, today), [loanInput, today]);
 
+  // Full schedule used to derive effective paid months from currentBalance
+  const fullSchedule = useMemo(
+    () => generateAmortizationSchedule(loanInput, today),
+    [loanInput, today]
+  );
+
+  // How many periods have been paid, derived from currentBalance vs schedule
+  const effectivePaidMonths = useMemo(() => {
+    if (currentBalance === undefined) return status.paidMonths;
+    for (let i = 0; i < fullSchedule.length; i++) {
+      const row = fullSchedule[i];
+      if (!row) continue;
+      if (Math.abs(row.endBalance - currentBalance) < 0.5) return i + 1;
+      if (currentBalance > row.endBalance) return i;
+    }
+    return fullSchedule.length;
+  }, [currentBalance, fullSchedule, status.paidMonths]);
+
+  // Detect extra payment (currentBalance below the scheduled end balance for that period)
+  const scheduledEndBalance =
+    effectivePaidMonths > 0 ? (fullSchedule[effectivePaidMonths - 1]?.endBalance ?? null) : null;
+  const isExtraPayment =
+    currentBalance !== undefined &&
+    scheduledEndBalance !== null &&
+    currentBalance < scheduledEndBalance - 0.5;
+
+  // Next payment row: re-amortize if extra payment, otherwise use next schedule row
+  const effectiveNextRow = useMemo(() => {
+    if (currentBalance === undefined) return null;
+    if (isExtraPayment) {
+      const nextDate = fullSchedule[effectivePaidMonths]?.paymentDate;
+      if (!nextDate || currentBalance === undefined) return null;
+      const reAmortRows = generateAmortizationSchedule(
+        { ...loanInput, totalAmount: currentBalance, startDate: nextDate.toISOString() },
+        today
+      );
+      return reAmortRows[0] ?? null;
+    }
+    return fullSchedule[effectivePaidMonths] ?? null;
+  }, [currentBalance, isExtraPayment, fullSchedule, effectivePaidMonths, loanInput, today]);
+
   const defaultBalance = Math.round(currentBalance ?? status.remainingPrincipal);
   const defaultMonths = loan.overrideTermMonths ?? Math.max(0, loan.termMonths - status.paidMonths);
 
@@ -83,7 +124,11 @@ export function LoanDetailSheet({
 
   const parsedMonths = parseInt(draftMonths, 10);
   const displayPaidMonths =
-    !isNaN(parsedMonths) && parsedMonths >= 0 ? loan.termMonths - parsedMonths : status.paidMonths;
+    currentBalance !== undefined
+      ? effectivePaidMonths
+      : !isNaN(parsedMonths) && parsedMonths >= 0
+        ? loan.termMonths - parsedMonths
+        : status.paidMonths;
 
   const manualBalanceNum = parseFloat(manualBalance);
   const manualBalanceValid =
@@ -215,6 +260,7 @@ export function LoanDetailSheet({
                 <div className="flex items-baseline gap-1">
                   <input
                     type="number"
+                    aria-label="剩餘本金"
                     value={draftBalance}
                     onChange={(e) => {
                       setDraftBalance(e.target.value);
@@ -280,6 +326,24 @@ export function LoanDetailSheet({
                 />
               </div>
             </div>
+
+            {/* Next payment info — shown when currentBalance is provided */}
+            {currentBalance !== undefined && effectiveNextRow && (
+              <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                <div className="flex justify-between">
+                  <p className="text-[12px] text-[#8e8e93]">下期應繳</p>
+                  <p className="text-[15px] font-semibold text-[#1c1c1e]">
+                    {formatCurrency(effectiveNextRow.totalPayment)}
+                  </p>
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <p className="text-[12px] text-[#8e8e93]">下期日期</p>
+                  <p className="text-[13px] text-[#1c1c1e]">
+                    {formatDateStr(effectiveNextRow.paymentDate.toISOString())}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Calculate button */}
             {calcError && <p className="text-center text-[12px] text-[#ff3b30]">{calcError}</p>}
