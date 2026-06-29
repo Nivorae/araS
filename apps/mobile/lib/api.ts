@@ -52,14 +52,39 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit):
   return body.data;
 }
 
+// For endpoints that return plain JSON (not ApiResponse envelope), e.g. /api/stocks/*
+async function rawRequest<T>(getToken: GetToken, path: string): Promise<T> {
+  if (!BASE_URL) {
+    throw new ApiError(
+      "CONFIG",
+      "EXPO_PUBLIC_API_URL is not set. Copy .env.example to .env and set your LAN IP.",
+      0
+    );
+  }
+  const token = await getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    throw new ApiError("HTTP", `HTTP error ${res.status}`, res.status);
+  }
+  return res.json() as Promise<T>;
+}
+
 export function createApi(getToken: GetToken) {
   return {
     get: <T>(path: string) => request<T>(getToken, path),
     post: <T>(path: string, data: unknown) =>
       request<T>(getToken, path, { method: "POST", body: JSON.stringify(data) }),
+    put: <T>(path: string, data: unknown) =>
+      request<T>(getToken, path, { method: "PUT", body: JSON.stringify(data) }),
     patch: <T>(path: string, data: unknown) =>
       request<T>(getToken, path, { method: "PATCH", body: JSON.stringify(data) }),
     delete: <T>(path: string) => request<T>(getToken, path, { method: "DELETE" }),
+    rawGet: <T>(path: string) => rawRequest<T>(getToken, path),
   };
 }
 

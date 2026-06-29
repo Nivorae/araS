@@ -7,7 +7,6 @@ import { tokenCache } from "@/lib/tokenCache";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-// Redirects between the (auth) and (app) route groups based on session state.
 function InitialLayout() {
   const { isLoaded, isSignedIn } = useAuth();
   const segments = useSegments();
@@ -19,7 +18,9 @@ function InitialLayout() {
     if (isSignedIn && inAuthGroup) {
       router.replace("/");
     } else if (!isSignedIn && !inAuthGroup) {
-      router.replace("/sign-in");
+      // Land on the welcome/landing screen first (matches web's "/" landing),
+      // not straight into the sign-in form.
+      router.replace("/welcome");
     }
   }, [isLoaded, isSignedIn, segments, router]);
 
