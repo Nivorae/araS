@@ -1,0 +1,40 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ara-s-web.vercel.app",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA"
+      },
+      "ios": {
+        "resourceClass": "m-medium",
+        "simulator": false
+      },
+      "node": "20.18.0"
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ara-s-web.vercel.app",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "node": "20.18.0"
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "milk88084@gmail.com",
+        "ascAppId": "6785747999",
+        "appleTeamId": "56U3654C66"
+      }
+    }
+  }
+}
