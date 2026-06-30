@@ -7,7 +7,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.50.220:3000",
+        "EXPO_PUBLIC_API_URL": "https://ara-s-web.vercel.app",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA"
       },
       "ios": {
@@ -18,6 +18,10 @@
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ara-s-web.vercel.app",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA"
+      },
       "ios": {
         "resourceClass": "m-medium"
       },
