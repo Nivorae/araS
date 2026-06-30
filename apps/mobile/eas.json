@@ -27,5 +27,14 @@
       },
       "node": "20.18.0"
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "milk88084@gmail.com",
+        "ascAppId": "6785747999",
+        "appleTeamId": "56U3654C66"
+      }
+    }
   }
 }
