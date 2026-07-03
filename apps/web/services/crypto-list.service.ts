@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+
 export interface CryptoListItem {
   code: string;
   name: string;
@@ -12,18 +14,10 @@ const COINGECKO_MARKETS_URL =
 const CACHE_SECONDS = 24 * 60 * 60;
 
 export async function fetchCryptoList(): Promise<CryptoListItem[]> {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 5000);
   try {
     const [page1, page2] = await Promise.all([
-      fetch(COINGECKO_MARKETS_URL + "1", {
-        signal: ctl.signal,
-        next: { revalidate: CACHE_SECONDS },
-      }),
-      fetch(COINGECKO_MARKETS_URL + "2", {
-        signal: ctl.signal,
-        next: { revalidate: CACHE_SECONDS },
-      }),
+      fetchWithTimeout(COINGECKO_MARKETS_URL + "1", { next: { revalidate: CACHE_SECONDS } }),
+      fetchWithTimeout(COINGECKO_MARKETS_URL + "2", { next: { revalidate: CACHE_SECONDS } }),
     ]);
 
     if (!page1.ok || !page2.ok) return [];
@@ -43,7 +37,5 @@ export async function fetchCryptoList(): Promise<CryptoListItem[]> {
       .sort((a, b) => a.code.localeCompare(b.code));
   } catch {
     return [];
-  } finally {
-    clearTimeout(timer);
   }
 }

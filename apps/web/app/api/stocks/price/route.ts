@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
   try {
     const quote = await quotesService.fetchQuote(symbol);
     return NextResponse.json(quote);
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("No data found")) {
+      return NextResponse.json({ error: "no data" }, { status: 404 });
+    }
     return NextResponse.json({ error: "fetch failed" }, { status: 502 });
   }
 }

@@ -1,4 +1,5 @@
 import type { Quote } from "@repo/shared";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { fetchCryptoList } from "./crypto-list.service";
 
 interface YahooChartMeta {
@@ -18,17 +19,6 @@ interface YahooChartResponse {
 // many users requesting the same symbol within the window collapse into one
 // upstream request.
 const QUOTE_CACHE_SECONDS = 30;
-const FETCH_TIMEOUT_MS = 5000;
-
-async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...init, signal: ctl.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // Yahoo's chart API is undocumented/unofficial (no key, no SLA) — a fallback
 // below covers plain US tickers and crypto. TW stocks (".TW"), FX pairs ("=X"),
@@ -69,7 +59,7 @@ export class QuotesService {
     const data = (await response.json()) as YahooChartResponse;
     const result = data?.chart?.result?.[0];
 
-    if (!result) {
+    if (!result?.meta) {
       throw new Error(`No data found for symbol ${symbol}`);
     }
 
