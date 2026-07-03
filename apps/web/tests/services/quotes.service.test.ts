@@ -41,12 +41,13 @@ describe("QuotesService.fetchQuote", () => {
   });
 
   it("rethrows the Yahoo error for a TW symbol without attempting a fallback", async () => {
+    // 500 is retryable, so Yahoo is called twice (attempt + 1 retry) before giving up.
     fetchMock.mockResolvedValue(yahooResponse(false));
 
     await expect(new QuotesService().fetchQuote("2330.TW")).rejects.toThrow(
       "Yahoo Finance returned 500 for 2330.TW"
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("rethrows the Yahoo error for a US ticker when FINNHUB_API_KEY is unset", async () => {
@@ -56,26 +57,29 @@ describe("QuotesService.fetchQuote", () => {
     await expect(new QuotesService().fetchQuote("AAPL")).rejects.toThrow(
       "Yahoo Finance returned 500 for AAPL"
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Yahoo retried once; Finnhub short-circuits without a fetch call since no key is set.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("falls back to Finnhub for a US ticker when Yahoo fails", async () => {
     process.env.FINNHUB_API_KEY = "test-key";
     fetchMock
-      .mockResolvedValueOnce(yahooResponse(false))
+      .mockResolvedValueOnce(yahooResponse(false)) // Yahoo attempt
+      .mockResolvedValueOnce(yahooResponse(false)) // Yahoo retry
       .mockResolvedValueOnce({ ok: true, json: async () => ({ c: 250 }) } as Response);
 
     const quote = await new QuotesService().fetchQuote("AAPL");
 
     expect(quote).toEqual({ symbol: "AAPL", price: 250, currency: "USD" });
-    const [finnhubUrl] = fetchMock.mock.calls[1] as [string];
+    const [finnhubUrl] = fetchMock.mock.calls[2] as [string];
     expect(finnhubUrl).toContain("finnhub.io");
   });
 
   it("falls back to CoinGecko for a crypto symbol when Yahoo fails", async () => {
     vi.mocked(fetchCryptoList).mockResolvedValue([{ code: "BTC", name: "Bitcoin", id: "bitcoin" }]);
     fetchMock
-      .mockResolvedValueOnce(yahooResponse(false))
+      .mockResolvedValueOnce(yahooResponse(false)) // Yahoo attempt
+      .mockResolvedValueOnce(yahooResponse(false)) // Yahoo retry
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ bitcoin: { usd: 60000 } }),
@@ -84,7 +88,7 @@ describe("QuotesService.fetchQuote", () => {
     const quote = await new QuotesService().fetchQuote("BTC-USD");
 
     expect(quote).toEqual({ symbol: "BTC-USD", price: 60000, currency: "USD" });
-    const [coinGeckoUrl] = fetchMock.mock.calls[1] as [string];
+    const [coinGeckoUrl] = fetchMock.mock.calls[2] as [string];
     expect(coinGeckoUrl).toContain("coingecko.com");
   });
 

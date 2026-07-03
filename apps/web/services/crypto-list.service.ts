@@ -1,4 +1,4 @@
-import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 
 export interface CryptoListItem {
   code: string;
@@ -16,8 +16,8 @@ const CACHE_SECONDS = 24 * 60 * 60;
 export async function fetchCryptoList(): Promise<CryptoListItem[]> {
   try {
     const [page1, page2] = await Promise.all([
-      fetchWithTimeout(COINGECKO_MARKETS_URL + "1", { next: { revalidate: CACHE_SECONDS } }),
-      fetchWithTimeout(COINGECKO_MARKETS_URL + "2", { next: { revalidate: CACHE_SECONDS } }),
+      fetchWithRetry(COINGECKO_MARKETS_URL + "1", { next: { revalidate: CACHE_SECONDS } }),
+      fetchWithRetry(COINGECKO_MARKETS_URL + "2", { next: { revalidate: CACHE_SECONDS } }),
     ]);
 
     if (!page1.ok || !page2.ok) return [];

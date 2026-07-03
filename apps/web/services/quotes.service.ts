@@ -1,5 +1,5 @@
 import type { Quote } from "@repo/shared";
-import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 import { fetchCryptoList } from "./crypto-list.service";
 
 interface YahooChartMeta {
@@ -47,7 +47,7 @@ export class QuotesService {
   private async fetchFromYahoo(symbol: string): Promise<Quote> {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
 
-    const response = await fetchWithTimeout(url, {
+    const response = await fetchWithRetry(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
       next: { revalidate: QUOTE_CACHE_SECONDS },
     });
@@ -82,7 +82,7 @@ export class QuotesService {
 
     try {
       const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${apiKey}`;
-      const response = await fetchWithTimeout(url, { next: { revalidate: QUOTE_CACHE_SECONDS } });
+      const response = await fetchWithRetry(url, { next: { revalidate: QUOTE_CACHE_SECONDS } });
       if (!response.ok) return null;
 
       const data = (await response.json()) as { c?: number };
@@ -102,7 +102,7 @@ export class QuotesService {
 
     try {
       const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(match.id)}&vs_currencies=usd`;
-      const response = await fetchWithTimeout(url, { next: { revalidate: QUOTE_CACHE_SECONDS } });
+      const response = await fetchWithRetry(url, { next: { revalidate: QUOTE_CACHE_SECONDS } });
       if (!response.ok) return null;
 
       const data = (await response.json()) as Record<string, { usd?: number }>;

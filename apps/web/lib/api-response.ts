@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import * as Sentry from "@sentry/nextjs";
 import type { ApiSuccess, ApiError, PaginationMeta } from "@repo/shared";
 
 export function ok<T>(data: T, status = 200, meta?: PaginationMeta): NextResponse {
@@ -27,6 +28,7 @@ export function handleError(e: unknown): NextResponse {
   if (e instanceof ZodError) {
     return err("VALIDATION_ERROR", "Invalid request data", 400, e.flatten());
   }
+  Sentry.captureException(e);
   const message =
     process.env.NODE_ENV === "production"
       ? "Internal server error"

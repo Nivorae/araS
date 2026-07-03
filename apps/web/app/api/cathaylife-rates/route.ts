@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 
 export const revalidate = 43200; // cache 12 hours
 
@@ -14,22 +15,17 @@ interface CathayRateRow {
 
 export async function GET() {
   try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 5000);
-    let res: Response;
-    try {
-      res = await fetch("https://www.cathaylife.com.tw/cathaylifeins/api/DTODBHZ6/getAllByJoinZ5", {
-        signal: ctl.signal,
+    const res = await fetchWithRetry(
+      "https://www.cathaylife.com.tw/cathaylifeins/api/DTODBHZ6/getAllByJoinZ5",
+      {
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible)",
           Referer: "https://www.cathaylife.com.tw/cathaylifeins/common/rate",
           Accept: "application/json",
         },
         next: { revalidate: 43200 },
-      });
-    } finally {
-      clearTimeout(timer);
-    }
+      }
+    );
 
     if (!res.ok) {
       return NextResponse.json({ error: "upstream fetch failed" }, { status: 502 });

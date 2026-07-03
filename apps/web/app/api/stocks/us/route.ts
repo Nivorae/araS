@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 
 // SEC EDGAR company tickers — free, no auth required
 const SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json";
@@ -105,18 +106,10 @@ const CACHE_SECONDS = 24 * 60 * 60; // 24 hours (list changes rarely)
 
 export async function GET() {
   try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 5000);
-    let res: Response;
-    try {
-      res = await fetch(SEC_TICKERS_URL, {
-        signal: ctl.signal,
-        next: { revalidate: CACHE_SECONDS },
-        headers: { "User-Agent": "araS-finance-app contact@example.com" },
-      });
-    } finally {
-      clearTimeout(timer);
-    }
+    const res = await fetchWithRetry(SEC_TICKERS_URL, {
+      next: { revalidate: CACHE_SECONDS },
+      headers: { "User-Agent": "araS-finance-app contact@example.com" },
+    });
 
     if (!res.ok) {
       return NextResponse.json({ error: "Failed to fetch" }, { status: 502 });
