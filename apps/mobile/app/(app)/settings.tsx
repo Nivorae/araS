@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { ArrowLeft, LogOut, Trash2 } from "lucide-react-native";
+import { ArrowLeft, LogOut, Sparkles, Trash2 } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
 
 export default function SettingsScreen() {
@@ -70,6 +70,15 @@ export default function SettingsScreen() {
             {name ? <Text style={s.name}>{name}</Text> : null}
             <Text style={s.email}>{email}</Text>
           </View>
+
+          {/* Premium */}
+          <Pressable
+            onPress={() => router.push("/paywall")}
+            style={({ pressed }) => [s.row, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Sparkles size={20} color="#374254" />
+            <Text style={s.rowText}>升級 Premium</Text>
+          </Pressable>
 
           {/* Sign out */}
           <Pressable

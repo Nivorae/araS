@@ -79,6 +79,19 @@ Apple 抽成 15~30%（小開發者第一年內 / 年營收 <100 萬美元 → 15
 4. **資料庫加會員狀態**：Supabase 加訂閱狀態欄位，用 **RevenueCat webhook** 在付費/取消時更新，
    讓 `/api/*` 後端也能在伺服器端驗證（防破解）
 
+#### 目前的鋪路進度（已完成，都還沒真的上線收費）
+
+- ✅ 1、2、3 已完成（`react-native-purchases` 已裝、`app/(app)/paywall.tsx` 付費牆畫面已建、
+  `EntitlementsService.isPremium()` 是集中判斷點，目前永遠回傳 `true`，還沒鎖任何功能）。
+- ⚠️ **4 的 webhook 選錯了方向，需要重做**：目前 `/api/webhooks/app-store-notifications`
+  直接驗證 Apple 原始的 JWS 通知——這是「不用 RevenueCat、自己接 StoreKit2」時的正確做法。
+  但你用的是 **RevenueCat SDK**，實際流程是「Apple 通知 RevenueCat → RevenueCat 再用它自己的
+  webhook 通知你」，Apple 不會直接打到我們的 endpoint，所以這支 webhook 目前**收不到真實流量**。
+  之後真的要做訂閱時，需要另外建一支接收 **RevenueCat 自己 webhook 格式**的 endpoint
+  （建議等你申請好 RevenueCat 帳號、能看到他們 dashboard 上實際的 webhook payload 範例後再做，
+  這樣才能對照官方文件驗證欄位正確，避免憑印象猜錯格式）。
+  `Subscription` 資料表本身不用重做，兩種 webhook 更新的都是同一張表。
+
 ### 訂閱商品什麼時候開？
 
 **訂閱商品不能單獨存在，必須跟「第一個使用它的 App 版本」一起送審。**

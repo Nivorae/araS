@@ -5,6 +5,7 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { tokenCache } from "@/lib/tokenCache";
+import { configurePurchases } from "@/lib/purchases";
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
@@ -17,7 +18,7 @@ Sentry.init({
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 function InitialLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -32,6 +33,10 @@ function InitialLayout() {
       router.replace("/welcome");
     }
   }, [isLoaded, isSignedIn, segments, router]);
+
+  useEffect(() => {
+    if (isSignedIn && userId) configurePurchases(userId);
+  }, [isSignedIn, userId]);
 
   if (!isLoaded) {
     return (
