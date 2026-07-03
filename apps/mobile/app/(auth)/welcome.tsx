@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { useOAuth } from "@/hooks/useOAuth";
+import { useAppleAuth } from "@/hooks/useAppleAuth";
 import iconPng from "../../assets/icon.png";
 
 // ─── Decorative floating cards (placeholder values — not real data) ─────────────
@@ -177,6 +179,17 @@ function FloatingCard({ card, index }: { card: CardConfig; index: number }) {
 
 // ─── OAuth provider icons ───────────────────────────────────────────────────────
 
+function AppleIcon() {
+  return (
+    <Svg width={18} height={22} viewBox="0 0 24 24">
+      <Path
+        fill="#ffffff"
+        d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.51 4.09l-.02-.01M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25"
+      />
+    </Svg>
+  );
+}
+
 function GoogleIcon() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24">
@@ -218,30 +231,38 @@ function OAuthPill({
   disabled,
   onPress,
 }: {
-  variant: "google" | "line";
+  variant: "apple" | "google" | "line";
   icon: React.ReactNode;
   label: string;
   loading: boolean;
   disabled: boolean;
   onPress: () => void;
 }) {
-  const isLine = variant === "line";
+  // Google is a white pill with dark text; Apple and LINE are dark pills with
+  // white text.
+  const textColor = variant === "google" ? "#1c1c1e" : "#ffffff";
+  const variantStyle =
+    variant === "apple"
+      ? styles.oauthApple
+      : variant === "line"
+        ? styles.oauthLine
+        : styles.oauthGoogle;
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
         styles.oauthPill,
-        isLine ? styles.oauthLine : styles.oauthGoogle,
+        variantStyle,
         { opacity: loading ? 0.7 : disabled ? 0.5 : pressed ? 0.85 : 1 },
       ]}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={isLine ? "#ffffff" : "#1c1c1e"} />
+        <ActivityIndicator size="small" color={textColor} />
       ) : (
         <>
           {icon}
-          <Text style={[styles.oauthText, { color: isLine ? "#ffffff" : "#1c1c1e" }]}>{label}</Text>
+          <Text style={[styles.oauthText, { color: textColor }]}>{label}</Text>
         </>
       )}
     </Pressable>
@@ -254,7 +275,10 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const { start, busy } = useOAuth();
+  const { start: startApple, busy: appleBusy } = useAppleAuth();
   const [error, setError] = useState<string | null>(null);
+
+  const anyBusy = busy !== null || appleBusy;
 
   return (
     <View style={styles.root}>
@@ -272,12 +296,23 @@ export default function WelcomeScreen() {
 
       {/* Bottom: OAuth login (no separate sign-in / sign-up screens) */}
       <View style={[styles.buttons, { bottom: insets.bottom + 36 }]}>
+        {/* Apple is native and iOS-only; on Android it has no native flow. */}
+        {Platform.OS === "ios" ? (
+          <OAuthPill
+            variant="apple"
+            icon={<AppleIcon />}
+            label="以 Apple 繼續"
+            loading={appleBusy}
+            disabled={anyBusy}
+            onPress={() => startApple(setError)}
+          />
+        ) : null}
         <OAuthPill
           variant="google"
           icon={<GoogleIcon />}
           label="以 Google 繼續"
           loading={busy === "oauth_google"}
-          disabled={busy !== null}
+          disabled={anyBusy}
           onPress={() => start("oauth_google", setError)}
         />
         <OAuthPill
@@ -285,7 +320,7 @@ export default function WelcomeScreen() {
           icon={<LineIcon />}
           label="以 LINE 繼續"
           loading={busy === "oauth_line"}
-          disabled={busy !== null}
+          disabled={anyBusy}
           onPress={() => start("oauth_line", setError)}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -380,6 +415,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
+  oauthApple: { backgroundColor: "#000000" },
   oauthGoogle: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
