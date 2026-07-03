@@ -19,6 +19,7 @@
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0",
     "@clerk/nextjs": "^7.3.2",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@prisma/client": "^6.0.0",
