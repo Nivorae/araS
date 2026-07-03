@@ -8,13 +8,13 @@ const TWSE_COMPANIES = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L";
 // TPEx (OTC/上櫃): covers bond ETFs (e.g. 00933B) and OTC-listed stocks absent from TWSE
 const TPEX_ALL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes";
 
-let cachedAt = 0;
-let cachedResult: { 公司代號: string; 公司簡稱: string }[] | null = null;
-const CACHE_MS = 60 * 60 * 1000; // 1 hour
+// Shared across all serverless instances via Next.js Data Cache (a module-level
+// variable would not be — each cold instance has its own memory).
+const CACHE_SECONDS = 60 * 60; // 1 hour
 
 async function fetchJSON(url: string, signal: AbortSignal): Promise<Record<string, string>[]> {
   try {
-    const res = await fetch(url, { cache: "no-store", signal });
+    const res = await fetch(url, { next: { revalidate: CACHE_SECONDS }, signal });
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -24,10 +24,6 @@ async function fetchJSON(url: string, signal: AbortSignal): Promise<Record<strin
 
 export async function GET() {
   try {
-    if (cachedResult && Date.now() - cachedAt < CACHE_MS) {
-      return NextResponse.json(cachedResult);
-    }
-
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 5000);
     let allSecurities: Record<string, string>[],
@@ -51,9 +47,6 @@ export async function GET() {
     }
 
     const result = mergeExchangeStocks(allSecurities, tpexSecurities, nameMap);
-
-    cachedAt = Date.now();
-    cachedResult = result;
 
     return NextResponse.json(result);
   } catch {

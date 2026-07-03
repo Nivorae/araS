@@ -145,3 +145,25 @@ model Recurrence {
   @@index([userId, nextRunAt])
   @@index([entryId])
 }
+
+enum SubscriptionStatus {
+  active
+  expired
+  grace_period
+  revoked
+}
+
+// v2 IAP scaffolding — not read by any code path yet (see EntitlementsService).
+// Populated exclusively by the future App Store Server Notifications webhook;
+// Apple's notification is the source of truth, never the client.
+model Subscription {
+  id                    String             @id @default(cuid())
+  userId                String             @unique
+  productId             String
+  status                SubscriptionStatus
+  expiresAt             DateTime
+  originalTransactionId String             @unique
+  environment           String             @default("Production")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+}
