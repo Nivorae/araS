@@ -16,6 +16,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/slider": "5.0.1",
     "@repo/shared": "workspace:*",
+    "@sentry/react-native": "^8.17.1",
     "expo": "~54.0.35",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.11",

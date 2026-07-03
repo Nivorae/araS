@@ -1,9 +1,18 @@
 import "react-native-url-polyfill/auto";
+import * as Sentry from "@sentry/react-native";
 import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/clerk-expo";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { tokenCache } from "@/lib/tokenCache";
+
+const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+
+Sentry.init({
+  dsn: sentryDsn,
+  enabled: !!sentryDsn,
+  tracesSampleRate: 0.1,
+});
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -35,7 +44,7 @@ function InitialLayout() {
   return <Slot />;
 }
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
   if (!publishableKey) {
     throw new Error(
       "Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY. Copy .env.example to .env and set it."
@@ -49,4 +58,4 @@ export default function RootLayout() {
       </ClerkLoaded>
     </ClerkProvider>
   );
-}
+});
