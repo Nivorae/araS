@@ -1,13 +1,12 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePathname, useRouter } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
 import {
   BarChart3,
   Building2,
-  LogOut,
   PiggyBank,
   Plus,
+  Settings,
   type LucideIcon,
 } from "lucide-react-native";
 
@@ -33,7 +32,6 @@ export function TopGlassNav() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
-  const { signOut } = useAuth();
 
   const isActive = (match: string) => {
     if (match === "") return pathname === "/" || pathname === "";
@@ -58,9 +56,9 @@ export function TopGlassNav() {
           );
         })}
 
-        {/* Logout */}
-        <Pressable onPress={() => signOut()} style={s.btn} hitSlop={4}>
-          <LogOut size={22} color={INACTIVE} strokeWidth={1.5} />
+        {/* Settings (account, sign out, delete account) */}
+        <Pressable onPress={() => router.push("/settings")} style={s.btn} hitSlop={4}>
+          <Settings size={22} color={INACTIVE} strokeWidth={1.5} />
         </Pressable>
 
         {/* Divider */}
