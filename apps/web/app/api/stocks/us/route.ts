@@ -99,23 +99,19 @@ const COMMON_ETFS: { code: string; name: string }[] = [
   { code: "AOK", name: "iShares Core Conservative Allocation ETF" },
 ];
 
-let cachedAt = 0;
-let cachedResult: { code: string; name: string }[] | null = null;
-const CACHE_MS = 24 * 60 * 60 * 1000; // 24 hours (list changes rarely)
+// Shared across all serverless instances via Next.js Data Cache (a module-level
+// variable would not be — each cold instance has its own memory).
+const CACHE_SECONDS = 24 * 60 * 60; // 24 hours (list changes rarely)
 
 export async function GET() {
   try {
-    if (cachedResult && Date.now() - cachedAt < CACHE_MS) {
-      return NextResponse.json(cachedResult);
-    }
-
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 5000);
     let res: Response;
     try {
       res = await fetch(SEC_TICKERS_URL, {
         signal: ctl.signal,
-        cache: "no-store",
+        next: { revalidate: CACHE_SECONDS },
         headers: { "User-Agent": "araS-finance-app contact@example.com" },
       });
     } finally {
@@ -140,9 +136,6 @@ export async function GET() {
     const merged = [...secStocks, ...COMMON_ETFS.filter((etf) => !secCodes.has(etf.code))].sort(
       (a, b) => a.code.localeCompare(b.code)
     );
-
-    cachedAt = Date.now();
-    cachedResult = merged;
 
     return NextResponse.json(merged);
   } catch {
