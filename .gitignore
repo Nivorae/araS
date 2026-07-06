@@ -19,6 +19,12 @@ blob-report/
 .next/
 out/
 
+# next-pwa generated service worker (apps/web)
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/workbox-*.js
+apps/web/public/workbox-*.js.map
+
 # build output
 dist/
 build/

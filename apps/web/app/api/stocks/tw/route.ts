@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 import { mergeExchangeStocks } from "./mergeExchangeStocks";
 
 // TWSE: all securities traded today (stocks + equity ETFs + bond ETFs listed on TWSE)
@@ -12,9 +13,9 @@ const TPEX_ALL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_
 // variable would not be — each cold instance has its own memory).
 const CACHE_SECONDS = 60 * 60; // 1 hour
 
-async function fetchJSON(url: string, signal: AbortSignal): Promise<Record<string, string>[]> {
+async function fetchJSON(url: string): Promise<Record<string, string>[]> {
   try {
-    const res = await fetch(url, { next: { revalidate: CACHE_SECONDS }, signal });
+    const res = await fetchWithRetry(url, { next: { revalidate: CACHE_SECONDS } });
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -24,20 +25,11 @@ async function fetchJSON(url: string, signal: AbortSignal): Promise<Record<strin
 
 export async function GET() {
   try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 5000);
-    let allSecurities: Record<string, string>[],
-      companies: Record<string, string>[],
-      tpexSecurities: Record<string, string>[];
-    try {
-      [allSecurities, companies, tpexSecurities] = await Promise.all([
-        fetchJSON(TWSE_ALL, ctl.signal),
-        fetchJSON(TWSE_COMPANIES, ctl.signal),
-        fetchJSON(TPEX_ALL, ctl.signal),
-      ]);
-    } finally {
-      clearTimeout(timer);
-    }
+    const [allSecurities, companies, tpexSecurities] = await Promise.all([
+      fetchJSON(TWSE_ALL),
+      fetchJSON(TWSE_COMPANIES),
+      fetchJSON(TPEX_ALL),
+    ]);
 
     const nameMap = new Map<string, string>();
     for (const item of companies) {

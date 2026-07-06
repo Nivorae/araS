@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { fetchWithRetry } from "@/lib/fetch-with-timeout";
+
+const CACHE_SECONDS = 30;
 
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol");
@@ -7,13 +10,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ dividendRate: null, dividendYield: null });
   }
 
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 5000);
   try {
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=summaryDetail`;
-    const res = await fetch(url, {
-      signal: ctl.signal,
-      cache: "no-store",
+    const res = await fetchWithRetry(url, {
+      next: { revalidate: CACHE_SECONDS },
       headers: { "User-Agent": "Mozilla/5.0" },
     });
 
@@ -32,7 +32,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ dividendRate, dividendYield });
   } catch {
     return NextResponse.json({ dividendRate: null, dividendYield: null });
-  } finally {
-    clearTimeout(timer);
   }
 }

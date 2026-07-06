@@ -154,11 +154,17 @@ enum SubscriptionStatus {
 }
 
 // v2 IAP scaffolding — not read by any code path yet (see EntitlementsService).
-// Populated exclusively by the future App Store Server Notifications webhook;
+// Populated exclusively by the App Store Server Notifications webhook;
 // Apple's notification is the source of truth, never the client.
+//
+// appleAccountToken is `deriveAppleAccountToken(clerkUserId)` (see
+// @repo/shared), not the raw Clerk userId — Apple's StoreKit2 appAccountToken
+// must be a UUID, so purchase (mobile) and verification (this webhook) sides
+// independently recompute the same deterministic UUID from the Clerk userId
+// rather than needing a separate mapping table.
 model Subscription {
   id                    String             @id @default(cuid())
-  userId                String             @unique
+  appleAccountToken     String             @unique
   productId             String
   status                SubscriptionStatus
   expiresAt             DateTime
