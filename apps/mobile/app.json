@@ -12,6 +12,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0f"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/04fc306d-1109-4b7f-9d58-56e9a4c21710"
+    },
     "ios": {
       "bundleIdentifier": "com.Sara.assetapp",
       "buildNumber": "1",
