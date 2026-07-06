@@ -31,15 +31,15 @@ export function BottomNav() {
 
   const handleLastButton = () => {
     if (isSignedIn) {
-      signOut({ redirectUrl: "/" });
+      signOut({ redirectUrl: "/welcome" });
     } else {
-      navigate("/");
+      navigate("/welcome");
     }
   };
 
   const LastIcon = isSignedIn ? LogOut : Home;
   const lastLabel = isSignedIn ? "登出" : "首頁";
-  const lastActive = !isSignedIn && pathname === "/";
+  const lastActive = !isSignedIn && pathname === "/welcome";
 
   return (
     <nav className="fixed top-6 left-1/2 z-50 -translate-x-1/2">

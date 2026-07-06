@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { LandingButtons } from "../../app/landing-buttons";
+import { LandingButtons } from "../../app/welcome/landing-buttons";
 
 const mockPush = vi.fn();
 
