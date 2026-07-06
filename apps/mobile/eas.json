@@ -8,7 +8,10 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://ara-s-web.vercel.app",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA"
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://5a77f97df690605f4302274347f2aace@o4511686116311040.ingest.us.sentry.io/4511686223659008",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_LnKRqliUVeGfuDEGrPdREgjUDBb",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
         "resourceClass": "m-medium",
@@ -20,7 +23,10 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://ara-s-web.vercel.app",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA"
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cHJvdmVuLWRydW0tNjcuY2xlcmsuYWNjb3VudHMuZGV2JA",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://5a77f97df690605f4302274347f2aace@o4511686116311040.ingest.us.sentry.io/4511686223659008",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_LnKRqliUVeGfuDEGrPdREgjUDBb",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
         "resourceClass": "m-medium"
