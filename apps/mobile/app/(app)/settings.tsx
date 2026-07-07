@@ -158,6 +158,7 @@ const s = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 15,
     paddingHorizontal: 16,
+    marginBottom: 8,
   },
   rowText: { fontSize: 16, fontWeight: "500", color: "#1c1c1e" },
   dangerRow: {},

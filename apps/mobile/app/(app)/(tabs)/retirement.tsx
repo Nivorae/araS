@@ -298,17 +298,26 @@ export default function RetirementScreen() {
   // Asset summary
   const { netAssets, totalAssets, totalLiabilities, totalInvestment, liquidAssets } =
     useMemo(() => {
+      // Entry values arrive from /api/entries as a plain cast with no runtime
+      // validation, so a null / NaN / mistyped value can slip through. It MUST
+      // be coerced to a finite number here: a non-finite value propagates into
+      // <ProjectionChart> and produces an SVG path with "NaN" coordinates, which
+      // hard-crashes react-native-svg natively on iOS.
+      const num = (v: unknown) => {
+        const n = typeof v === "number" ? v : Number(v);
+        return Number.isFinite(n) ? n : 0;
+      };
       const assetEntries = entries.filter((e) => e.topCategory !== "負債");
       const liabEntries = entries.filter((e) => e.topCategory === "負債");
       const investEntries = entries.filter((e) => e.topCategory === "投資");
       const liquidEntries = entries.filter((e) => e.topCategory === "流動資金");
-      const ta = assetEntries.reduce((sum, e) => sum + e.value, 0);
-      const tl = liabEntries.reduce((sum, e) => sum + e.value, 0);
+      const ta = assetEntries.reduce((sum, e) => sum + num(e.value), 0);
+      const tl = liabEntries.reduce((sum, e) => sum + num(e.value), 0);
       return {
         totalAssets: ta,
         totalLiabilities: tl,
-        totalInvestment: investEntries.reduce((sum, e) => sum + e.value, 0),
-        liquidAssets: liquidEntries.reduce((sum, e) => sum + e.value, 0),
+        totalInvestment: investEntries.reduce((sum, e) => sum + num(e.value), 0),
+        liquidAssets: liquidEntries.reduce((sum, e) => sum + num(e.value), 0),
         netAssets: ta - tl,
       };
     }, [entries]);
@@ -343,13 +352,11 @@ export default function RetirementScreen() {
     let opt = Math.max(0, netAssets);
     let cons = Math.max(0, netAssets);
     const aw = calcs.aw;
+    // Never emit a non-finite point — it becomes a "NaN"/"Infinity" SVG path
+    // coordinate downstream and crashes react-native-svg on iOS.
+    const safe = (x: number) => (Number.isFinite(x) ? Math.max(0, Math.round(x)) : 0);
     for (let age = params.currentAge; age <= 90; age++) {
-      rows.push({
-        age,
-        base: Math.max(0, Math.round(base)),
-        opt: Math.max(0, Math.round(opt)),
-        cons: Math.max(0, Math.round(cons)),
-      });
+      rows.push({ age, base: safe(base), opt: safe(opt), cons: safe(cons) });
       if (age < params.retirementAge) {
         const c = params.monthlyContrib * 12;
         base = base * (1 + params.accRate / 100) + c;

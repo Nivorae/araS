@@ -3,7 +3,7 @@
     "name": "Sara Asset",
     "slug": "sara-asset-app",
     "scheme": "saraasset",
-    "version": "0.1.0",
+    "version": "1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -11,6 +11,12 @@
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0f"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/04fc306d-1109-4b7f-9d58-56e9a4c21710"
     },
     "ios": {
       "bundleIdentifier": "com.Sara.assetapp",
@@ -32,7 +38,7 @@
       "expo-router",
       "expo-secure-store",
       "expo-apple-authentication",
-      "@sentry/react-native/expo"
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true
