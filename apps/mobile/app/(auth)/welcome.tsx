@@ -68,8 +68,8 @@ const CARDS: CardConfig[] = [
   },
   {
     name: "流動資金",
-    color: "#FFFFFF",
-    textColor: "#1c1c1e",
+    color: "#0e1424",
+    textColor: "#ffffff",
     value: "$540,000",
     depth: "mid",
     opacity: 0.78,
@@ -90,8 +90,9 @@ const CARDS: CardConfig[] = [
   },
   {
     name: "應收帳款",
-    color: "#0e1424",
-    textColor: "#ffffff",
+    color: "#FFFFFF",
+    textColor: "#1c1c1e",
+
     value: "$15,000",
     depth: "near",
     opacity: 1,

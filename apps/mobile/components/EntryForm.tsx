@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, Check, ChevronLeft, ChevronRight, Info } from "lucide-react-native";
+import { Calendar, Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import { BankLogo } from "./BankLogo";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useFinanceStore } from "@/store/financeStore";
@@ -275,7 +275,8 @@ export function EntryForm({
   const [includeInChart, setIncludeInChart] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showRecurrenceInfo, setShowRecurrenceInfo] = useState(false);
+  // Re-enable together with the "新增定期" action block below.
+  // const [showRecurrenceInfo, setShowRecurrenceInfo] = useState(false);
 
   // ── Standard balance ─────────────────────────────────────────────────────────
   // When adding a record, the field is the NEW amount to append — start empty.
@@ -569,7 +570,7 @@ export function EntryForm({
                       style={[s.row, { opacity: stockLocked ? 0.6 : 1 }]}
                       activeOpacity={0.7}
                     >
-                      <Text style={s.rowLabel}>選擇股票</Text>
+                      <Text style={s.rowLabel}>選擇標的</Text>
                       <View style={s.rowRight}>
                         {selectedStock ? (
                           <View style={{ alignItems: "flex-end" }}>
@@ -803,7 +804,7 @@ export function EntryForm({
           {error != null && <Text style={s.errorText}>{error}</Text>}
 
           {/* ── Bottom action row ───────────────────────────────────────── */}
-          {!isLoan && (
+          {/* {!isLoan && (
             <View style={s.bottomRow}>
               <TouchableOpacity style={s.addRecurrenceBtn} activeOpacity={0.8}>
                 <Text style={s.addRecurrenceText}>新增定期</Text>
@@ -821,7 +822,7 @@ export function EntryForm({
                 新增定期交易，例如帳單、薪資、租金等。可以先填入預估金額，之後再依實際情況調整。
               </Text>
             </View>
-          )}
+          )} */}
         </ScrollView>
       </KeyboardAvoidingView>
 
