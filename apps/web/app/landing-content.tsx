@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { motion, MotionConfig, type Variants } from "motion/react";
+import { motion, MotionConfig, type MotionStyle, type Variants } from "motion/react";
 import {
   Wallet,
   Scale,
@@ -33,6 +33,14 @@ const PHONE_SHOTS = [
   "/landing/phone-3.png",
   "/landing/phone-4.png",
   "/landing/phone-5.png",
+];
+
+// 情境照（16:9），在 Showcase 區塊不規則地夾在手機兩側。
+const SITUATION_SHOTS = [
+  "/landing/situation-1.png",
+  "/landing/situation-2.png",
+  "/landing/situation-3.png",
+  "/landing/situation-4.png",
 ];
 
 interface Feature {
@@ -148,6 +156,62 @@ function PhoneFrame({ src, width = 240 }: { src?: string | undefined; width?: nu
         )}
       </div>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Situation image card                                                       */
+/* -------------------------------------------------------------------------- */
+
+function SituationCard({
+  src,
+  width,
+  rotate = 0,
+  fluid = false,
+  className,
+  style = {},
+  floatAmount = 14,
+  floatDuration = 6,
+  floatDelay = 0,
+}: {
+  src?: string | undefined;
+  width?: number;
+  rotate?: number;
+  fluid?: boolean;
+  className?: string;
+  style?: MotionStyle;
+  floatAmount?: number;
+  floatDuration?: number;
+  floatDelay?: number;
+}) {
+  if (!src) return null;
+  return (
+    // 外層：滾入時的進場動畫（受父層 stagger 控制）
+    <motion.div variants={popIn} className={className} style={style}>
+      {/* 內層：持續上下漂浮 + 輕微擺動，各張以不同週期／延遲錯開，較自然 */}
+      <motion.div
+        className="overflow-hidden rounded-[20px] border border-black/[0.05] bg-white shadow-[0_26px_60px_-22px_rgba(15,20,35,0.4)]"
+        style={{ width: fluid ? "100%" : width }}
+        initial={{ rotate }}
+        animate={{ y: [0, -floatAmount, 0], rotate: [rotate, rotate + 1.5, rotate] }}
+        transition={{
+          duration: floatDuration,
+          delay: floatDelay,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      >
+        <div className="relative w-full" style={{ aspectRatio: "16 / 9" }}>
+          <Image
+            src={src}
+            alt="araS 使用情境"
+            fill
+            sizes="(max-width: 1024px) 45vw, 320px"
+            className="object-cover"
+          />
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -307,39 +371,66 @@ function Showcase() {
         </p>
       </motion.div>
 
-      {/* 桌面：卡片左右夾著手機 */}
-      <div className="mt-16 hidden items-center justify-center gap-8 lg:flex">
-        <motion.div
-          variants={stagger}
-          initial="hidden"
-          whileInView="show"
-          viewport={inView}
-          className="flex w-72 flex-col gap-5"
-        >
-          {FEATURES.slice(0, 3).map((f) => (
-            <FeatureCard key={f.title} feature={f} align="right" />
-          ))}
-        </motion.div>
+      {/* 桌面：不規則情境圖左右各兩張夾著手機 */}
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+        className="relative mt-16 hidden h-[600px] lg:block"
+      >
+        {/* 左側兩張 */}
+        <SituationCard
+          src={SITUATION_SHOTS[0]}
+          width={304}
+          rotate={-5}
+          className="absolute z-10"
+          style={{ left: 0, top: 24 }}
+          floatAmount={16}
+          floatDuration={6}
+          floatDelay={0}
+        />
+        <SituationCard
+          src={SITUATION_SHOTS[2]}
+          width={264}
+          rotate={4}
+          className="absolute z-20"
+          style={{ left: 132, top: 316 }}
+          floatAmount={12}
+          floatDuration={7.2}
+          floatDelay={1.2}
+        />
 
-        <motion.div variants={popIn} initial="hidden" whileInView="show" viewport={inView}>
+        {/* 右側兩張 */}
+        <SituationCard
+          src={SITUATION_SHOTS[3]}
+          width={288}
+          rotate={5}
+          className="absolute z-10"
+          style={{ right: 0, top: 48 }}
+          floatAmount={14}
+          floatDuration={6.6}
+          floatDelay={0.6}
+        />
+        <SituationCard
+          src={SITUATION_SHOTS[1]}
+          width={304}
+          rotate={-4}
+          className="absolute z-20"
+          style={{ right: 80, top: 322 }}
+          floatAmount={18}
+          floatDuration={7.8}
+          floatDelay={1.8}
+        />
+
+        {/* 中間手機 */}
+        <motion.div variants={popIn} className="absolute top-8 left-1/2 z-30 -translate-x-1/2">
           <PhoneFrame src={PHONE_SHOTS[2]} width={248} />
         </motion.div>
+      </motion.div>
 
-        <motion.div
-          variants={stagger}
-          initial="hidden"
-          whileInView="show"
-          viewport={inView}
-          className="flex w-72 flex-col gap-5"
-        >
-          {FEATURES.slice(3).map((f) => (
-            <FeatureCard key={f.title} feature={f} align="left" />
-          ))}
-        </motion.div>
-      </div>
-
-      {/* 手機／平板：手機在上，功能卡片兩欄排列 */}
-      <div className="mt-14 flex flex-col items-center gap-10 lg:hidden">
+      {/* 手機／平板：手機在上，情境圖不規則兩欄排列 */}
+      <div className="mt-14 flex flex-col items-center gap-12 lg:hidden">
         <motion.div variants={popIn} initial="hidden" whileInView="show" viewport={inView}>
           <PhoneFrame src={PHONE_SHOTS[2]} width={220} />
         </motion.div>
@@ -348,13 +439,57 @@ function Showcase() {
           initial="hidden"
           whileInView="show"
           viewport={inView}
-          className="grid w-full max-w-xl grid-cols-1 gap-4 sm:grid-cols-2"
+          className="grid w-full max-w-xl grid-cols-2 gap-4 sm:gap-5"
         >
-          {FEATURES.map((f) => (
-            <FeatureCard key={f.title} feature={f} align="left" />
-          ))}
+          <SituationCard
+            src={SITUATION_SHOTS[0]}
+            fluid
+            rotate={-3}
+            className="mt-5"
+            floatAmount={10}
+            floatDuration={6}
+            floatDelay={0}
+          />
+          <SituationCard
+            src={SITUATION_SHOTS[1]}
+            fluid
+            rotate={3}
+            floatAmount={12}
+            floatDuration={7.2}
+            floatDelay={1.2}
+          />
+          <SituationCard
+            src={SITUATION_SHOTS[2]}
+            fluid
+            rotate={2}
+            floatAmount={12}
+            floatDuration={6.6}
+            floatDelay={0.6}
+          />
+          <SituationCard
+            src={SITUATION_SHOTS[3]}
+            fluid
+            rotate={-2}
+            className="-mt-5"
+            floatAmount={10}
+            floatDuration={7.8}
+            floatDelay={1.8}
+          />
         </motion.div>
       </div>
+
+      {/* 功能模組一覽 */}
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+        className="mx-auto mt-20 grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        {FEATURES.map((f) => (
+          <FeatureCard key={f.title} feature={f} align="left" />
+        ))}
+      </motion.div>
     </section>
   );
 }
