@@ -23,7 +23,9 @@ const TOP_PAD = 20;
 const RIGHT_PAD = 16;
 
 function niceCeil(max: number): number {
-  if (max <= 0) return 1;
+  // A non-finite max (NaN/Infinity) would poison every axis coordinate and make
+  // the SVG path "NaN,NaN…", which hard-crashes react-native-svg on iOS.
+  if (!Number.isFinite(max) || max <= 0) return 1;
   const pow = Math.pow(10, Math.floor(Math.log10(max)));
   const n = max / pow;
   let step: number;
@@ -56,15 +58,25 @@ export function ProjectionChart({
     return <View style={{ height }} onLayout={onLayout} />;
   }
 
+  // Belt-and-suspenders: sanitize every number that becomes an SVG coordinate,
+  // so a non-finite input can never produce a "NaN" path (native iOS crash).
+  const fin = (n: number) => (Number.isFinite(n) ? n : 0);
+
   const ageMin = data[0]!.age;
   const ageMax = data[data.length - 1]!.age;
   const ageSpan = Math.max(1, ageMax - ageMin);
 
-  const rawMax = data.reduce((m, d) => Math.max(m, d.base, d.opt, d.cons), target);
+  const rawMax = data.reduce(
+    (m, d) => Math.max(m, fin(d.base), fin(d.opt), fin(d.cons)),
+    fin(target)
+  );
   const yMax = niceCeil(rawMax);
 
-  const xFor = (age: number) => Y_AXIS_W + ((age - ageMin) / ageSpan) * plotW;
-  const yFor = (v: number) => TOP_PAD + plotH * (1 - v / yMax);
+  const xFor = (age: number) => Y_AXIS_W + ((fin(age) - ageMin) / ageSpan) * plotW;
+  const yFor = (v: number) => {
+    const y = TOP_PAD + plotH * (1 - fin(v) / yMax);
+    return Number.isFinite(y) ? y : TOP_PAD + plotH;
+  };
 
   const linePath = (key: "base" | "opt" | "cons") =>
     data

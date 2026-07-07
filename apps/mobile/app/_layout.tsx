@@ -10,7 +10,7 @@ import { configurePurchases } from "@/lib/purchases";
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
 Sentry.init({
-  dsn: sentryDsn,
+  ...(sentryDsn ? { dsn: sentryDsn } : {}),
   enabled: !!sentryDsn,
   tracesSampleRate: 0.1,
 });
