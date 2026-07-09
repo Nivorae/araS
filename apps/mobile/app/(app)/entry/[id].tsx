@@ -105,6 +105,7 @@ export default function EntryDetailScreen() {
   const [editUnits, setEditUnits] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [confirmDeleteHistory, setConfirmDeleteHistory] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isStockEntry =
     !!entry && STOCK_PICKER_CATEGORIES.includes(entry.subCategory) && !!entry.stockCode;
@@ -193,15 +194,20 @@ export default function EntryDetailScreen() {
   }
 
   function confirmDeleteEntry() {
-    if (!entry) return;
+    if (!entry || isDeleting) return;
     Alert.alert("刪除項目", `確定要刪除「${entry.name}」？此操作無法復原。`, [
       { text: "取消", style: "cancel" },
       {
         text: "刪除",
         style: "destructive",
         onPress: async () => {
-          await deleteEntry(id!);
-          router.back();
+          setIsDeleting(true);
+          try {
+            await deleteEntry(id!);
+            router.back();
+          } finally {
+            setIsDeleting(false);
+          }
         },
       },
     ]);
@@ -241,7 +247,7 @@ export default function EntryDetailScreen() {
             <TouchableOpacity onPress={() => router.push(`/entry/${id}/edit`)} style={s.iconBtn}>
               <Pencil size={16} color="#1c1c1e" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={confirmDeleteEntry} style={s.iconBtn}>
+            <TouchableOpacity onPress={confirmDeleteEntry} style={s.iconBtn} disabled={isDeleting}>
               <Trash2 size={16} color="#ff3b30" />
             </TouchableOpacity>
           </View>
