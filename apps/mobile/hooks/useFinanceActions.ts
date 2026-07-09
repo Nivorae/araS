@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useApi } from "@/lib/api";
+import { ApiError, useApi } from "@/lib/api";
 import { useFinanceStore, makeSnapshot } from "@/store/financeStore";
 import type {
   Entry,
@@ -67,7 +67,12 @@ export function useFinanceActions() {
 
   const deleteEntry = useCallback(
     async (id: string) => {
-      await api.delete(`/api/entries/${id}`);
+      try {
+        await api.delete(`/api/entries/${id}`);
+      } catch (e) {
+        // Already gone (e.g. a duplicate delete request) — treat as success.
+        if (!(e instanceof ApiError && e.status === 404)) throw e;
+      }
       useFinanceStore.getState().deleteEntryLocal(id);
     },
     [api]
