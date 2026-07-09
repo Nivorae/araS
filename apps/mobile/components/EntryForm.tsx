@@ -30,7 +30,7 @@ import {
   type StockItem,
 } from "@/lib/stockConstants";
 import { StockPickerModal } from "./StockPickerModal";
-import { BankPickerModal, type BankItem } from "./BankPickerModal";
+import { BankPickerModal, BANKS, type BankItem } from "./BankPickerModal";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import type { RepaymentType } from "@repo/shared";
 
@@ -220,6 +220,10 @@ export interface EntryFormProps {
   initialStockCode?: string;
   initialUnits?: number;
   initialNote?: string;
+  /** Pre-select the bank icon (金融卡) chosen when the entry was created. */
+  initialBankCode?: string;
+  /** Whether this entry counts toward the net-worth chart (default true). */
+  initialIncludeInChart?: boolean;
   /** Lock the stock to the prefilled one (adding a record to an existing holding). */
   lockStockPicker?: boolean;
   /**
@@ -248,6 +252,8 @@ export function EntryForm({
   initialStockCode = "",
   initialUnits,
   initialNote = "",
+  initialBankCode = "",
+  initialIncludeInChart = true,
   lockStockPicker = false,
   addRecord = false,
   baseValue = 0,
@@ -266,13 +272,19 @@ export function EntryForm({
   const hasStockPicker = (STOCK_CATS as readonly string[]).includes(subCategory);
   const isLoan = (LOAN_SUBCATS as readonly string[]).includes(subCategory);
   const isBankCard = subCategory === "金融卡";
+  // The ✏️ edit button edits the entry's BASIC INFO only (name / icon / 納入圖表).
+  // It must not touch the balance — that lives in the history records — so the
+  // amount fields are hidden and `value` is never sent (no history line created).
+  const editBasicInfoOnly = isEdit && !addRecord && !isLoan;
 
   // ── Common state ─────────────────────────────────────────────────────────────
   const [name, setName] = useState(initialName);
-  const [note, setNote] = useState(initialNote);
+  // Appending a record starts a fresh note — the entry's stored note belongs to
+  // the entry/last record, not this new line, so it must not pre-fill here.
+  const [note, setNote] = useState(addRecord ? "" : initialNote);
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0] ?? "");
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [includeInChart, setIncludeInChart] = useState(true);
+  const [includeInChart, setIncludeInChart] = useState(initialIncludeInChart);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Re-enable together with the "新增定期" action block below.
@@ -303,7 +315,10 @@ export function EntryForm({
   const [manualPriceStr, setManualPriceStr] = useState("");
 
   // ── Bank picker ───────────────────────────────────────────────────────────────
-  const [selectedBank, setSelectedBank] = useState<BankItem | null>(null);
+  // Pre-select the bank chosen at creation so editing shows the current icon.
+  const [selectedBank, setSelectedBank] = useState<BankItem | null>(() =>
+    initialBankCode ? (BANKS.find((b) => b.code === initialBankCode) ?? null) : null
+  );
   const [showBankPicker, setShowBankPicker] = useState(false);
 
   // ── Loan state ────────────────────────────────────────────────────────────────
@@ -443,7 +458,8 @@ export function EntryForm({
   // ── Submit ────────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (isLoan && !validateLoan()) return;
-    if (!isLoan && !validateGeneral()) return;
+    // Basic-info edit has no amount field, so skip the value/units validation.
+    if (!isLoan && !editBasicInfoOnly && !validateGeneral()) return;
     setError(null);
     setSubmitting(true);
 
@@ -460,6 +476,14 @@ export function EntryForm({
           repaymentType: loanValues.repaymentType,
         });
         await fetchAll();
+      } else if (editBasicInfoOnly && entryId) {
+        // Edit basic info only: update name + icon (金融卡). No `value` is sent,
+        // so the backend creates no history line and the balance is untouched.
+        await updateEntry(entryId, {
+          name: name.trim() || selectedStock?.name || subCategory,
+          includeInChart,
+          ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
+        });
       } else {
         const entered = isInvestment ? computedValue : parseFloat(balance) || 0;
         // Add-record mode appends on top of the current value; edit/create replace.
@@ -473,6 +497,7 @@ export function EntryForm({
             topCategory,
             subCategory,
             value,
+            includeInChart,
             note: note.trim() || undefined,
             ...(hasStockPicker && selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
@@ -484,6 +509,7 @@ export function EntryForm({
             topCategory,
             subCategory,
             value,
+            includeInChart,
             note: note.trim() || undefined,
             ...(hasStockPicker && selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
@@ -538,7 +564,9 @@ export function EntryForm({
 
           {/* ── Title row ───────────────────────────────────────────────── */}
           <View style={s.titleRow}>
-            <Text style={s.titleText}>{addRecord ? "新增記錄" : "帳戶"}</Text>
+            <Text style={s.titleText}>
+              {addRecord ? "新增記錄" : editBasicInfoOnly ? "編輯帳戶" : "帳戶"}
+            </Text>
             <View style={s.titleRight}>
               <View style={[s.titleIcon, { backgroundColor: accentColor + "25" }]}>
                 <Icon size={20} color="#66788E" />
@@ -549,171 +577,176 @@ export function EntryForm({
 
           {/* ── Main form card ─────────────────────────────────────────── */}
           <View style={s.card}>
-            {isLoan ? (
-              <LoanFormFields
-                values={loanValues}
-                color={color}
-                onChange={(v) => {
-                  setLoanValues(v);
-                  setLoanErrors({});
-                }}
-                errors={loanErrors}
-              />
-            ) : isInvestment ? (
-              <>
-                {/* Stock selector row */}
-                {hasStockPicker && (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => !stockLocked && setShowStockPicker(true)}
-                      disabled={stockLocked}
-                      style={[s.row, { opacity: stockLocked ? 0.6 : 1 }]}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={s.rowLabel}>選擇標的</Text>
-                      <View style={s.rowRight}>
-                        {selectedStock ? (
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={s.stockCode}>{selectedStock.code}</Text>
-                            <Text style={s.stockNameSmall} numberOfLines={1}>
-                              {selectedStock.name}
-                            </Text>
-                          </View>
-                        ) : (
-                          <Text style={s.placeholderText}>未選擇</Text>
-                        )}
-                        {!stockLocked && <ChevronRight size={16} color="#c7c7cc" />}
-                      </View>
-                    </TouchableOpacity>
-                    <View style={s.sep} />
-                  </>
-                )}
-
-                {/* Price (left) | Units (right) */}
-                {hasStockPicker ? (
-                  <View style={s.splitRow}>
-                    <View style={[s.half, s.rightBorder]}>
-                      <Text style={s.fieldLabel}>股價</Text>
-                      {isPriceManual ? (
-                        <View style={s.manualRow}>
-                          <TextInput
-                            style={s.priceInput}
-                            value={manualPriceStr}
-                            onChangeText={setManualPriceStr}
-                            placeholder="0.00"
-                            placeholderTextColor="#c7c7cc"
-                            keyboardType="decimal-pad"
-                          />
-                          <TouchableOpacity onPress={() => setIsPriceManual(false)}>
-                            <Text style={s.autoLink}>自動</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : priceLoading ? (
-                        <Text style={s.priceLoading}>查詢中…</Text>
-                      ) : (
-                        <TouchableOpacity
-                          onPress={() => {
-                            setIsPriceManual(true);
-                            setManualPriceStr(originalPrice > 0 ? String(originalPrice) : "");
-                          }}
-                        >
-                          <Text style={s.priceValue}>
-                            {originalPrice > 0
-                              ? originalPrice.toLocaleString("zh-TW", { maximumFractionDigits: 6 })
-                              : "--"}
-                          </Text>
-                          {currency !== "TWD" && originalPrice > 0 && (
-                            <Text style={s.fxNote}>
-                              {currency} × {exchangeRate.toFixed(2)}
-                            </Text>
+            {/* Amount block — hidden when editing basic info only. */}
+            {!editBasicInfoOnly &&
+              (isLoan ? (
+                <LoanFormFields
+                  values={loanValues}
+                  color={color}
+                  onChange={(v) => {
+                    setLoanValues(v);
+                    setLoanErrors({});
+                  }}
+                  errors={loanErrors}
+                />
+              ) : isInvestment ? (
+                <>
+                  {/* Stock selector row */}
+                  {hasStockPicker && (
+                    <>
+                      <TouchableOpacity
+                        onPress={() => !stockLocked && setShowStockPicker(true)}
+                        disabled={stockLocked}
+                        style={[s.row, { opacity: stockLocked ? 0.6 : 1 }]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={s.rowLabel}>選擇標的</Text>
+                        <View style={s.rowRight}>
+                          {selectedStock ? (
+                            <View style={{ alignItems: "flex-end" }}>
+                              <Text style={s.stockCode}>{selectedStock.code}</Text>
+                              <Text style={s.stockNameSmall} numberOfLines={1}>
+                                {selectedStock.name}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Text style={s.placeholderText}>未選擇</Text>
                           )}
-                          <Text style={s.manualHint}>手動輸入</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    <View style={s.half}>
-                      <Text style={s.fieldLabel}>{getUnitsLabel(subCategory)}</Text>
-                      <TextInput
-                        style={s.unitsInput}
-                        value={units}
-                        onChangeText={(t) => {
-                          setUnits(t);
-                          setError(null);
-                        }}
-                        placeholder="0"
-                        placeholderTextColor="#c7c7cc"
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                  </View>
-                ) : (
-                  <View style={s.row}>
-                    <Text style={s.rowLabel}>{getUnitsLabel(subCategory)}</Text>
-                    <View style={s.rowRight}>
-                      <TextInput
-                        style={[s.bigInput, { textAlign: "right" }]}
-                        value={units}
-                        onChangeText={(t) => {
-                          setUnits(t);
-                          setError(null);
-                        }}
-                        placeholder="0"
-                        placeholderTextColor="#c7c7cc"
-                        keyboardType="decimal-pad"
-                      />
-                      <View style={s.badge}>
-                        <Text style={s.badgeText}>TWD</Text>
+                          {!stockLocked && <ChevronRight size={16} color="#c7c7cc" />}
+                        </View>
+                      </TouchableOpacity>
+                      <View style={s.sep} />
+                    </>
+                  )}
+
+                  {/* Price (left) | Units (right) */}
+                  {hasStockPicker ? (
+                    <View style={s.splitRow}>
+                      <View style={[s.half, s.rightBorder]}>
+                        <Text style={s.fieldLabel}>股價</Text>
+                        {isPriceManual ? (
+                          <View style={s.manualRow}>
+                            <TextInput
+                              style={s.priceInput}
+                              value={manualPriceStr}
+                              onChangeText={setManualPriceStr}
+                              placeholder="0.00"
+                              placeholderTextColor="#c7c7cc"
+                              keyboardType="decimal-pad"
+                            />
+                            <TouchableOpacity onPress={() => setIsPriceManual(false)}>
+                              <Text style={s.autoLink}>自動</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : priceLoading ? (
+                          <Text style={s.priceLoading}>查詢中…</Text>
+                        ) : (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setIsPriceManual(true);
+                              setManualPriceStr(originalPrice > 0 ? String(originalPrice) : "");
+                            }}
+                          >
+                            <Text style={s.priceValue}>
+                              {originalPrice > 0
+                                ? originalPrice.toLocaleString("zh-TW", {
+                                    maximumFractionDigits: 6,
+                                  })
+                                : "--"}
+                            </Text>
+                            {currency !== "TWD" && originalPrice > 0 && (
+                              <Text style={s.fxNote}>
+                                {currency} × {exchangeRate.toFixed(2)}
+                              </Text>
+                            )}
+                            <Text style={s.manualHint}>手動輸入</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <View style={s.half}>
+                        <Text style={s.fieldLabel}>{getUnitsLabel(subCategory)}</Text>
+                        <TextInput
+                          style={s.unitsInput}
+                          value={units}
+                          onChangeText={(t) => {
+                            setUnits(t);
+                            setError(null);
+                          }}
+                          placeholder="0"
+                          placeholderTextColor="#c7c7cc"
+                          keyboardType="decimal-pad"
+                        />
                       </View>
                     </View>
-                  </View>
-                )}
+                  ) : (
+                    <View style={s.row}>
+                      <Text style={s.rowLabel}>{getUnitsLabel(subCategory)}</Text>
+                      <View style={s.rowRight}>
+                        <TextInput
+                          style={[s.bigInput, { textAlign: "right" }]}
+                          value={units}
+                          onChangeText={(t) => {
+                            setUnits(t);
+                            setError(null);
+                          }}
+                          placeholder="0"
+                          placeholderTextColor="#c7c7cc"
+                          keyboardType="decimal-pad"
+                        />
+                        <View style={s.badge}>
+                          <Text style={s.badgeText}>TWD</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
 
-                {/* Computed value chip */}
-                <View style={s.computedRow}>
-                  <View style={s.computedChip}>
-                    <Text style={s.computedText}>
-                      {"= TWD "}
-                      <Text style={s.computedNum}>
-                        {Math.round(computedValue).toLocaleString("zh-TW")}
+                  {/* Computed value chip */}
+                  <View style={s.computedRow}>
+                    <View style={s.computedChip}>
+                      <Text style={s.computedText}>
+                        {"= TWD "}
+                        <Text style={s.computedNum}>
+                          {Math.round(computedValue).toLocaleString("zh-TW")}
+                        </Text>
                       </Text>
-                    </Text>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                /* Standard balance */
+                <View style={s.row}>
+                  <Text style={s.rowLabel}>
+                    {addRecord ? "新增金額" : getBalanceLabel(topCategory)}
+                  </Text>
+                  <View style={s.rowRight}>
+                    {isLiability && <Text style={s.minus}>−</Text>}
+                    <TextInput
+                      style={[
+                        s.bigInput,
+                        { textAlign: "right" },
+                        isLiability && { color: "#ff3b30" },
+                      ]}
+                      value={balance}
+                      onChangeText={(t) => {
+                        setBalance(t);
+                        setError(null);
+                      }}
+                      placeholder="0"
+                      placeholderTextColor="#c7c7cc"
+                      keyboardType="decimal-pad"
+                    />
+                    <View style={[s.badge, isLiability && { backgroundColor: "#ff3b30" }]}>
+                      <Text style={s.badgeText}>TWD</Text>
+                    </View>
                   </View>
                 </View>
-              </>
-            ) : (
-              /* Standard balance */
-              <View style={s.row}>
-                <Text style={s.rowLabel}>
-                  {addRecord ? "新增金額" : getBalanceLabel(topCategory)}
-                </Text>
-                <View style={s.rowRight}>
-                  {isLiability && <Text style={s.minus}>−</Text>}
-                  <TextInput
-                    style={[
-                      s.bigInput,
-                      { textAlign: "right" },
-                      isLiability && { color: "#ff3b30" },
-                    ]}
-                    value={balance}
-                    onChangeText={(t) => {
-                      setBalance(t);
-                      setError(null);
-                    }}
-                    placeholder="0"
-                    placeholderTextColor="#c7c7cc"
-                    keyboardType="decimal-pad"
-                  />
-                  <View style={[s.badge, isLiability && { backgroundColor: "#ff3b30" }]}>
-                    <Text style={s.badgeText}>TWD</Text>
-                  </View>
-                </View>
-              </View>
-            )}
+              ))}
 
-            {!isLoan && <View style={s.sep} />}
+            {!isLoan && !editBasicInfoOnly && <View style={s.sep} />}
 
-            {/* Bank picker (金融卡 only) */}
-            {isBankCard && !isLoan && (
+            {/* Bank picker (金融卡 only). Hidden when appending a record — the
+                bank icon is fixed at creation time and can't be changed here. */}
+            {isBankCard && !isLoan && !addRecord && (
               <>
                 <TouchableOpacity
                   onPress={() => setShowBankPicker(true)}
@@ -737,20 +770,23 @@ export function EntryForm({
               </>
             )}
 
-            {/* Account name */}
+            {/* Account name — the name is fixed at creation time, so when merely
+                appending a record we only expose 新增金額 / 納入圖表 / 備註. */}
             {!isLoan && (
               <>
-                <View style={s.row}>
-                  <Text style={s.rowLabel}>帳戶名稱</Text>
-                  <TextInput
-                    style={s.inputRight}
-                    value={name}
-                    onChangeText={setName}
-                    placeholder={`自訂名稱，預設為${subCategory}`}
-                    placeholderTextColor="#c7c7cc"
-                    returnKeyType="done"
-                  />
-                </View>
+                {!addRecord && (
+                  <View style={s.row}>
+                    <Text style={s.rowLabel}>帳戶名稱</Text>
+                    <TextInput
+                      style={s.inputRight}
+                      value={name}
+                      onChangeText={setName}
+                      placeholder={`自訂名稱，預設為${subCategory}`}
+                      placeholderTextColor="#c7c7cc"
+                      returnKeyType="done"
+                    />
+                  </View>
+                )}
 
                 {/* Date (add only) — native date picker, not free text */}
                 {!isEdit && (
@@ -770,8 +806,9 @@ export function EntryForm({
                   </>
                 )}
 
-                {/* Include in chart */}
-                <View style={s.sep} />
+                {/* Include in chart — skip the divider in add-record mode where the
+                    account-name row above is hidden, to avoid a doubled separator. */}
+                {!addRecord && <View style={s.sep} />}
                 <View style={s.row}>
                   <Text style={s.rowLabel}>納入圖表</Text>
                   <Switch
@@ -783,20 +820,25 @@ export function EntryForm({
                   />
                 </View>
 
-                {/* Note (vertical layout) */}
-                <View style={s.sep} />
-                <View style={s.noteSection}>
-                  <Text style={s.rowLabel}>備註</Text>
-                  <TextInput
-                    style={s.noteInput}
-                    value={note}
-                    onChangeText={setNote}
-                    placeholder="選填"
-                    placeholderTextColor="#c7c7cc"
-                    returnKeyType="done"
-                    multiline
-                  />
-                </View>
+                {/* Note (vertical layout) — hidden when editing basic info only. */}
+                {!editBasicInfoOnly && (
+                  <>
+                    <View style={s.sep} />
+                    <View style={s.noteSection}>
+                      <Text style={s.rowLabel}>備註</Text>
+                      <TextInput
+                        style={s.noteInput}
+                        value={note}
+                        onChangeText={setNote}
+                        placeholder="選填（最多 10 字）"
+                        placeholderTextColor="#c7c7cc"
+                        returnKeyType="done"
+                        maxLength={10}
+                        multiline
+                      />
+                    </View>
+                  </>
+                )}
               </>
             )}
           </View>

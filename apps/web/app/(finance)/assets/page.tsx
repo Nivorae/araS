@@ -41,6 +41,7 @@ interface EditItem {
   category: string;
   bankCode?: string | null;
   stockCode?: string | null;
+  includeInChart?: boolean;
 }
 
 export default function AssetsPage() {
@@ -140,6 +141,7 @@ export default function AssetsPage() {
             category: entry.topCategory,
             bankCode: entry.bankCode ?? null,
             stockCode: entry.stockCode ?? null,
+            includeInChart: entry.includeInChart ?? true,
           }
         : null
     );

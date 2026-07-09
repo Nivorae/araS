@@ -37,6 +37,8 @@ export default function EditEntryScreen() {
       initialName={entry.name}
       initialValue={entry.value}
       initialStockCode={entry.stockCode ?? ""}
+      initialBankCode={entry.bankCode ?? ""}
+      initialIncludeInChart={entry.includeInChart ?? true}
       {...(entry.units != null ? { initialUnits: entry.units } : {})}
       initialNote={entry.note ?? ""}
       addRecord={addRecord}

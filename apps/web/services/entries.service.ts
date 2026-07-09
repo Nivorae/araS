@@ -63,7 +63,7 @@ export class EntriesService {
   }
 
   async create(data: CreateEntry, userId: string) {
-    const { units, stockCode, bankCode, createdAt, note, ...rest } = data;
+    const { units, stockCode, bankCode, createdAt, note, includeInChart, ...rest } = data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
     const entry = await prisma.entry.create({
@@ -73,6 +73,7 @@ export class EntriesService {
         stockCode: stockCode ?? null,
         bankCode: bankCode ?? null,
         note: note ?? null,
+        ...(includeInChart !== undefined ? { includeInChart } : {}),
         ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
       },
     });
@@ -101,7 +102,13 @@ export class EntriesService {
     if (data.value !== undefined && existing) {
       const delta = d(entry.value) - d(existing.value);
       await prisma.entryHistory.create({
-        data: { entryId: id, delta, balance: d(entry.value), units: units ?? null },
+        data: {
+          entryId: id,
+          delta,
+          balance: d(entry.value),
+          units: units ?? null,
+          note: data.note ?? null,
+        },
       });
     }
     return { ...entry, value: d(entry.value) };

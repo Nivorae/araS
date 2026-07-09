@@ -18,6 +18,7 @@ interface EditItem {
   category: string;
   bankCode?: string | null;
   stockCode?: string | null;
+  includeInChart?: boolean;
 }
 
 interface Props {
@@ -169,7 +170,7 @@ export function AccountFormPage({
     setFormError(null);
     setLoanErrors({});
     setName(editItem?.name ?? nameSuggestion ?? "");
-    setIncludeInChart(true);
+    setIncludeInChart(editItem?.includeInChart ?? true);
     setNote("");
     setDate(new Date().toISOString().split("T")[0] ?? "");
     setSelectedStock(
@@ -436,6 +437,7 @@ export function AccountFormPage({
             topCategory,
             subCategory: subCategoryName,
             value,
+            includeInChart,
             note: note.trim() || undefined,
             ...(selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
@@ -447,6 +449,7 @@ export function AccountFormPage({
             topCategory,
             subCategory: subCategoryName,
             value,
+            includeInChart,
             note: note.trim() || undefined,
             ...(selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),

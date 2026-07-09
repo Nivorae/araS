@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react-native";
 import type { EntryHistory } from "@repo/shared";
+import { BankLogo } from "@/components/BankLogo";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useApi } from "@/lib/api";
@@ -104,6 +105,7 @@ export default function EntryDetailScreen() {
   const [editDelta, setEditDelta] = useState("");
   const [editUnits, setEditUnits] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [editDeleting, setEditDeleting] = useState(false);
   const [confirmDeleteHistory, setConfirmDeleteHistory] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -111,18 +113,36 @@ export default function EntryDetailScreen() {
     !!entry && STOCK_PICKER_CATEGORIES.includes(entry.subCategory) && !!entry.stockCode;
 
   // Stable fetchHistory — api excluded from deps via ref
-  const fetchHistory = useCallback(async () => {
-    if (!id) return;
+  const fetchHistory = useCallback(async (): Promise<EntryHistory[] | null> => {
+    if (!id) return null;
     setHistoryLoading(true);
     try {
       const data = await apiRef.current.get<EntryHistory[]>(`/api/entries/${id}/history`);
       setHistory(data);
+      return data;
     } catch {
       /* silently fail */
+      return null;
     } finally {
       setHistoryLoading(false);
     }
   }, [id]); // intentionally exclude api — use apiRef instead
+
+  // After a history edit/delete the backend recomputes the entry's value to the
+  // most-recent record's running balance (0 when none remain). Mirror that into
+  // the store so the header total updates immediately, without a full refetch.
+  const syncEntryValueFromHistory = useCallback(
+    (rows: EntryHistory[]) => {
+      const store = useFinanceStore.getState();
+      const current = store.entries.find((e) => e.id === id);
+      if (!current) return;
+      const newValue = rows.length > 0 ? (rows[0]?.balance ?? 0) : 0;
+      if (newValue !== current.value) {
+        store.updateEntryLocal(current.id, { ...current, value: newValue });
+      }
+    },
+    [id]
+  );
 
   // Refetch on focus so a record added via the "+" flow shows up on return.
   useFocusEffect(
@@ -175,7 +195,8 @@ export default function EntryDetailScreen() {
         units: editUnits !== "" ? parseFloat(editUnits) : null,
       });
       setEditingHistory(null);
-      fetchHistory();
+      const rows = await fetchHistory();
+      if (rows) syncEntryValueFromHistory(rows);
     } finally {
       setEditSaving(false);
     }
@@ -183,13 +204,14 @@ export default function EntryDetailScreen() {
 
   async function handleDeleteHistoryRecord() {
     if (!editingHistory || !id) return;
-    setEditSaving(true);
+    setEditDeleting(true);
     try {
       await apiRef.current.delete(`/api/entries/${id}/history/${editingHistory.id}`);
       setEditingHistory(null);
-      fetchHistory();
+      const rows = await fetchHistory();
+      if (rows) syncEntryValueFromHistory(rows);
     } finally {
-      setEditSaving(false);
+      setEditDeleting(false);
     }
   }
 
@@ -258,14 +280,19 @@ export default function EntryDetailScreen() {
         {/* Entry info */}
         <View style={s.infoSection}>
           <View style={s.nameRow}>
-            {/* 流動資金 is white — use a dark circle so the label stays legible */}
-            <View
-              style={[s.iconCircle, { backgroundColor: isWhiteCat ? "#1c1c1e" : color + "20" }]}
-            >
-              <Text style={[s.iconLabel, { color: isWhiteCat ? "#ffffff" : color }]}>
-                {entry.subCategory.slice(0, 2)}
-              </Text>
-            </View>
+            {/* A chosen bank icon (金融卡) wins over the category-letter badge. */}
+            {entry.bankCode ? (
+              <BankLogo code={entry.bankCode} name={entry.name} size={44} />
+            ) : (
+              /* 流動資金 is white — use a dark circle so the label stays legible */
+              <View
+                style={[s.iconCircle, { backgroundColor: isWhiteCat ? "#1c1c1e" : color + "20" }]}
+              >
+                <Text style={[s.iconLabel, { color: isWhiteCat ? "#ffffff" : color }]}>
+                  {entry.subCategory.slice(0, 2)}
+                </Text>
+              </View>
+            )}
             <View>
               <Text style={s.entryName}>{entry.name}</Text>
               <Text style={s.entrySub}>
@@ -304,7 +331,9 @@ export default function EntryDetailScreen() {
             <Text style={s.historySectionTitle}>交易記錄</Text>
             <Text style={s.historySectionSub}>變動</Text>
           </View>
-          {historyLoading ? (
+          {/* Show cached records while a background refetch runs; only show the
+              loading text on the very first load when nothing is cached yet. */}
+          {historyLoading && history.length === 0 ? (
             <Text style={s.historyEmpty}>載入中...</Text>
           ) : history.length === 0 ? (
             <Text style={s.historyEmpty}>尚無記錄</Text>
@@ -352,8 +381,9 @@ export default function EntryDetailScreen() {
                   <TextInput
                     value={editNote}
                     onChangeText={setEditNote}
-                    placeholder="選填"
+                    placeholder="選填（最多 10 字）"
                     placeholderTextColor="#c7c7cc"
+                    maxLength={10}
                     style={s.formInput}
                   />
                 </View>
@@ -397,13 +427,17 @@ export default function EntryDetailScreen() {
               </View>
 
               <View style={s.modalBtns}>
-                <TouchableOpacity onPress={() => setEditingHistory(null)} style={s.cancelBtn}>
+                <TouchableOpacity
+                  onPress={() => setEditingHistory(null)}
+                  disabled={editSaving || editDeleting}
+                  style={[s.cancelBtn, (editSaving || editDeleting) && s.disabledBtn]}
+                >
                   <Text style={s.cancelBtnText}>取消</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSave}
-                  disabled={editSaving}
-                  style={[s.saveBtn, editSaving && s.disabledBtn]}
+                  disabled={editSaving || editDeleting}
+                  style={[s.saveBtn, (editSaving || editDeleting) && s.disabledBtn]}
                 >
                   {editSaving ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -416,7 +450,8 @@ export default function EntryDetailScreen() {
               {!confirmDeleteHistory ? (
                 <TouchableOpacity
                   onPress={() => setConfirmDeleteHistory(true)}
-                  style={s.deleteOutlineBtn}
+                  disabled={editSaving || editDeleting}
+                  style={[s.deleteOutlineBtn, (editSaving || editDeleting) && s.disabledBtn]}
                 >
                   <Trash2 size={16} color="#ff3b30" />
                   <Text style={s.deleteOutlineBtnText}>刪除此記錄</Text>
@@ -424,10 +459,10 @@ export default function EntryDetailScreen() {
               ) : (
                 <TouchableOpacity
                   onPress={handleDeleteHistoryRecord}
-                  disabled={editSaving}
-                  style={[s.deleteFilledBtn, editSaving && s.disabledBtn]}
+                  disabled={editSaving || editDeleting}
+                  style={[s.deleteFilledBtn, (editSaving || editDeleting) && s.disabledBtn]}
                 >
-                  {editSaving ? (
+                  {editDeleting ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text style={s.saveBtnText}>確認刪除</Text>
