@@ -2,13 +2,14 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import {
   Animated,
   LayoutChangeEvent,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import { ArrowDown, ArrowUp, type LucideIcon } from "lucide-react-native";
 import type { Entry } from "@repo/shared";
 import { formatCurrency } from "@/lib/format";
 import { BankLogo } from "./BankLogo";
@@ -29,6 +30,9 @@ interface Props {
   onEntryClick: (entry: Entry) => void;
   onExpandChange: (expanded: boolean) => void;
   onAddClick?: (categoryName: string) => void;
+  /** Fired while a scrub gesture is active so the parent can pause its
+   *  pull-to-refresh scroll and avoid a gesture tug-of-war. */
+  onScrubActiveChange?: (active: boolean) => void;
 }
 
 export interface CategoryCardStackHandle {
@@ -37,6 +41,13 @@ export interface CategoryCardStackHandle {
 
 const MAX_STACK_SPACING = 70;
 const FRONT_CARD_HEADER_HEIGHT = 80;
+// How far the scrubbed-over card peeks up — subtle "about to be drawn" feel.
+const PEEK_LIFT = 11;
+// Headroom above the resting stack so the topmost card can peek up without being
+// clipped by the zone's overflow:hidden. Must be ≥ PEEK_LIFT.
+const TOP_INSET = 16;
+// Min finger travel before a drag counts as a scrub (below this = a tap).
+const SCRUB_THRESHOLD = 8;
 
 // Web parity (motion/react): lively spring (stiffness 220 / damping 25) when a
 // card opens. On collapse the cards return UP and slot back behind the top card;
@@ -54,11 +65,25 @@ const CONTENT_UNMOUNT_DELAY = 340;
 
 export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
   function CategoryCardStack(
-    { categories, hideBalance, getEntryIcon, onEntryClick, onExpandChange, onAddClick },
+    {
+      categories,
+      hideBalance,
+      getEntryIcon,
+      onEntryClick,
+      onExpandChange,
+      onAddClick,
+      onScrubActiveChange,
+    },
     ref
   ) {
     const [selectedName, setSelectedName] = useState<string | null>(null);
     const [displayedName, setDisplayedName] = useState<string | null>(null);
+    // Per-category sort direction for the entry list — defaults to descending
+    // (largest balance first).
+    const [sortDirs, setSortDirs] = useState<Record<string, "asc" | "desc">>({});
+    const getSortDir = (name: string): "asc" | "desc" => sortDirs[name] ?? "desc";
+    const toggleSort = (name: string) =>
+      setSortDirs((prev) => ({ ...prev, [name]: getSortDir(name) === "desc" ? "asc" : "desc" }));
     // Measured ONCE. Never updated per-frame, so the top-zone resize animation
     // can't feed back and restart the card springs (the source of the stutter).
     const [zoneHeight, setZoneHeight] = useState(0);
@@ -71,8 +96,11 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
 
     // one persistent translateY per category name
     const yMap = useRef<Record<string, Animated.Value>>({});
+    // additional peek offset per card, driven by the scrub gesture (0 → -PEEK)
+    const peekMap = useRef<Record<string, Animated.Value>>({});
     categories.forEach((c) => {
       if (!yMap.current[c.name]) yMap.current[c.name] = new Animated.Value(0);
+      if (!peekMap.current[c.name]) peekMap.current[c.name] = new Animated.Value(0);
     });
 
     const total = categories.length;
@@ -80,7 +108,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       total > 1
         ? Math.min(
             MAX_STACK_SPACING,
-            Math.floor((zoneHeight - FRONT_CARD_HEADER_HEIGHT) / (total - 1))
+            Math.floor((zoneHeight - FRONT_CARD_HEADER_HEIGHT - TOP_INSET) / (total - 1))
           )
         : 0;
 
@@ -96,7 +124,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       const offScreenY = Math.round(zoneHeight * 1.3);
       const anims: Animated.CompositeAnimation[] = [];
       categories.forEach((cat, index) => {
-        const defaultY = (total - 1 - index) * spacing;
+        const defaultY = TOP_INSET + (total - 1 - index) * spacing;
         let target: number;
         if (collapsing) target = defaultY;
         else if (selectedName === cat.name) target = 0;
@@ -158,17 +186,91 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       }, CONTENT_MOUNT_DELAY);
     };
 
-    // Measure once; ignore subsequent resize so the springs never restart.
+    // ── Scrub-to-preview gesture ──────────────────────────────────────────────
+    // Dragging (not tapping) across the stack lifts whichever card sits under the
+    // finger — like drawing a card from a deck — and releasing opens that card.
+    // Built on core PanResponder so it ships OTA (no native gesture-handler).
+    const zoneViewRef = useRef<View>(null);
+    const zoneTopRef = useRef(0);
+    const hoverName = useRef<string | null>(null);
+    // Live copies so the once-created PanResponder always reads current values.
+    const spacingRef = useRef(spacing);
+    spacingRef.current = spacing;
+    const totalRef = useRef(total);
+    totalRef.current = total;
+    const categoriesRef = useRef(categories);
+    categoriesRef.current = categories;
+    const selectedRef = useRef(selectedName);
+    selectedRef.current = selectedName;
+    const onScrubActiveChangeRef = useRef(onScrubActiveChange);
+    onScrubActiveChangeRef.current = onScrubActiveChange;
+
+    const springPeek = (name: string, to: number) => {
+      const v = peekMap.current[name];
+      if (v) Animated.spring(v, { toValue: to, ...SPRING_OPEN }).start();
+    };
+
+    // Lift `name` (null = lift none), dropping whichever card was lifted before.
+    const setHover = (name: string | null) => {
+      if (hoverName.current === name) return;
+      if (hoverName.current) springPeek(hoverName.current, 0);
+      hoverName.current = name;
+      if (name) springPeek(name, -PEEK_LIFT);
+    };
+
+    // Which card the finger (window Y) is currently over.
+    const hoverForY = (pageY: number): string | null => {
+      const cats = categoriesRef.current;
+      const tot = totalRef.current;
+      if (tot === 0) return null;
+      if (tot === 1) return cats[0]?.name ?? null;
+      const fingerY = pageY - zoneTopRef.current;
+      const sp = spacingRef.current || 1;
+      // Cards fan top→bottom with the last index on top; map the band to an index.
+      const band = Math.max(0, Math.min(tot - 1, Math.floor(fingerY / sp)));
+      return cats[tot - 1 - band]?.name ?? null;
+    };
+
+    const pan = useRef(
+      PanResponder.create({
+        // Only claim drags while collapsed; taps (no move) fall through to headers.
+        onMoveShouldSetPanResponder: (_e, g) =>
+          selectedRef.current === null &&
+          (Math.abs(g.dy) > SCRUB_THRESHOLD || Math.abs(g.dx) > SCRUB_THRESHOLD),
+        onPanResponderGrant: (e) => {
+          onScrubActiveChangeRef.current?.(true);
+          setHover(hoverForY(e.nativeEvent.pageY));
+        },
+        onPanResponderMove: (e) => {
+          setHover(hoverForY(e.nativeEvent.pageY));
+        },
+        onPanResponderRelease: () => {
+          // Pure preview: releasing just drops the peeked card back — it does
+          // NOT expand. Expanding stays a tap-only action.
+          setHover(null);
+          onScrubActiveChangeRef.current?.(false);
+        },
+        onPanResponderTerminate: () => {
+          setHover(null);
+          onScrubActiveChangeRef.current?.(false);
+        },
+      })
+    ).current;
+
+    // Measure height once (drives layout); refresh the window offset each layout.
     const onLayout = (e: LayoutChangeEvent) => {
       const h = e.nativeEvent.layout.height;
       if (!measured.current && h > 0) {
         measured.current = true;
         setZoneHeight(h);
       }
+      zoneViewRef.current?.measureInWindow((_x, y) => {
+        zoneTopRef.current = y;
+      });
     };
 
     return (
-      <View style={st.zone} onLayout={onLayout}>
+      <View ref={zoneViewRef} style={st.zone} onLayout={onLayout} {...pan.panHandlers}>
         {selectedName !== null && <Pressable style={StyleSheet.absoluteFill} onPress={collapse} />}
 
         {categories.map((cat, index) => {
@@ -181,6 +283,11 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
           // instead of it lingering on top as a content-less colour ghost.
           const zIndex = isSelected ? total + 1 : total - index;
           const y = yMap.current[cat.name]!;
+          const peek = peekMap.current[cat.name]!;
+          const dir = getSortDir(cat.name);
+          const sortedEntries = [...cat.entries].sort((a, b) =>
+            dir === "desc" ? b.value - a.value : a.value - b.value
+          );
 
           return (
             <Animated.View
@@ -192,7 +299,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                   left: `${leftPct}%`,
                   backgroundColor: cat.color,
                   zIndex,
-                  transform: [{ translateY: y }],
+                  transform: [{ translateY: Animated.add(y, peek) }],
                 },
               ]}
             >
@@ -207,11 +314,21 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
               {/* Entry list — deferred mount + fade, kept until card returns home */}
               {isDisplayed && (
                 <Animated.View style={[st.contentWrap, { opacity: contentOpacity }]}>
+                  <View style={st.sortRow}>
+                    <Pressable onPress={() => toggleSort(cat.name)} style={st.sortBtn} hitSlop={8}>
+                      <Text style={[st.sortText, { color: cat.textColor }]}>金額</Text>
+                      {dir === "desc" ? (
+                        <ArrowDown size={13} color={cat.textColor} />
+                      ) : (
+                        <ArrowUp size={13} color={cat.textColor} />
+                      )}
+                    </Pressable>
+                  </View>
                   <ScrollView
                     contentContainerStyle={st.listContent}
                     showsVerticalScrollIndicator={false}
                   >
-                    {cat.entries.map((entry) => {
+                    {sortedEntries.map((entry) => {
                       const EntryIcon = getEntryIcon(cat.name, entry.subCategory);
                       return (
                         <Pressable
@@ -274,7 +391,18 @@ const st = StyleSheet.create({
   headerTotal: { fontSize: 12, marginTop: 3, opacity: 0.5 },
 
   contentWrap: { flex: 1, marginTop: 14 },
-  listContent: { paddingHorizontal: "6.5%", gap: 7, paddingBottom: 12 },
+  sortRow: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: "6.5%" },
+  sortBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.45)",
+  },
+  sortText: { fontSize: 11, fontWeight: "600" },
+  listContent: { paddingHorizontal: "6.5%", gap: 7, paddingTop: 8, paddingBottom: 12 },
   entryRow: {
     flexDirection: "row",
     alignItems: "center",

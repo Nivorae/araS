@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -32,6 +29,7 @@ import {
 import { StockPickerModal } from "./StockPickerModal";
 import { BankPickerModal, BANKS, type BankItem } from "./BankPickerModal";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
+import { DatePickerModal } from "./DatePickerModal";
 import type { RepaymentType } from "@repo/shared";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -53,144 +51,6 @@ function formatDisplayDate(s: string): string {
   const d = parseISODate(s);
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
-
-// ─── Pure-JS date picker (replaces @react-native-community/datetimepicker) ────
-
-const _YEAR_NOW = new Date().getFullYear();
-const _DP_YEARS = Array.from({ length: 7 }, (_, i) => _YEAR_NOW - 5 + i);
-const _DP_MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
-const _DP_ROW_H = 44;
-
-function PureDatePickerModal({
-  visible,
-  date,
-  onConfirm,
-  onClose,
-}: {
-  visible: boolean;
-  date: Date;
-  onConfirm: (d: Date) => void;
-  onClose: () => void;
-}) {
-  const [y, setY] = useState(date.getFullYear());
-  const [m, setM] = useState(date.getMonth() + 1);
-  const [d, setD] = useState(date.getDate());
-
-  useEffect(() => {
-    if (visible) {
-      setY(date.getFullYear());
-      setM(date.getMonth() + 1);
-      setD(date.getDate());
-    }
-  }, [visible, date]);
-
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const pickerDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const clampedDay = Math.min(d, daysInMonth);
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={dpS.backdrop} onPress={onClose} />
-      <View style={dpS.sheet}>
-        <View style={dpS.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={dpS.cancel}>取消</Text>
-          </TouchableOpacity>
-          <Text style={dpS.title}>選擇日期</Text>
-          <TouchableOpacity
-            onPress={() => {
-              onConfirm(new Date(y, m - 1, clampedDay));
-              onClose();
-            }}
-          >
-            <Text style={dpS.done}>完成</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={dpS.cols}>
-          <FlatList
-            style={dpS.col}
-            data={_DP_YEARS}
-            keyExtractor={(item) => `y${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={(_, index) => ({
-              length: _DP_ROW_H,
-              offset: _DP_ROW_H * index,
-              index,
-            })}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={dpS.itemRow} onPress={() => setY(item)}>
-                <Text style={[dpS.item, item === y && dpS.active]}>{item}年</Text>
-              </TouchableOpacity>
-            )}
-          />
-          <FlatList
-            style={dpS.col}
-            data={_DP_MONTHS}
-            keyExtractor={(item) => `m${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={(_, index) => ({
-              length: _DP_ROW_H,
-              offset: _DP_ROW_H * index,
-              index,
-            })}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={dpS.itemRow} onPress={() => setM(item)}>
-                <Text style={[dpS.item, item === m && dpS.active]}>
-                  {String(item).padStart(2, "0")}月
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-          <FlatList
-            style={dpS.col}
-            data={pickerDays}
-            keyExtractor={(item) => `d${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={(_, index) => ({
-              length: _DP_ROW_H,
-              offset: _DP_ROW_H * index,
-              index,
-            })}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={dpS.itemRow} onPress={() => setD(item)}>
-                <Text style={[dpS.item, item === clampedDay && dpS.active]}>
-                  {String(item).padStart(2, "0")}日
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const dpS = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: {
-    backgroundColor: "#ffffff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e5e5ea",
-  },
-  title: { fontSize: 15, fontWeight: "600", color: "#1c1c1e" },
-  cancel: { fontSize: 16, color: "#8e8e93" },
-  done: { fontSize: 16, fontWeight: "600", color: "#374254" },
-  cols: { flexDirection: "row", height: _DP_ROW_H * 5 },
-  col: { flex: 1 },
-  itemRow: { height: _DP_ROW_H, alignItems: "center", justifyContent: "center" },
-  item: { fontSize: 16, color: "#8e8e93" },
-  active: { fontSize: 18, fontWeight: "700", color: "#1c1c1e" },
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -313,6 +173,15 @@ export function EntryForm({
   const [exchangeRate, setExchangeRate] = useState(1);
   const [isPriceManual, setIsPriceManual] = useState(false);
   const [manualPriceStr, setManualPriceStr] = useState("");
+  // Input mode for stock-picker investments: enter a quantity ("units") or a
+  // cost amount in TWD ("amount"). Crypto defaults to amount — fractional coin
+  // counts are unintuitive, so users think in money (item 4). Stocks default to
+  // quantity but can switch to amount → shares (item 17).
+  const isCrypto = subCategory === "加密貨幣";
+  const [inputMode, setInputMode] = useState<"units" | "amount">(
+    isCrypto && initialUnits == null ? "amount" : "units"
+  );
+  const [amountStr, setAmountStr] = useState("");
 
   // ── Bank picker ───────────────────────────────────────────────────────────────
   // Pre-select the bank chosen at creation so editing shows the current icon.
@@ -325,14 +194,26 @@ export function EntryForm({
   const [loanValues, setLoanValues] = useState<LoanFormValues>(() => defaultLoanValues());
   const [loanErrors, setLoanErrors] = useState<Partial<Record<keyof LoanFormValues, string>>>({});
 
-  // ── Computed value (investment) ───────────────────────────────────────────────
-  const computedValue = useMemo(() => {
-    const u = parseFloat(units) || 0;
-    if (!hasStockPicker) return u;
+  // ── Price + computed value (investment) ───────────────────────────────────────
+  // Effective per-unit price in TWD (manual override or fetched × FX).
+  const priceTWD = useMemo(() => {
     const price = isPriceManual ? parseFloat(manualPriceStr) || 0 : originalPrice;
-    const priceTWD = currency === "TWD" ? price : price * exchangeRate;
-    return u * priceTWD;
-  }, [units, originalPrice, isPriceManual, manualPriceStr, currency, exchangeRate, hasStockPicker]);
+    return currency === "TWD" ? price : price * exchangeRate;
+  }, [isPriceManual, manualPriceStr, originalPrice, currency, exchangeRate]);
+
+  // Shares implied by a cost amount (amount mode). Used both for the preview chip
+  // and for the `units` saved to the backend so P&L keeps working.
+  const derivedUnits = useMemo(() => {
+    if (inputMode !== "amount") return parseFloat(units) || 0;
+    const amount = parseFloat(amountStr) || 0;
+    return priceTWD > 0 ? amount / priceTWD : 0;
+  }, [inputMode, units, amountStr, priceTWD]);
+
+  const computedValue = useMemo(() => {
+    if (!hasStockPicker) return parseFloat(units) || 0;
+    if (inputMode === "amount") return parseFloat(amountStr) || 0;
+    return (parseFloat(units) || 0) * priceTWD;
+  }, [hasStockPicker, inputMode, units, amountStr, priceTWD]);
 
   // ── Existing holdings for picker (台股 dedup) ──────────────────────────────
   const twHoldings = useMemo<StockItem[]>(() => {
@@ -348,40 +229,45 @@ export function EntryForm({
       .map((e) => ({ code: e.stockCode!, name: e.name }));
   }, [entries, subCategory]);
 
-  // ── Auto-fetch price on mount when a stock is prefilled ──────────────────────
-  // (editing an existing stock entry, or adding a record to an existing holding)
+  // ── Shared price fetch (mount, on select, and manual 更新 button) ─────────────
+  const fetchPriceFor = useCallback(async (yfSymbol: string) => {
+    setPriceLoading(true);
+    try {
+      const data = await apiRef.current.rawGet<{ price: number; currency: string }>(
+        `/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`
+      );
+      if (typeof data.price !== "number") return;
+      setOriginalPrice(data.price);
+      const c = data.currency ?? "TWD";
+      setCurrency(c);
+      if (c !== "TWD") {
+        const fx = await apiRef.current
+          .rawGet<{
+            price: number;
+          }>(`/api/stocks/price?symbol=${encodeURIComponent(c + "TWD=X")}`)
+          .catch(() => null);
+        if (fx && typeof fx.price === "number") setExchangeRate(fx.price);
+      } else {
+        setExchangeRate(1);
+      }
+    } catch {
+      /* silently fail */
+    } finally {
+      setPriceLoading(false);
+    }
+  }, []);
 
+  // Fetch the price ONCE on mount when a stock is prefilled (editing an existing
+  // stock entry, or adding a record to a holding). Item 8: no repeated auto-fetch
+  // afterwards — the user taps 更新 to refresh.
   useEffect(() => {
     if (!initialStockCode || !isInvestment || !hasStockPicker) return;
     const yfSymbol = buildYfSymbol(subCategory, initialStockCode);
-    if (!yfSymbol) return;
-    setPriceLoading(true);
-    apiRef.current
-      .rawGet<{ price: number; currency: string }>(
-        `/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`
-      )
-      .then(async (data) => {
-        if (typeof data.price !== "number") return;
-        setOriginalPrice(data.price);
-        const c = data.currency ?? "TWD";
-        setCurrency(c);
-        if (c !== "TWD") {
-          const fx = await apiRef.current
-            .rawGet<{
-              price: number;
-            }>(`/api/stocks/price?symbol=${encodeURIComponent(c + "TWD=X")}`)
-            .catch(() => null);
-          if (fx && typeof fx.price === "number") setExchangeRate(fx.price);
-        } else {
-          setExchangeRate(1);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setPriceLoading(false));
+    if (yfSymbol) fetchPriceFor(yfSymbol);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // mount only — intentionally ignore deps; values are stable at mount
 
-  // ── Fetch price when stock selected ──────────────────────────────────────────
+  // ── Fetch price when a stock is selected in the picker ────────────────────────
   const handleSelectStock = useCallback(
     async (stock: StockItem) => {
       setSelectedStock(stock);
@@ -396,34 +282,17 @@ export function EntryForm({
         setExchangeRate(1);
         return;
       }
-
-      setPriceLoading(true);
-      try {
-        const data = await apiRef.current.rawGet<{ price: number; currency: string }>(
-          `/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`
-        );
-        if (typeof data.price !== "number") return;
-        setOriginalPrice(data.price);
-        const c = data.currency ?? "TWD";
-        setCurrency(c);
-        if (c !== "TWD") {
-          const fx = await apiRef.current
-            .rawGet<{
-              price: number;
-            }>(`/api/stocks/price?symbol=${encodeURIComponent(c + "TWD=X")}`)
-            .catch(() => null);
-          if (fx && typeof fx.price === "number") setExchangeRate(fx.price);
-        } else {
-          setExchangeRate(1);
-        }
-      } catch {
-        /* silently fail */
-      } finally {
-        setPriceLoading(false);
-      }
+      await fetchPriceFor(yfSymbol);
     },
-    [name, subCategory]
+    [name, subCategory, fetchPriceFor]
   );
+
+  // Manual refresh (item 8): re-fetch the currently selected stock's price.
+  const refreshPrice = useCallback(() => {
+    if (!selectedStock) return;
+    const yfSymbol = buildYfSymbol(subCategory, selectedStock.code);
+    if (yfSymbol) fetchPriceFor(yfSymbol);
+  }, [selectedStock, subCategory, fetchPriceFor]);
 
   // ── Validation ────────────────────────────────────────────────────────────────
   const validateLoan = (): boolean => {
@@ -441,7 +310,12 @@ export function EntryForm({
 
   const validateGeneral = (): boolean => {
     if (isInvestment) {
-      if (!units || parseFloat(units) <= 0) {
+      if (hasStockPicker && inputMode === "amount") {
+        if (!amountStr || parseFloat(amountStr) <= 0) {
+          setError("請輸入金額");
+          return false;
+        }
+      } else if (!units || parseFloat(units) <= 0) {
         setError(`請輸入${getUnitsLabel(subCategory)}`);
         return false;
       }
@@ -489,7 +363,9 @@ export function EntryForm({
         // Add-record mode appends on top of the current value; edit/create replace.
         const value = addRecord ? baseValue + entered : entered;
         const finalName = name.trim() || selectedStock?.name || subCategory;
-        const unitsParsed = hasStockPicker ? parseFloat(units) || undefined : undefined;
+        // In amount mode `units` is derived from the cost amount ÷ price so the
+        // holding's share count (and P&L) stays correct.
+        const unitsParsed = hasStockPicker ? derivedUnits || undefined : undefined;
 
         if (isEdit && entryId) {
           await updateEntry(entryId, {
@@ -502,6 +378,8 @@ export function EntryForm({
             ...(hasStockPicker && selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
             ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
+            // Back-date the appended record when adding to an existing holding.
+            ...(addRecord ? { createdAt: date } : {}),
           });
         } else {
           await addEntry({
@@ -619,11 +497,50 @@ export function EntryForm({
                     </>
                   )}
 
-                  {/* Price (left) | Units (right) */}
+                  {/* Input mode: quantity vs cost amount (items 4 & 17) */}
+                  {hasStockPicker && (
+                    <View style={s.modeRow}>
+                      {(
+                        [
+                          { mode: "units" as const, label: isCrypto ? "依數量" : "依股數" },
+                          { mode: "amount" as const, label: "依金額" },
+                        ] satisfies { mode: "units" | "amount"; label: string }[]
+                      ).map(({ mode, label }) => (
+                        <TouchableOpacity
+                          key={mode}
+                          onPress={() => {
+                            setInputMode(mode);
+                            setError(null);
+                          }}
+                          style={[s.modeBtn, inputMode === mode && s.modeBtnActive]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.modeText, inputMode === mode && s.modeTextActive]}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Price (left) | Units-or-Amount (right) */}
                   {hasStockPicker ? (
                     <View style={s.splitRow}>
                       <View style={[s.half, s.rightBorder]}>
-                        <Text style={s.fieldLabel}>股價</Text>
+                        <View style={s.priceLabelRow}>
+                          <Text style={s.fieldLabel}>{isCrypto ? "幣價" : "股價"}</Text>
+                          {/* Manual refresh (item 8) — price is fetched once, then
+                              refreshed on demand instead of on every render. */}
+                          {selectedStock && !isPriceManual && (
+                            <TouchableOpacity
+                              onPress={refreshPrice}
+                              disabled={priceLoading}
+                              hitSlop={6}
+                            >
+                              <Text style={s.refreshLink}>{priceLoading ? "更新中…" : "更新"}</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                         {isPriceManual ? (
                           <View style={s.manualRow}>
                             <TextInput
@@ -664,18 +581,37 @@ export function EntryForm({
                         )}
                       </View>
                       <View style={s.half}>
-                        <Text style={s.fieldLabel}>{getUnitsLabel(subCategory)}</Text>
-                        <TextInput
-                          style={s.unitsInput}
-                          value={units}
-                          onChangeText={(t) => {
-                            setUnits(t);
-                            setError(null);
-                          }}
-                          placeholder="0"
-                          placeholderTextColor="#c7c7cc"
-                          keyboardType="decimal-pad"
-                        />
+                        {inputMode === "amount" ? (
+                          <>
+                            <Text style={s.fieldLabel}>投入金額 (TWD)</Text>
+                            <TextInput
+                              style={s.unitsInput}
+                              value={amountStr}
+                              onChangeText={(t) => {
+                                setAmountStr(t);
+                                setError(null);
+                              }}
+                              placeholder="0"
+                              placeholderTextColor="#c7c7cc"
+                              keyboardType="decimal-pad"
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <Text style={s.fieldLabel}>{getUnitsLabel(subCategory)}</Text>
+                            <TextInput
+                              style={s.unitsInput}
+                              value={units}
+                              onChangeText={(t) => {
+                                setUnits(t);
+                                setError(null);
+                              }}
+                              placeholder="0"
+                              placeholderTextColor="#c7c7cc"
+                              keyboardType="decimal-pad"
+                            />
+                          </>
+                        )}
                       </View>
                     </View>
                   ) : (
@@ -700,15 +636,28 @@ export function EntryForm({
                     </View>
                   )}
 
-                  {/* Computed value chip */}
+                  {/* Computed value chip — shows the counterpart of what's typed:
+                      amount mode → implied units; quantity mode → TWD value. */}
                   <View style={s.computedRow}>
                     <View style={s.computedChip}>
-                      <Text style={s.computedText}>
-                        {"= TWD "}
-                        <Text style={s.computedNum}>
-                          {Math.round(computedValue).toLocaleString("zh-TW")}
+                      {hasStockPicker && inputMode === "amount" ? (
+                        <Text style={s.computedText}>
+                          {"≈ "}
+                          <Text style={s.computedNum}>
+                            {derivedUnits > 0
+                              ? derivedUnits.toLocaleString("zh-TW", { maximumFractionDigits: 4 })
+                              : "--"}
+                          </Text>
+                          {` ${getUnitsLabel(subCategory)}`}
                         </Text>
-                      </Text>
+                      ) : (
+                        <Text style={s.computedText}>
+                          {"= TWD "}
+                          <Text style={s.computedNum}>
+                            {Math.round(computedValue).toLocaleString("zh-TW")}
+                          </Text>
+                        </Text>
+                      )}
                     </View>
                   </View>
                 </>
@@ -788,8 +737,10 @@ export function EntryForm({
                   </View>
                 )}
 
-                {/* Date (add only) — native date picker, not free text */}
-                {!isEdit && (
+                {/* Date — pure-JS picker, not free text. Shown when creating a
+                    new entry and when appending a record (item 7), so the record
+                    can be back-dated to the actual transaction date. */}
+                {(!isEdit || addRecord) && (
                   <>
                     <View style={s.sep} />
                     <TouchableOpacity
@@ -888,7 +839,7 @@ export function EntryForm({
       )}
 
       {/* ── Date picker ──────────────────────────────────────────────────── */}
-      <PureDatePickerModal
+      <DatePickerModal
         visible={showDatePicker}
         date={parseISODate(date)}
         onConfirm={(picked) => setDate(toISODate(picked))}
@@ -1000,6 +951,30 @@ const s = StyleSheet.create({
     borderRightColor: "#f2f2f7",
   },
   fieldLabel: { fontSize: 12, color: "#8e8e93", marginBottom: 6 },
+
+  // Input-mode toggle (依股數 / 依金額)
+  modeRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+  },
+  modeBtn: {
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: "#f2f2f7",
+  },
+  modeBtnActive: { backgroundColor: "#374254" },
+  modeText: { fontSize: 13, fontWeight: "600", color: "#8e8e93" },
+  modeTextActive: { color: "#ffffff" },
+  priceLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  refreshLink: { fontSize: 12, fontWeight: "600", color: "#374254" },
 
   // Stock price display
   priceValue: { fontSize: 20, fontWeight: "600", color: "#1c1c1e" },

@@ -94,7 +94,10 @@ export class EntriesService {
   async update(id: string, data: UpdateEntry, userId: string) {
     const existing = await prisma.entry.findFirst({ where: { id, userId } });
     if (!existing) return null;
-    const { units, ...updateData } = data;
+    // `createdAt` is not an entry-column edit here — it dates the appended
+    // history line (e.g. back-dating an added record), so pull it out of the
+    // entry update payload.
+    const { units, createdAt, ...updateData } = data;
     const cleaned = Object.fromEntries(
       Object.entries(updateData).filter(([, v]) => v !== undefined)
     ) as Parameters<typeof prisma.entry.update>[0]["data"];
@@ -108,6 +111,7 @@ export class EntriesService {
           balance: d(entry.value),
           units: units ?? null,
           note: data.note ?? null,
+          ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
         },
       });
     }
