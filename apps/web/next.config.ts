@@ -65,6 +65,12 @@ const nextConfig = {
           { key: "Vary", value: "Cookie, Authorization" },
         ],
       },
+      {
+        // No file extension, so Next.js can't infer the MIME type — Apple
+        // requires this served as application/json (no redirects allowed).
+        source: "/.well-known/apple-app-site-association",
+        headers: [{ key: "Content-Type", value: "application/json" }],
+      },
     ];
   },
 };

@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "56U3654C66.com.Sara.assetapp",
+        "paths": ["NOT /privacy", "NOT /support", "NOT /api/*", "*"]
+      }
+    ]
+  }
+}
