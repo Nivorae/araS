@@ -3,10 +3,16 @@ import { ClerkProvider } from "@clerk/nextjs";
 import NextTopLoader from "nextjs-toploader";
 import "./globals.css";
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "araS",
+  metadataBase: new URL(baseUrl),
+  title: { default: "araS", template: "%s｜araS" },
   description: "個人資產管理工具",
   manifest: "/manifest.json",
+  // Deny-by-default: most routes are private, authenticated finance data.
+  // Public marketing pages explicitly override this with { index: true }.
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
