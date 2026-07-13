@@ -71,6 +71,7 @@ export const EntrySchema = z.object({
   units: z.number().nullable().optional(),
   note: z.string().nullable().optional(),
   value: z.number(),
+  includeInChart: z.boolean().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   loan: LoanSchema.nullable().optional(),
@@ -86,6 +87,7 @@ export const CreateEntrySchema = z.object({
   units: z.number().optional(),
   note: z.string().max(200).optional(),
   value: z.number().positive("金額必須大於 0"),
+  includeInChart: z.boolean().optional(),
   createdAt: z.string().optional(),
 });
 export type CreateEntry = z.infer<typeof CreateEntrySchema>;

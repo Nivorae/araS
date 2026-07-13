@@ -35,10 +35,13 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 function makeSnapshot(entries: Entry[]): ValueSnapshot {
-  const totalAssets = entries
+  // Entries with 納入圖表 off (includeInChart === false) are excluded from the
+  // net-worth chart. Undefined counts as included (legacy/default true).
+  const charted = entries.filter((e) => e.includeInChart !== false);
+  const totalAssets = charted
     .filter((e) => e.topCategory !== "負債")
     .reduce((s, e) => s + e.value, 0);
-  const totalLiabilities = entries
+  const totalLiabilities = charted
     .filter((e) => e.topCategory === "負債")
     .reduce((s, e) => s + e.value, 0);
   return { id: uuid(), date: now(), totalAssets, totalLiabilities };

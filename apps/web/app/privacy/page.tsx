@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "隱私權政策 | araS",
+  title: "隱私權政策",
   description: "araS 個人資產管理工具的隱私權政策",
+  alternates: { canonical: "/privacy" },
+  robots: { index: true, follow: true },
 };
 
 const LAST_UPDATED = "2026 年 6 月 30 日";

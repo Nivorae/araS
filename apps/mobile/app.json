@@ -24,6 +24,7 @@
       "buildNumber": "1",
       "supportsTablet": true,
       "usesAppleSignIn": true,
+      "associatedDomains": ["applinks:ara-s-web.vercel.app"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -34,7 +35,15 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0a0a0f"
       },
-      "blockedPermissions": ["com.google.android.gms.permission.AD_ID"]
+      "blockedPermissions": ["com.google.android.gms.permission.AD_ID"],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "ara-s-web.vercel.app" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "plugins": [
       "expo-router",

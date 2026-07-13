@@ -16,15 +16,22 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react-native";
+import * as Sentry from "@sentry/react-native";
 import type { EntryHistory } from "@repo/shared";
+import { BankLogo } from "@/components/BankLogo";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
-import { useApi } from "@/lib/api";
+import { useApi, ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 
 import { STOCK_CATS, buildYfSymbol as _buildYfSymbol } from "@/lib/stockConstants";
 const STOCK_PICKER_CATEGORIES: readonly string[] = STOCK_CATS;
+
+// Taiwan market convention: 紅漲綠跌 — gains are red, losses are green.
+const PNL_UP = "#ff3b30";
+const PNL_DOWN = "#0e9f6e";
+const pnlColor = (v: number) => (v >= 0 ? PNL_UP : PNL_DOWN);
 
 function getCategoryColor(t: string) {
   return CATEGORIES.find((c) => c.name === t)?.color ?? "#374254";
@@ -36,7 +43,59 @@ function formatDate(iso: string) {
   const d = new Date(iso);
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
+function monthGroupLabel(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+}
+// Group history rows (already sorted newest-first) into year-month sections,
+// preserving order so the newest month appears first.
+function groupHistoryByMonth(rows: EntryHistory[]): { key: string; rows: EntryHistory[] }[] {
+  const groups: { key: string; rows: EntryHistory[] }[] = [];
+  for (const h of rows) {
+    const key = monthGroupLabel(h.createdAt);
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.rows.push(h);
+    else groups.push({ key, rows: [h] });
+  }
+  return groups;
+}
 const buildYfSymbol = _buildYfSymbol;
+
+// ─── Integer-with-thousands input (變動金額) ───────────────────────────────────
+// Strips decimals and non-digit characters as the user types, keeping at most
+// one leading "-" for negative adjustments, so the underlying value is always a
+// clean integer string ready for parseInt.
+function toIntegerDigits(raw: string): string {
+  const negative = raw.trim().startsWith("-");
+  const digits = raw.replace(/[^0-9]/g, "");
+  return (negative ? "-" : "") + digits;
+}
+// Renders an integer digit string (from toIntegerDigits) with comma separators
+// for display, e.g. "1234567" -> "1,234,567".
+function formatThousands(digits: string): string {
+  if (!digits) return "";
+  const negative = digits.startsWith("-");
+  const abs = negative ? digits.slice(1) : digits;
+  const withCommas = abs.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return (negative ? "-" : "") + withCommas;
+}
+
+// ─── Error handling for fire-and-forget onPress handlers ──────────────────────
+// These async functions are invoked from `onPress` without being awaited by the
+// caller, so any rejection they don't catch becomes a genuine *unhandled promise
+// rejection* — that's what surfaces in Sentry, not a rendering bug. A 404
+// ("Entry"/"History record" not found) means the row the user tapped was already
+// removed elsewhere (e.g. a concurrent delete, or a double-tap before the button
+// disabled) — that's an expected race, not a crash, so we refresh quietly instead
+// of alarming the user. Anything else is reported to Sentry and shown as an alert.
+function isNotFoundError(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 404;
+}
+function reportUnexpectedError(e: unknown, context: string) {
+  Sentry.captureException(e, { tags: { context } });
+  const message = e instanceof Error ? e.message : "請重試";
+  Alert.alert("操作失敗", message);
+}
 
 // ─── History Row ─────────────────────────────────────────────────────────────
 
@@ -60,6 +119,7 @@ function HistoryRow({
   return (
     <>
       {!isFirst && <View style={s.separator} />}
+      {/* Tap a record to edit it. */}
       <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={s.historyRow}>
         <View style={s.historyLeft}>
           <Text style={s.historyNote}>{h.note ?? (h.delta >= 0 ? "新增" : "調整")}</Text>
@@ -70,7 +130,7 @@ function HistoryRow({
           <Text style={[s.historyDelta, { color: deltaColor }]}>{formatDelta(h.delta)}</Text>
           <Text style={s.historyMeta}>餘額 {formatCurrency(h.balance)}</Text>
           {recordPnL != null && (
-            <Text style={[s.historyPnl, { color: recordPnL >= 0 ? "#0e1424" : "#ff3b30" }]}>
+            <Text style={[s.historyPnl, { color: pnlColor(recordPnL) }]}>
               盈虧 {formatDelta(recordPnL)}
             </Text>
           )}
@@ -104,6 +164,7 @@ export default function EntryDetailScreen() {
   const [editDelta, setEditDelta] = useState("");
   const [editUnits, setEditUnits] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [editDeleting, setEditDeleting] = useState(false);
   const [confirmDeleteHistory, setConfirmDeleteHistory] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -111,18 +172,36 @@ export default function EntryDetailScreen() {
     !!entry && STOCK_PICKER_CATEGORIES.includes(entry.subCategory) && !!entry.stockCode;
 
   // Stable fetchHistory — api excluded from deps via ref
-  const fetchHistory = useCallback(async () => {
-    if (!id) return;
+  const fetchHistory = useCallback(async (): Promise<EntryHistory[] | null> => {
+    if (!id) return null;
     setHistoryLoading(true);
     try {
       const data = await apiRef.current.get<EntryHistory[]>(`/api/entries/${id}/history`);
       setHistory(data);
+      return data;
     } catch {
       /* silently fail */
+      return null;
     } finally {
       setHistoryLoading(false);
     }
   }, [id]); // intentionally exclude api — use apiRef instead
+
+  // After a history edit/delete the backend recomputes the entry's value to the
+  // most-recent record's running balance (0 when none remain). Mirror that into
+  // the store so the header total updates immediately, without a full refetch.
+  const syncEntryValueFromHistory = useCallback(
+    (rows: EntryHistory[]) => {
+      const store = useFinanceStore.getState();
+      const current = store.entries.find((e) => e.id === id);
+      if (!current) return;
+      const newValue = rows.length > 0 ? (rows[0]?.balance ?? 0) : 0;
+      if (newValue !== current.value) {
+        store.updateEntryLocal(current.id, { ...current, value: newValue });
+      }
+    },
+    [id]
+  );
 
   // Refetch on focus so a record added via the "+" flow shows up on return.
   useFocusEffect(
@@ -157,7 +236,8 @@ export default function EntryDetailScreen() {
   function openEdit(h: EntryHistory) {
     setEditNote(h.note ?? "");
     setEditDate(h.createdAt.split("T")[0] ?? "");
-    setEditDelta(String(h.delta));
+    // 變動金額 is integer-only — round away any stored decimal remainder.
+    setEditDelta(toIntegerDigits(String(Math.round(h.delta))));
     setEditUnits(h.units != null ? String(h.units) : "");
     setConfirmDeleteHistory(false);
     setEditingHistory(h);
@@ -165,17 +245,27 @@ export default function EntryDetailScreen() {
 
   async function handleSave() {
     if (!editingHistory || !id) return;
-    if (!editDate || !editDelta || isNaN(parseFloat(editDelta))) return;
+    if (!editDate || !editDelta || isNaN(parseInt(editDelta, 10))) return;
     setEditSaving(true);
     try {
       await apiRef.current.patch(`/api/entries/${id}/history/${editingHistory.id}`, {
         note: editNote.trim() || null,
         createdAt: editDate,
-        delta: parseFloat(editDelta),
+        delta: parseInt(editDelta, 10),
         units: editUnits !== "" ? parseFloat(editUnits) : null,
       });
       setEditingHistory(null);
-      fetchHistory();
+      const rows = await fetchHistory();
+      if (rows) syncEntryValueFromHistory(rows);
+    } catch (e) {
+      if (isNotFoundError(e)) {
+        // Record was already deleted elsewhere — close the modal and resync.
+        setEditingHistory(null);
+        const rows = await fetchHistory();
+        if (rows) syncEntryValueFromHistory(rows);
+      } else {
+        reportUnexpectedError(e, "history.save");
+      }
     } finally {
       setEditSaving(false);
     }
@@ -183,13 +273,22 @@ export default function EntryDetailScreen() {
 
   async function handleDeleteHistoryRecord() {
     if (!editingHistory || !id) return;
-    setEditSaving(true);
+    setEditDeleting(true);
     try {
       await apiRef.current.delete(`/api/entries/${id}/history/${editingHistory.id}`);
       setEditingHistory(null);
-      fetchHistory();
+      const rows = await fetchHistory();
+      if (rows) syncEntryValueFromHistory(rows);
+    } catch (e) {
+      if (isNotFoundError(e)) {
+        setEditingHistory(null);
+        const rows = await fetchHistory();
+        if (rows) syncEntryValueFromHistory(rows);
+      } else {
+        reportUnexpectedError(e, "history.delete");
+      }
     } finally {
-      setEditSaving(false);
+      setEditDeleting(false);
     }
   }
 
@@ -203,8 +302,11 @@ export default function EntryDetailScreen() {
         onPress: async () => {
           setIsDeleting(true);
           try {
+            // `deleteEntry` already treats 404 (already gone) as success.
             await deleteEntry(id!);
             router.back();
+          } catch (e) {
+            reportUnexpectedError(e, "entry.delete");
           } finally {
             setIsDeleting(false);
           }
@@ -248,7 +350,11 @@ export default function EntryDetailScreen() {
               <Pencil size={16} color="#1c1c1e" />
             </TouchableOpacity>
             <TouchableOpacity onPress={confirmDeleteEntry} style={s.iconBtn} disabled={isDeleting}>
-              <Trash2 size={16} color="#ff3b30" />
+              {isDeleting ? (
+                <ActivityIndicator size="small" color="#ff3b30" />
+              ) : (
+                <Trash2 size={16} color="#ff3b30" />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -258,14 +364,19 @@ export default function EntryDetailScreen() {
         {/* Entry info */}
         <View style={s.infoSection}>
           <View style={s.nameRow}>
-            {/* 流動資金 is white — use a dark circle so the label stays legible */}
-            <View
-              style={[s.iconCircle, { backgroundColor: isWhiteCat ? "#1c1c1e" : color + "20" }]}
-            >
-              <Text style={[s.iconLabel, { color: isWhiteCat ? "#ffffff" : color }]}>
-                {entry.subCategory.slice(0, 2)}
-              </Text>
-            </View>
+            {/* A chosen bank icon (金融卡) wins over the category-letter badge. */}
+            {entry.bankCode ? (
+              <BankLogo code={entry.bankCode} name={entry.name} size={44} />
+            ) : (
+              /* 流動資金 is white — use a dark circle so the label stays legible */
+              <View
+                style={[s.iconCircle, { backgroundColor: isWhiteCat ? "#1c1c1e" : color + "20" }]}
+              >
+                <Text style={[s.iconLabel, { color: isWhiteCat ? "#ffffff" : color }]}>
+                  {entry.subCategory.slice(0, 2)}
+                </Text>
+              </View>
+            )}
             <View>
               <Text style={s.entryName}>{entry.name}</Text>
               <Text style={s.entrySub}>
@@ -287,7 +398,7 @@ export default function EntryDetailScreen() {
                 當日股價 {currentPrice.toLocaleString("zh-TW", { maximumFractionDigits: 4 })}
               </Text>
               {totalPnL != null && (
-                <Text style={[s.pnlText, { color: totalPnL >= 0 ? "#0e1424" : "#ff3b30" }]}>
+                <Text style={[s.pnlText, { color: pnlColor(totalPnL) }]}>
                   {formatDelta(totalPnL)}
                   {totalPnLPct != null
                     ? ` (${totalPnL >= 0 ? "+" : ""}${totalPnLPct.toFixed(2)}%)`
@@ -301,26 +412,40 @@ export default function EntryDetailScreen() {
         {/* History */}
         <View style={s.historySection}>
           <View style={s.historySectionHeader}>
-            <Text style={s.historySectionTitle}>交易記錄</Text>
+            <View style={s.historyTitleRow}>
+              <Text style={s.historySectionTitle}>交易記錄</Text>
+              {/* Refresh indicator — shows while a background refetch runs even
+                  when cached rows are already on screen (e.g. after adding a record). */}
+              {historyLoading && history.length > 0 && (
+                <ActivityIndicator size="small" color="#8e8e93" />
+              )}
+            </View>
             <Text style={s.historySectionSub}>變動</Text>
           </View>
-          {historyLoading ? (
+          {/* Show cached records while a background refetch runs; only show the
+              loading text on the very first load when nothing is cached yet. */}
+          {historyLoading && history.length === 0 ? (
             <Text style={s.historyEmpty}>載入中...</Text>
           ) : history.length === 0 ? (
             <Text style={s.historyEmpty}>尚無記錄</Text>
           ) : (
-            <View style={s.historyCard}>
-              {history.map((h, i) => (
-                <HistoryRow
-                  key={h.id}
-                  h={h}
-                  isLiability={isLiability}
-                  currentPrice={currentPrice}
-                  onPress={() => openEdit(h)}
-                  isFirst={i === 0}
-                />
-              ))}
-            </View>
+            groupHistoryByMonth(history).map((group) => (
+              <View key={group.key} style={s.historyGroup}>
+                <Text style={s.historyGroupLabel}>{group.key}</Text>
+                <View style={s.historyCard}>
+                  {group.rows.map((h, i) => (
+                    <HistoryRow
+                      key={h.id}
+                      h={h}
+                      isLiability={isLiability}
+                      currentPrice={currentPrice}
+                      onPress={() => openEdit(h)}
+                      isFirst={i === 0}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))
           )}
         </View>
       </ScrollView>
@@ -347,16 +472,6 @@ export default function EntryDetailScreen() {
               <Text style={s.modalTitle}>編輯記錄</Text>
 
               <View style={s.formCard}>
-                <View style={s.formRow}>
-                  <Text style={s.formLabel}>備註</Text>
-                  <TextInput
-                    value={editNote}
-                    onChangeText={setEditNote}
-                    placeholder="選填"
-                    placeholderTextColor="#c7c7cc"
-                    style={s.formInput}
-                  />
-                </View>
                 <View style={s.formDivider} />
                 <View style={s.formRow}>
                   <Text style={s.formLabel}>日期</Text>
@@ -372,9 +487,11 @@ export default function EntryDetailScreen() {
                 <View style={s.formRow}>
                   <Text style={s.formLabel}>變動金額</Text>
                   <TextInput
-                    value={editDelta}
-                    onChangeText={setEditDelta}
+                    value={formatThousands(editDelta)}
+                    onChangeText={(t) => setEditDelta(toIntegerDigits(t))}
                     keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#c7c7cc"
                     style={[s.formInput, { fontWeight: "600" }]}
                   />
                 </View>
@@ -394,16 +511,31 @@ export default function EntryDetailScreen() {
                     </View>
                   </>
                 )}
+                <View style={s.formRow}>
+                  <Text style={s.formLabel}>備註</Text>
+                  <TextInput
+                    value={editNote}
+                    onChangeText={setEditNote}
+                    placeholder="選填（最多 10 字）"
+                    placeholderTextColor="#c7c7cc"
+                    maxLength={10}
+                    style={s.formInput}
+                  />
+                </View>
               </View>
 
               <View style={s.modalBtns}>
-                <TouchableOpacity onPress={() => setEditingHistory(null)} style={s.cancelBtn}>
+                <TouchableOpacity
+                  onPress={() => setEditingHistory(null)}
+                  disabled={editSaving || editDeleting}
+                  style={[s.cancelBtn, (editSaving || editDeleting) && s.disabledBtn]}
+                >
                   <Text style={s.cancelBtnText}>取消</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSave}
-                  disabled={editSaving}
-                  style={[s.saveBtn, editSaving && s.disabledBtn]}
+                  disabled={editSaving || editDeleting}
+                  style={[s.saveBtn, (editSaving || editDeleting) && s.disabledBtn]}
                 >
                   {editSaving ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -416,7 +548,8 @@ export default function EntryDetailScreen() {
               {!confirmDeleteHistory ? (
                 <TouchableOpacity
                   onPress={() => setConfirmDeleteHistory(true)}
-                  style={s.deleteOutlineBtn}
+                  disabled={editSaving || editDeleting}
+                  style={[s.deleteOutlineBtn, (editSaving || editDeleting) && s.disabledBtn]}
                 >
                   <Trash2 size={16} color="#ff3b30" />
                   <Text style={s.deleteOutlineBtnText}>刪除此記錄</Text>
@@ -424,10 +557,10 @@ export default function EntryDetailScreen() {
               ) : (
                 <TouchableOpacity
                   onPress={handleDeleteHistoryRecord}
-                  disabled={editSaving}
-                  style={[s.deleteFilledBtn, editSaving && s.disabledBtn]}
+                  disabled={editSaving || editDeleting}
+                  style={[s.deleteFilledBtn, (editSaving || editDeleting) && s.disabledBtn]}
                 >
-                  {editSaving ? (
+                  {editDeleting ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text style={s.saveBtnText}>確認刪除</Text>
@@ -494,8 +627,17 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
   },
+  historyTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   historySectionTitle: { fontSize: 13, fontWeight: "600", color: "#1c1c1e" },
   historySectionSub: { fontSize: 13, color: "#8e8e93" },
+  historyGroup: { marginBottom: 16 },
+  historyGroupLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#8e8e93",
+    marginBottom: 6,
+    marginLeft: 4,
+  },
   historyCard: {
     backgroundColor: "#ffffff",
     borderRadius: 16,

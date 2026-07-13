@@ -1,5 +1,21 @@
+import { useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Calendar } from "lucide-react-native";
 import type { RepaymentType } from "@repo/shared";
+import { DatePickerModal } from "./DatePickerModal";
+
+function parseISODate(s: string): Date {
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+function toISODate(d: Date): string {
+  return d.toISOString().split("T")[0] ?? "";
+}
+function formatDisplayDate(s: string): string {
+  if (!s) return "選擇日期";
+  const d = parseISODate(s);
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export interface LoanFormValues {
   loanName: string;
@@ -21,6 +37,7 @@ interface Props {
 export function LoanFormFields({ values, color, onChange, errors }: Props) {
   const set = (key: keyof LoanFormValues) => (val: string) => onChange({ ...values, [key]: val });
   const accent = color === "#FFFFFF" ? "#374254" : color;
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   return (
     <View>
@@ -88,14 +105,16 @@ export function LoanFormFields({ values, color, onChange, errors }: Props) {
       <View style={s.splitRow}>
         <View style={[s.half, s.rightBorder]}>
           <Text style={s.label}>撥款日期</Text>
-          <TextInput
-            style={s.halfInput}
-            value={values.startDate}
-            onChangeText={set("startDate")}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor="#c7c7cc"
-            keyboardType="numbers-and-punctuation"
-          />
+          <TouchableOpacity
+            style={s.dateRow}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.halfInput, !values.startDate && s.datePlaceholder]}>
+              {formatDisplayDate(values.startDate)}
+            </Text>
+            <Calendar size={16} color="#8e8e93" />
+          </TouchableOpacity>
           {errors?.startDate && <Text style={s.err}>{errors.startDate}</Text>}
         </View>
         <View style={s.half}>
@@ -146,6 +165,13 @@ export function LoanFormFields({ values, color, onChange, errors }: Props) {
           ))}
         </View>
       </View>
+
+      <DatePickerModal
+        visible={showDatePicker}
+        date={parseISODate(values.startDate)}
+        onConfirm={(picked) => onChange({ ...values, startDate: toISODate(picked) })}
+        onClose={() => setShowDatePicker(false)}
+      />
     </View>
   );
 }
@@ -167,6 +193,8 @@ const s = StyleSheet.create({
   bigInput: { fontSize: 17, fontWeight: "600", color: "#1c1c1e" },
   numInput: { fontSize: 20, fontWeight: "700", color: "#1c1c1e" },
   halfInput: { fontSize: 17, fontWeight: "600", color: "#1c1c1e" },
+  dateRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  datePlaceholder: { color: "#c7c7cc", fontWeight: "400" },
   err: { fontSize: 12, color: "#ff3b30", marginTop: 4 },
   repayRow: { flexDirection: "row", gap: 8, marginTop: 6 },
   repayBtn: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center" },

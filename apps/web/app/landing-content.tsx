@@ -104,7 +104,15 @@ const inView = { once: false, amount: 0.2 } as const;
 /*  Phone frame                                                                */
 /* -------------------------------------------------------------------------- */
 
-function PhoneFrame({ src, width = 240 }: { src?: string | undefined; width?: number }) {
+function PhoneFrame({
+  src,
+  width = 240,
+  priority = false,
+}: {
+  src?: string | undefined;
+  width?: number;
+  priority?: boolean;
+}) {
   const [errored, setErrored] = useState(false);
   const showImg = src && !errored;
 
@@ -140,6 +148,7 @@ function PhoneFrame({ src, width = 240 }: { src?: string | undefined; width?: nu
             alt="araS App 畫面"
             fill
             sizes="248px"
+            priority={priority}
             onError={() => setErrored(true)}
             className="object-cover"
           />
@@ -224,10 +233,12 @@ export function LandingContent() {
     <MotionConfig reducedMotion="user">
       <div className="min-h-screen overflow-x-hidden bg-white text-[#1c1c1e]">
         <NavBar />
-        <Hero />
-        <Showcase />
-        <Highlights />
-        <CtaBand />
+        <main>
+          <Hero />
+          <Showcase />
+          <Highlights />
+          <CtaBand />
+        </main>
         <Footer />
       </div>
     </MotionConfig>
@@ -343,7 +354,7 @@ function Hero() {
             className={p.show}
             style={{ marginTop: p.y, zIndex: p.z, marginInline: -14 }}
           >
-            <PhoneFrame src={PHONE_SHOTS[i]} width={p.width} />
+            <PhoneFrame src={PHONE_SHOTS[i]} width={p.width} priority={i === 2} />
           </motion.div>
         ))}
       </motion.div>

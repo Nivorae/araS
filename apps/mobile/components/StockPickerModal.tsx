@@ -10,9 +10,27 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ChevronLeft, Search } from "lucide-react-native";
 import { useApi } from "@/lib/api";
 import { PRECIOUS_METALS, type StockItem } from "@/lib/stockConstants";
+
+// Persisted cache of the stocks the user has picked before, per sub-category,
+// so a returning user sees their recent picks first without re-searching.
+const RECENT_KEY = (subCategory: string) => `stockRecent:${subCategory}`;
+const RECENT_MAX = 10;
+
+// The upstream lists (esp. crypto) can contain the same code twice, which
+// crashes FlatList's keyExtractor with a duplicate-key error. Keep the first
+// occurrence of each code so keys stay unique.
+function dedupeByCode(items: StockItem[]): StockItem[] {
+  const seen = new Set<string>();
+  return items.filter((s) => {
+    if (!s.code || seen.has(s.code)) return false;
+    seen.add(s.code);
+    return true;
+  });
+}
 
 interface Props {
   visible: boolean;
@@ -36,6 +54,27 @@ export function StockPickerModal({
   const [stocks, setStocks] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [recents, setRecents] = useState<StockItem[]>([]);
+
+  // Load the persisted recent picks whenever the picker opens for a category.
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    AsyncStorage.getItem(RECENT_KEY(subCategory))
+      .then((raw) => {
+        if (!active || !raw) return;
+        try {
+          const parsed = JSON.parse(raw) as StockItem[];
+          if (Array.isArray(parsed)) setRecents(parsed);
+        } catch {
+          /* ignore corrupt cache */
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [visible, subCategory]);
 
   useEffect(() => {
     if (!visible) {
@@ -50,21 +89,23 @@ export function StockPickerModal({
         if (subCategory === "台股") {
           const data = await apiRef.current.rawGet<Record<string, string>[]>("/api/stocks/tw");
           setStocks(
-            data
-              .map((item) => ({
-                code: item["公司代號"] ?? "",
-                name: item["公司簡稱"] ?? item["公司名稱"] ?? "",
-              }))
-              .filter((s) => s.code && s.name)
+            dedupeByCode(
+              data
+                .map((item) => ({
+                  code: item["公司代號"] ?? "",
+                  name: item["公司簡稱"] ?? item["公司名稱"] ?? "",
+                }))
+                .filter((s) => s.code && s.name)
+            )
           );
         } else if (subCategory === "美股") {
           const data = await apiRef.current.rawGet<StockItem[]>("/api/stocks/us");
-          setStocks(data);
+          setStocks(dedupeByCode(data));
         } else if (subCategory === "加密貨幣") {
           const data = await apiRef.current.rawGet<StockItem[]>("/api/stocks/crypto");
-          setStocks(data);
+          setStocks(dedupeByCode(data));
         } else if (subCategory === "貴金屬") {
-          setStocks(PRECIOUS_METALS);
+          setStocks(dedupeByCode(PRECIOUS_METALS));
         }
       } catch {
         /* silently fail */
@@ -97,9 +138,15 @@ export function StockPickerModal({
   );
 
   const handleSelect = (stock: StockItem) => {
+    // Prepend to the recent cache (dedup by code, cap RECENT_MAX) and persist.
+    const next = [stock, ...recents.filter((r) => r.code !== stock.code)].slice(0, RECENT_MAX);
+    setRecents(next);
+    AsyncStorage.setItem(RECENT_KEY(subCategory), JSON.stringify(next)).catch(() => {});
     onSelect(stock);
     onClose();
   };
+
+  const showRecents = recents.length > 0 && !q;
 
   const renderItem = ({ item }: { item: StockItem }) => (
     <TouchableOpacity onPress={() => handleSelect(item)} style={s.item} activeOpacity={0.7}>
@@ -152,22 +199,44 @@ export function StockPickerModal({
             keyExtractor={(item) => item.code}
             renderItem={renderItem}
             ListHeaderComponent={
-              hasHoldings ? (
+              showRecents || hasHoldings ? (
                 <View>
-                  <Text style={s.sectionLabel}>已持有</Text>
-                  {filteredHoldings.map((h) => (
-                    <TouchableOpacity
-                      key={h.code}
-                      onPress={() => handleSelect(h)}
-                      style={[s.item, s.holdingItem]}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.code, { color: "#374254" }]}>{h.code}</Text>
-                      <Text style={s.stockName} numberOfLines={1}>
-                        {h.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {showRecents && (
+                    <>
+                      <Text style={s.sectionLabel}>最近</Text>
+                      {recents.map((r) => (
+                        <TouchableOpacity
+                          key={`recent-${r.code}`}
+                          onPress={() => handleSelect(r)}
+                          style={[s.item, s.holdingItem]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.code, { color: "#374254" }]}>{r.code}</Text>
+                          <Text style={s.stockName} numberOfLines={1}>
+                            {r.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                  {hasHoldings && (
+                    <>
+                      <Text style={s.sectionLabel}>已持有</Text>
+                      {filteredHoldings.map((h) => (
+                        <TouchableOpacity
+                          key={h.code}
+                          onPress={() => handleSelect(h)}
+                          style={[s.item, s.holdingItem]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.code, { color: "#374254" }]}>{h.code}</Text>
+                          <Text style={s.stockName} numberOfLines={1}>
+                            {h.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
                   {filteredStocks.length > 0 && <Text style={s.sectionLabel}>全部</Text>}
                 </View>
               ) : null

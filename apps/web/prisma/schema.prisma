@@ -18,6 +18,7 @@ model Entry {
   bankCode    String?
   note        String?
   value       Decimal
+  includeInChart Boolean     @default(true)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   history     EntryHistory[]

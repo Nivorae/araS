@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "支援與聯絡 | araS",
+  title: "支援與聯絡",
   description: "araS 個人資產管理工具的使用支援與聯絡方式",
+  alternates: { canonical: "/support" },
+  robots: { index: true, follow: true },
 };
 
 const CONTACT_EMAIL = "milk88084@gmail.com";

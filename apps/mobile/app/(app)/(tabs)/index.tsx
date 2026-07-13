@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   LayoutChangeEvent,
   Pressable,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,6 +16,8 @@ import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import type { Entry } from "@repo/shared";
 import { useFinanceStore } from "@/store/financeStore";
+import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useInvestmentMarketValues } from "@/hooks/useInvestmentMarketValues";
 import { formatCurrency } from "@/lib/format";
 import { CATEGORIES, getNodeIcon } from "@/lib/categoryConfig";
 import {
@@ -28,25 +32,53 @@ const CARD_ORDER = CATEGORIES.map((c) => c.name);
 export default function AssetsScreen() {
   const router = useRouter();
   const { entries, loading } = useFinanceStore();
+  const { fetchAll } = useFinanceActions();
   const [hideBalance, setHideBalance] = useState(false);
   const [isCardExpanded, setIsCardExpanded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [priceNonce, setPriceNonce] = useState(0);
   const cardStackRef = useRef<CategoryCardStackHandle>(null);
+
+  // Live market values for stock-backed investments (item 11). Investment totals
+  // are shown at market value (cost + total P&L), not cost. `marketLoading` lets
+  // us hold the net-worth total behind a spinner on first load so it doesn't
+  // flash the cost-basis figure before the market value arrives.
+  const { values: marketValues, loading: marketLoading } = useInvestmentMarketValues(priceNonce);
+  const displayEntries = useMemo(
+    () =>
+      entries.map((e) => (marketValues[e.id] != null ? { ...e, value: marketValues[e.id]! } : e)),
+    [entries, marketValues]
+  );
+
+  // Pull-to-refresh (item 16). Disabled while a card is expanded so the inner
+  // entry list scrolls freely without gesture conflict.
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchAll();
+      setPriceNonce((n) => n + 1); // also refresh live prices
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchAll]);
 
   const [containerH, setContainerH] = useState(0);
   const topH = useRef(new Animated.Value(0)).current;
 
   // net worth
   const netWorth = useMemo(() => {
-    const assets = entries.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0);
-    const liabilities = entries
+    const assets = displayEntries
+      .filter((e) => e.topCategory !== "負債")
+      .reduce((s, e) => s + e.value, 0);
+    const liabilities = displayEntries
       .filter((e) => e.topCategory === "負債")
       .reduce((s, e) => s + e.value, 0);
     return assets - liabilities;
-  }, [entries]);
+  }, [displayEntries]);
 
   // grouped stack categories (skip empty), in CARD_ORDER
   const stackCategories: StackCategory[] = useMemo(() => {
-    const grouped = entries.reduce<Record<string, Entry[]>>((acc, e) => {
+    const grouped = displayEntries.reduce<Record<string, Entry[]>>((acc, e) => {
       (acc[e.topCategory] ??= []).push(e);
       return acc;
     }, {});
@@ -65,7 +97,7 @@ export default function AssetsScreen() {
         },
       ];
     });
-  }, [entries]);
+  }, [displayEntries]);
 
   // animate top zone height (40% collapsed → 28% expanded)
   useEffect(() => {
@@ -95,32 +127,60 @@ export default function AssetsScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={["top"]}>
-      <Pressable
-        style={s.body}
-        onLayout={onContainerLayout}
-        onPress={() => {
-          if (isCardExpanded) cardStackRef.current?.collapse();
-        }}
-      >
-        {/* Top zone: net worth */}
+      <View style={s.body} onLayout={onContainerLayout}>
+        {/* Top zone: net worth — pull-to-refresh lives ONLY here, and has no
+            Pressable ancestor, so the pull gesture is never intercepted. Both
+            scrolling and the refresh control itself are locked while a card is
+            expanded, so pulling down there can't trigger a refresh underneath. */}
         <Animated.View style={[s.topZone, { height: topH }]}>
-          <View style={s.netLabelRow}>
-            <Text style={s.netLabel}>Net Worth (TWD)</Text>
-            <TouchableOpacity onPress={() => setHideBalance((v) => !v)} hitSlop={8}>
-              {hideBalance ? (
-                <EyeOff size={14} color="#8e8e93" />
-              ) : (
-                <Eye size={14} color="#8e8e93" />
-              )}
-            </TouchableOpacity>
-          </View>
-          <Text style={s.netValue}>
-            {hideBalance ? "araS" : formatCurrency(netWorth).replace("NT", "")}
-          </Text>
+          <ScrollView
+            style={s.flex}
+            contentContainerStyle={s.netScroll}
+            scrollEnabled={!isCardExpanded}
+            alwaysBounceVertical={!isCardExpanded}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                enabled={!isCardExpanded}
+                tintColor="#374254"
+              />
+            }
+          >
+            <View style={s.netLabelRow}>
+              <Text style={s.netLabel}>Net Worth (TWD)</Text>
+              <TouchableOpacity onPress={() => setHideBalance((v) => !v)} hitSlop={8}>
+                {hideBalance ? (
+                  <EyeOff size={14} color="#8e8e93" />
+                ) : (
+                  <Eye size={14} color="#8e8e93" />
+                )}
+              </TouchableOpacity>
+            </View>
+            {hideBalance ? (
+              <Text style={s.netValue}>araS</Text>
+            ) : marketLoading ? (
+              // Investments still being priced — hold the total behind a spinner
+              // so it doesn't flash the cost-basis figure first.
+              <View style={s.netLoading}>
+                <ActivityIndicator size="small" color="#8e8e93" />
+              </View>
+            ) : (
+              <Text style={s.netValue}>{formatCurrency(netWorth).replace("NT", "")}</Text>
+            )}
+          </ScrollView>
         </Animated.View>
 
-        {/* Bottom zone: card stack */}
-        <View style={s.bottomZone}>
+        {/* Bottom zone: card stack — a fixed, non-scrolling Pressable, so the
+            scrub gesture only peeks cards without shifting the whole stack.
+            Tapping empty space here collapses an expanded card. */}
+        <Pressable
+          style={s.bottomZone}
+          onPress={() => {
+            if (isCardExpanded) cardStackRef.current?.collapse();
+          }}
+        >
           {stackCategories.length > 0 ? (
             <CategoryCardStack
               ref={cardStackRef}
@@ -145,8 +205,8 @@ export default function AssetsScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
@@ -154,12 +214,15 @@ export default function AssetsScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#f2f2f7", paddingTop: NAV_CLEARANCE },
   center: { alignItems: "center", justifyContent: "center" },
+  flex: { flex: 1 },
   body: { flex: 1, overflow: "hidden" },
 
-  topZone: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  topZone: { overflow: "hidden" },
+  netScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   netLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   netLabel: { fontSize: 12, fontWeight: "600", color: "#8e8e93" },
   netValue: { fontSize: 40, fontWeight: "700", letterSpacing: -1, color: "#1c1c1e" },
+  netLoading: { height: 48, alignItems: "center", justifyContent: "center" },
 
   bottomZone: { flex: 1 },
 

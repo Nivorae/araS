@@ -63,7 +63,7 @@ export class EntriesService {
   }
 
   async create(data: CreateEntry, userId: string) {
-    const { units, stockCode, bankCode, createdAt, note, ...rest } = data;
+    const { units, stockCode, bankCode, createdAt, note, includeInChart, ...rest } = data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
     const entry = await prisma.entry.create({
@@ -73,6 +73,7 @@ export class EntriesService {
         stockCode: stockCode ?? null,
         bankCode: bankCode ?? null,
         note: note ?? null,
+        ...(includeInChart !== undefined ? { includeInChart } : {}),
         ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
       },
     });
@@ -93,7 +94,10 @@ export class EntriesService {
   async update(id: string, data: UpdateEntry, userId: string) {
     const existing = await prisma.entry.findFirst({ where: { id, userId } });
     if (!existing) return null;
-    const { units, ...updateData } = data;
+    // `createdAt` is not an entry-column edit here — it dates the appended
+    // history line (e.g. back-dating an added record), so pull it out of the
+    // entry update payload.
+    const { units, createdAt, ...updateData } = data;
     const cleaned = Object.fromEntries(
       Object.entries(updateData).filter(([, v]) => v !== undefined)
     ) as Parameters<typeof prisma.entry.update>[0]["data"];
@@ -101,7 +105,14 @@ export class EntriesService {
     if (data.value !== undefined && existing) {
       const delta = d(entry.value) - d(existing.value);
       await prisma.entryHistory.create({
-        data: { entryId: id, delta, balance: d(entry.value), units: units ?? null },
+        data: {
+          entryId: id,
+          delta,
+          balance: d(entry.value),
+          units: units ?? null,
+          note: data.note ?? null,
+          ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
+        },
       });
     }
     return { ...entry, value: d(entry.value) };
