@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, BarChart3, Loader2, PiggyBank, Plus, Home, LogOut } from "lucide-react";
+import { Building2, BarChart3, Loader2, PiggyBank, Plus, Home, Settings } from "lucide-react";
 import { useNavContext } from "../../app/(finance)/nav-context";
-import { useAuth, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 
 const tabs = [
   { href: "/assets", icon: Building2, label: "資產" },
@@ -19,7 +19,6 @@ export function BottomNav() {
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const { addAction } = useNavContext();
   const { isSignedIn } = useAuth();
-  const { signOut } = useClerk();
 
   const navigate = (href: string) => {
     if (href === pathname) return;
@@ -29,17 +28,13 @@ export function BottomNav() {
     });
   };
 
-  const handleLastButton = () => {
-    if (isSignedIn) {
-      signOut({ redirectUrl: "/welcome" });
-    } else {
-      navigate("/welcome");
-    }
-  };
+  // Signed in, the last slot opens 設定 (which is where 登出 now lives); signed
+  // out there is no account to configure, so it stays a way back to 首頁.
+  const handleLastButton = () => navigate(isSignedIn ? "/more" : "/welcome");
 
-  const LastIcon = isSignedIn ? LogOut : Home;
-  const lastLabel = isSignedIn ? "登出" : "首頁";
-  const lastActive = !isSignedIn && pathname === "/welcome";
+  const LastIcon = isSignedIn ? Settings : Home;
+  const lastLabel = isSignedIn ? "設定" : "首頁";
+  const lastActive = isSignedIn ? pathname === "/more" : pathname === "/welcome";
 
   return (
     <nav className="fixed top-6 left-1/2 z-50 -translate-x-1/2">
