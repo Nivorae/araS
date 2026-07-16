@@ -58,6 +58,28 @@ pnpm dev                              # 啟動後端（real device 透過 LAN IP
 pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Expo Go
 ```
 
+## Git 工作流程
+
+`feature/*` → `develop` → `main`。Feature 分支一律從 `main` checkout。
+
+```
+main ──► feature/*  ──/create-pr──►  develop  ──merge──►  main ──tag──► origin
+```
+
+1. **`/git:branch`** — 從 staged diff 或對話自動建議分支名；也可附帶情境：`/git:branch 加上 hero 動畫`。從 `main` 開分支。
+2. **開發** — 整個 feature 完成前不要逐檔 commit。
+3. **`/git:commit`** — feature 完成後執行；產生 Conventional Commits 訊息（<72 字、無 scope、無 body），必要時建議拆分。
+4. **`/create-pr`** — 在 feature 分支執行（**不可在 develop/main**）。推分支、開 PR、跑 CI/CD、合併進 develop。
+5. **切到 develop，`/git:changelog`** — 自動 `git pull --ff-only origin develop` 取得最新狀態，再依 `package.json` 推算下一版本（也可手動指定），更新 `CHANGELOG.md` + `package.json` 並 commit。**僅可在 develop 執行**，工作區需乾淨。
+6. **`git push origin develop`** — 驗證 develop 環境功能正常。
+7. **發版** — merge develop → main，push，再打 tag：
+   ```bash
+   git checkout main && git merge develop && git push origin main
+   git tag v0.1.0 && git push origin --tags
+   ```
+
+版本號以 `package.json` 為準；git tag、`package.json`、`CHANGELOG.md` 三者必須同步。
+
 ## Scripts
 
 | Command              | Description                          |
