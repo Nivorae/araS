@@ -3,6 +3,7 @@
   "installCommand": "cd ../.. && pnpm install",
   "outputDirectory": ".next",
   "framework": "nextjs",
+  "regions": ["hnd1"],
   "git": {
     "deploymentEnabled": {
       "dev": false
