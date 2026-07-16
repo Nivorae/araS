@@ -91,6 +91,22 @@ function formatThousands(digits: string): string {
 function isNotFoundError(e: unknown): boolean {
   return e instanceof ApiError && e.status === 404;
 }
+// A NETWORK ApiError (status 0) means the request never reached / never got a
+// reply from the server — most often iOS suspending the socket when the app is
+// backgrounded mid-request. Like the 404 race above, this is an *expected*
+// transient condition, not a bug: we show a friendly retry prompt and log only a
+// breadcrumb (not a captured exception) so Sentry isn't flooded with noise.
+function isNetworkError(e: unknown): boolean {
+  return e instanceof ApiError && e.code === "NETWORK";
+}
+function reportNetworkError(context: string) {
+  Sentry.addBreadcrumb({
+    category: "network",
+    level: "warning",
+    message: `${context}: request interrupted`,
+  });
+  Alert.alert("網路連線中斷", "儲存未完成，請確認網路後再試一次。");
+}
 function reportUnexpectedError(e: unknown, context: string) {
   Sentry.captureException(e, { tags: { context } });
   const message = e instanceof Error ? e.message : "請重試";
@@ -263,6 +279,10 @@ export default function EntryDetailScreen() {
         setEditingHistory(null);
         const rows = await fetchHistory();
         if (rows) syncEntryValueFromHistory(rows);
+      } else if (isNetworkError(e)) {
+        // Interrupted (e.g. app backgrounded mid-save). Keep the modal open so
+        // the edit isn't lost — the user can just tap 儲存 again.
+        reportNetworkError("history.save");
       } else {
         reportUnexpectedError(e, "history.save");
       }
@@ -284,6 +304,9 @@ export default function EntryDetailScreen() {
         setEditingHistory(null);
         const rows = await fetchHistory();
         if (rows) syncEntryValueFromHistory(rows);
+      } else if (isNetworkError(e)) {
+        // Keep the modal open so the user can retry the delete.
+        reportNetworkError("history.delete");
       } else {
         reportUnexpectedError(e, "history.delete");
       }
