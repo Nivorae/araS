@@ -30,14 +30,27 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit):
   }
 
   const token = await getToken();
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
+    });
+  } catch {
+    // fetch rejects with a raw `TypeError: Network request failed` when the
+    // connection never completes — no server response, no HTTP status. The
+    // common cause on iOS is the OS suspending the socket the moment the app
+    // is backgrounded mid-request. Normalize it to a typed NETWORK ApiError
+    // (status 0) so callers can classify it (`code === "NETWORK"`). The message
+    // is user-facing Chinese, not the raw English "Network request failed":
+    // several screens surface `error.message` directly (inline text or Alert),
+    // so making it friendly here fixes all of them at the source.
+    throw new ApiError("NETWORK", "網路連線中斷，請稍後再試", 0);
+  }
 
   let body: ApiResponse<T>;
   try {
