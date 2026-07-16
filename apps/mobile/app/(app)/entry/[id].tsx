@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -60,6 +60,10 @@ function groupHistoryByMonth(rows: EntryHistory[]): { key: string; rows: EntryHi
   return groups;
 }
 const buildYfSymbol = _buildYfSymbol;
+
+// Stable empty reference for entries with no cached history yet, so `history`
+// keeps one identity across renders and the useMemo hooks below stay valid.
+const NO_HISTORY: EntryHistory[] = [];
 
 // ─── Integer-with-thousands input (變動金額) ───────────────────────────────────
 // Strips decimals and non-digit characters as the user types, keeping at most
@@ -166,10 +170,13 @@ export default function EntryDetailScreen() {
   const apiRef = useRef(api);
   apiRef.current = api;
 
-  const { deleteEntry } = useFinanceActions();
+  const { deleteEntry, fetchEntryHistory } = useFinanceActions();
   const entry = useFinanceStore((state) => state.entries.find((e) => e.id === id));
 
-  const [history, setHistory] = useState<EntryHistory[]>([]);
+  // Served from the store cache, so re-opening this entry paints its records on
+  // the first frame; the focus refetch below then refreshes them in place.
+  const history =
+    useFinanceStore((state) => (id ? state.historyByEntry[id] : undefined)) ?? NO_HISTORY;
   const [historyLoading, setHistoryLoading] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
 
@@ -187,21 +194,17 @@ export default function EntryDetailScreen() {
   const isStockEntry =
     !!entry && STOCK_PICKER_CATEGORIES.includes(entry.subCategory) && !!entry.stockCode;
 
-  // Stable fetchHistory — api excluded from deps via ref
+  // Wraps the actions-layer fetch with this screen's loading flag. The rows land
+  // in the store, so the selector above picks them up.
   const fetchHistory = useCallback(async (): Promise<EntryHistory[] | null> => {
     if (!id) return null;
     setHistoryLoading(true);
     try {
-      const data = await apiRef.current.get<EntryHistory[]>(`/api/entries/${id}/history`);
-      setHistory(data);
-      return data;
-    } catch {
-      /* silently fail */
-      return null;
+      return await fetchEntryHistory(id);
     } finally {
       setHistoryLoading(false);
     }
-  }, [id]); // intentionally exclude api — use apiRef instead
+  }, [id, fetchEntryHistory]);
 
   // After a history edit/delete the backend recomputes the entry's value to the
   // most-recent record's running balance (0 when none remain). Mirror that into
@@ -241,13 +244,21 @@ export default function EntryDetailScreen() {
       .catch(() => {});
   }, [isStockEntry, stockCode, subCategory]); // primitive deps only
 
-  // P&L
-  const investmentRecords = history.filter((h) => h.units != null && h.units > 0);
-  const totalUnits = investmentRecords.reduce((sum, h) => sum + (h.units ?? 0), 0);
-  const totalCost = investmentRecords.reduce((sum, h) => sum + h.delta, 0);
+  // P&L — memoized on `history` (a stable store reference) so typing in the edit
+  // modal doesn't re-walk every record on each keystroke.
+  const { totalUnits, totalCost } = useMemo(() => {
+    const investmentRecords = history.filter((h) => h.units != null && h.units > 0);
+    return {
+      totalUnits: investmentRecords.reduce((sum, h) => sum + (h.units ?? 0), 0),
+      totalCost: investmentRecords.reduce((sum, h) => sum + h.delta, 0),
+    };
+  }, [history]);
   const currentMarketValue = currentPrice != null ? totalUnits * currentPrice : null;
   const totalPnL = currentMarketValue != null ? currentMarketValue - totalCost : null;
   const totalPnLPct = totalCost > 0 && totalPnL != null ? (totalPnL / totalCost) * 100 : null;
+
+  // Rebuilding every month-group on each modal keystroke re-rendered the whole list.
+  const historyGroups = useMemo(() => groupHistoryByMonth(history), [history]);
 
   function openEdit(h: EntryHistory) {
     setEditNote(h.note ?? "");
@@ -452,7 +463,7 @@ export default function EntryDetailScreen() {
           ) : history.length === 0 ? (
             <Text style={s.historyEmpty}>尚無記錄</Text>
           ) : (
-            groupHistoryByMonth(history).map((group) => (
+            historyGroups.map((group) => (
               <View key={group.key} style={s.historyGroup}>
                 <Text style={s.historyGroupLabel}>{group.key}</Text>
                 <View style={s.historyCard}>

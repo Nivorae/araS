@@ -3,6 +3,7 @@ import { ApiError, useApi } from "@/lib/api";
 import { useFinanceStore, makeSnapshot } from "@/store/financeStore";
 import type {
   Entry,
+  EntryHistory,
   Transaction,
   PortfolioItem,
   Recurrence,
@@ -18,20 +19,44 @@ import type {
 export function useFinanceActions() {
   const api = useApi();
 
+  // The two slices /api/recurrences/process can write to. Read together so the
+  // initial wave and the post-process refresh below can't drift apart.
+  const readRecurrenceSlices = useCallback(
+    () =>
+      Promise.all([
+        api.get<Recurrence[]>("/api/recurrences"),
+        api.get<Transaction[]>("/api/transactions"),
+      ]),
+    [api]
+  );
+
+  // Runs the cron step after the first paint, then refreshes only if it actually
+  // generated rows. This races the initial reads by design — but unlike a bare
+  // fire-and-forget, a run that created something re-reads the slices it touched,
+  // so new transactions appear in this session rather than on the next launch.
+  // It usually creates nothing, so the refresh is rare.
+  const processRecurrencesInBackground = useCallback(async () => {
+    try {
+      const result = await api.post<{ created: number }>("/api/recurrences/process", {});
+      if (!result?.created) return;
+      const [recurrences, transactions] = await readRecurrenceSlices();
+      useFinanceStore.getState().setData({ recurrences, transactions });
+    } catch {
+      // Best-effort: a failed cron step must never surface on the loaded screen.
+    }
+  }, [api, readRecurrenceSlices]);
+
   const fetchAll = useCallback(async () => {
     const { setLoading, setError, setData } = useFinanceStore.getState();
     setLoading(true);
     setError(null);
     try {
-      const [entries, portfolio] = await Promise.all([
+      // One wave, not two: these reads don't depend on each other, and the screen
+      // is latency-bound, so serializing them just doubled time-to-paint.
+      const [entries, portfolio, [recurrences, transactions]] = await Promise.all([
         api.get<Entry[]>("/api/entries"),
         api.get<PortfolioItem[]>("/api/portfolio"),
-      ]);
-      // fire-and-forget: process due recurrences (cron step)
-      api.post("/api/recurrences/process", {}).catch(() => undefined);
-      const [recurrences, transactions] = await Promise.all([
-        api.get<Recurrence[]>("/api/recurrences"),
-        api.get<Transaction[]>("/api/transactions"),
+        readRecurrenceSlices(),
       ]);
       setData({
         entries,
@@ -40,12 +65,30 @@ export function useFinanceActions() {
         transactions,
         valueSnapshots: entries.length > 0 ? [makeSnapshot(entries)] : [],
       });
+      void processRecurrencesInBackground();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load data");
     } finally {
       useFinanceStore.getState().setLoading(false);
     }
-  }, [api]);
+  }, [api, readRecurrenceSlices, processRecurrencesInBackground]);
+
+  // Per-entry history. Lives here rather than in the entry screen so the store's
+  // historyByEntry slice has an owner in the actions layer, like every other
+  // resource — a second consumer can call this instead of re-rolling the fetch.
+  const fetchEntryHistory = useCallback(
+    async (id: string): Promise<EntryHistory[] | null> => {
+      try {
+        const rows = await api.get<EntryHistory[]>(`/api/entries/${id}/history`);
+        useFinanceStore.getState().setEntryHistory(id, rows);
+        return rows;
+      } catch {
+        // Cached rows stay on screen; the caller decides whether to surface this.
+        return null;
+      }
+    },
+    [api]
+  );
 
   const addEntry = useCallback(
     async (data: CreateEntry) => {
@@ -149,6 +192,7 @@ export function useFinanceActions() {
 
   return {
     fetchAll,
+    fetchEntryHistory,
     addEntry,
     updateEntry,
     deleteEntry,
