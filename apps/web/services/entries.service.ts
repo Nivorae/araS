@@ -62,6 +62,26 @@ export class EntriesService {
     return { ...rest, value: d(rest.value), loan: loan ? serializeLoan(loan) : null };
   }
 
+  // Ownership check and history read in a single round trip — the entry screen
+  // is latency-bound, so the saved query is the whole point. The `userId` in the
+  // where-clause carries the same scoping guarantee as findById.
+  //
+  // The returned entry deliberately omits `loan` (unlike findById), because the
+  // only caller reads `value`/`createdAt` and joining loan would waste the round
+  // trip this exists to save. It is therefore NOT substitutable for findById.
+  async findByIdWithHistory(id: string, userId: string) {
+    const entry = await prisma.entry.findFirst({
+      where: { id, userId },
+      include: { history: { orderBy: { createdAt: "desc" } } },
+    });
+    if (!entry) return null;
+    const { history, ...rest } = entry;
+    return {
+      entry: { ...rest, value: d(rest.value) },
+      history: history.map(serializeHistory),
+    };
+  }
+
   async create(data: CreateEntry, userId: string) {
     const { units, stockCode, bankCode, createdAt, note, includeInChart, ...rest } = data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
