@@ -13,6 +13,10 @@ export const metadata: Metadata = {
   // Deny-by-default: most routes are private, authenticated finance data.
   // Public marketing pages explicitly override this with { index: true }.
   robots: { index: false, follow: false },
+  // Google Search Console ownership verification (HTML-tag method). Renders
+  // <meta name="google-site-verification"> in every page's <head>, incl. the
+  // public landing page Google checks at the root URL.
+  verification: { google: "1TXti-kRlmHp27QXApEkf5Hh5nDPNXZA76uGGD55On0" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
