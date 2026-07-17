@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import type { Entry, Transaction, PortfolioItem, Recurrence, ValueSnapshot } from "@repo/shared";
+import type {
+  Entry,
+  EntryHistory,
+  Transaction,
+  PortfolioItem,
+  Recurrence,
+  ValueSnapshot,
+} from "@repo/shared";
 
 export interface FinanceState {
   entries: Entry[];
@@ -7,6 +14,10 @@ export interface FinanceState {
   portfolio: PortfolioItem[];
   recurrences: Recurrence[];
   valueSnapshots: ValueSnapshot[];
+  // Per-entry history, keyed by entry id. Cached so re-opening an entry renders
+  // its records immediately while a refetch runs in the background, instead of
+  // dropping back to a loading state on every focus.
+  historyByEntry: Record<string, EntryHistory[]>;
   loading: boolean;
   error: string | null;
   lastFetchedAt: number | null;
@@ -21,6 +32,8 @@ export interface FinanceState {
   ) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+
+  setEntryHistory: (entryId: string, rows: EntryHistory[]) => void;
 
   addEntryLocal: (entry: Entry) => void;
   updateEntryLocal: (id: string, entry: Entry) => void;
@@ -62,6 +75,7 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   portfolio: [],
   recurrences: [],
   valueSnapshots: [],
+  historyByEntry: {},
   loading: false,
   error: null,
   lastFetchedAt: null,
@@ -69,6 +83,9 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   setData: (data) => set({ ...data, lastFetchedAt: Date.now() }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+
+  setEntryHistory: (entryId, rows) =>
+    set((s) => ({ historyByEntry: { ...s.historyByEntry, [entryId]: rows } })),
 
   addEntryLocal: (entry) =>
     set((s) => {
@@ -91,8 +108,11 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   deleteEntryLocal: (id) =>
     set((s) => {
       const newEntries = s.entries.filter((e) => e.id !== id);
+      const historyByEntry = { ...s.historyByEntry };
+      delete historyByEntry[id];
       return {
         entries: newEntries,
+        historyByEntry,
         valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
       };
     }),

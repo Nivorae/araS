@@ -53,6 +53,43 @@ describe("EntriesService.findById", () => {
   });
 });
 
+describe("EntriesService.findByIdWithHistory", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("scopes the lookup by userId", async () => {
+    vi.mocked(prisma.entry.findFirst).mockResolvedValue(null);
+    expect(await entriesService.findByIdWithHistory("entry-1", USER_ID)).toBeNull();
+    expect(prisma.entry.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "entry-1", userId: USER_ID } })
+    );
+  });
+
+  it("returns entry and newest-first history in a single query", async () => {
+    vi.mocked(prisma.entry.findFirst).mockResolvedValue({
+      id: "entry-1",
+      userId: USER_ID,
+      value: 500,
+      history: [
+        { id: "h1", entryId: "entry-1", delta: 500, balance: 500, units: null, note: null },
+      ],
+    } as never);
+
+    const result = await entriesService.findByIdWithHistory("entry-1", USER_ID);
+
+    expect(result?.entry.value).toBe(500);
+    expect(result?.history).toHaveLength(1);
+    // `history` must not leak onto the entry object the route reads `value`/`createdAt` from.
+    expect(result?.entry).not.toHaveProperty("history");
+    expect(prisma.entry.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: { history: { orderBy: { createdAt: "desc" } } },
+      })
+    );
+    // The whole point of this method: one round trip, not findById + listHistory.
+    expect(prisma.entryHistory.findMany).not.toHaveBeenCalled();
+  });
+});
+
 describe("EntriesService.create", () => {
   beforeEach(() => vi.clearAllMocks());
   it("stores userId on the entry", async () => {
