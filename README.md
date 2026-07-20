@@ -94,24 +94,27 @@ grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # 要是 0
 
 ## Git 工作流程
 
-`feature/*` → `main`。Feature 分支一律從 `main` checkout，PR 也直接進 `main`
-（本專案**沒有 `develop` 分支**）。
+`feature/*` → `develop` → `main`。Feature 分支一律從 `main` checkout。
 
 ```
-main ──► feature/*  ──/create-pr──►  PR  ──merge──►  main ──tag──► origin
+main ──► feature/*  ──/create-pr──►  develop  ──merge──►  main ──tag──► origin
 ```
 
 1. **`/git:branch`** — 從 staged diff 或對話自動建議分支名；也可附帶情境：`/git:branch 加上 hero 動畫`。從 `main` 開分支。
 2. **開發** — 整個 feature 完成前不要逐檔 commit。
 3. **`/git:commit`** — feature 完成後執行；產生 Conventional Commits 訊息（<72 字、無 scope、無 body），必要時建議拆分。
-4. **`/create-pr`** — 在 feature 分支執行（**不可在 `main`**）。推分支、開 PR、跑 CI/CD。
-5. **Merge PR 進 `main`**，需要發版時打 tag：
+4. **`/create-pr`** — 在 feature 分支執行（**不可在 develop/main**）。推分支、開 PR（base 一律是 `develop`）、跑 CI/CD、合併進 develop。
+5. **切到 develop，`/git:changelog`** — 自動 `git pull --ff-only origin develop` 取得最新狀態，再依 `package.json` 推算下一版本（也可手動指定），更新 `CHANGELOG.md` + `package.json` 並 commit。**僅可在 develop 執行**，工作區需乾淨。
+6. **`git push origin develop`** — 驗證 develop 環境功能正常。
+7. **發版** — merge develop → main，push，再打 tag：
    ```bash
+   git checkout main && git merge develop && git push origin main
    git tag v0.1.0 && git push origin --tags
    ```
 
-Web 版本號以 `package.json` 為準；git tag 與 `package.json` 必須同步。
-**Mobile 版號是獨立的一套**，在 `apps/mobile/app.json`，見上面「Mobile 發版」。
+Web 版本號以 `package.json` 為準；git tag、`package.json`、`CHANGELOG.md` 三者必須同步。
+**Mobile 版號是獨立的一套**，在 `apps/mobile/app.json`，見上面「Mobile 發版」——
+兩者互不相干，mobile 發版不需要動 `package.json`。
 
 ## Scripts
 
