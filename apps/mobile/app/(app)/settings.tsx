@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ArrowLeft, LogOut, Sparkles, Trash2, type LucideIcon } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
@@ -23,6 +25,36 @@ import { ApiError, useApi } from "@/lib/api";
 const CARD_RADIUS = 26;
 
 const SPRING_PRESS = { stiffness: 220, damping: 25, mass: 1, useNativeDriver: true } as const;
+
+/**
+ * Build lines for the version footer.
+ *
+ * Two independent numbers, deliberately kept separate:
+ *  - `version` (app.json) — the marketing version, bumped ONLY on a native
+ *    rebuild. It doubles as `runtimeVersion` (policy: "appVersion"), so bumping
+ *    it for an OTA would make that update undeliverable to installed binaries.
+ *  - `Updates.createdAt` — when the running OTA bundle was published. Changes on
+ *    every `eas update` with no manual bookkeeping, which is what actually tells
+ *    you which JS a user is running.
+ *
+ * `createdAt` is null when the app is running its embedded (App Store) bundle
+ * with no OTA applied yet. `isEnabled` is false in Expo Go / dev.
+ */
+function versionLines(): string[] {
+  const version = Constants.expoConfig?.version ?? "—";
+  if (!Updates.isEnabled) return [`版本 ${version} · 開發模式`];
+
+  const lines = [`版本 ${version}`];
+  const createdAt = Updates.createdAt;
+  if (createdAt) {
+    const p = (n: number) => String(n).padStart(2, "0");
+    lines.push(
+      `更新於 ${createdAt.getFullYear()}/${p(createdAt.getMonth() + 1)}/${p(createdAt.getDate())} ` +
+        `${p(createdAt.getHours())}:${p(createdAt.getMinutes())}`
+    );
+  }
+  return lines;
+}
 
 interface SettingCardProps {
   icon: LucideIcon;
@@ -159,6 +191,14 @@ export default function SettingsScreen() {
           </View>
 
           <Text style={s.dangerHint}>永久刪除帳號與所有資料，無法復原。</Text>
+
+          <View style={s.versionBlock}>
+            {versionLines().map((line) => (
+              <Text key={line} style={s.versionText}>
+                {line}
+              </Text>
+            ))}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -206,4 +246,7 @@ const s = StyleSheet.create({
   cardLabel: { fontSize: 16, fontWeight: "700" },
 
   dangerHint: { fontSize: 13, color: "#8e8e93", marginTop: 16, textAlign: "center" },
+
+  versionBlock: { alignItems: "center", marginTop: 32, gap: 2 },
+  versionText: { fontSize: 12, color: "#c7c7cc" },
 });
