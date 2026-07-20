@@ -4,7 +4,9 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "baseUrl": ".",
+    // No `baseUrl` — deprecated in TS 6 and removed in 7. Since TS 4.1 `paths`
+    // resolves relative to this file's directory, so `@/*` still maps to
+    // apps/mobile/* with identical behaviour.
     "paths": {
       "@/*": ["./*"]
     },
