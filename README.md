@@ -62,6 +62,52 @@ pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Ex
 手機上的 `localhost` 指向手機自己。背景執行 Expo 時終端機不會印 QR，改在 Expo Go 手動輸入
 `exp://<LAN_IP>:8081`。
 
+## 🚀 完整流程速查（從改動到上線）
+
+> 忘記怎麼做的時候看這一節就好。`/` 開頭的是打給 Claude Code 的指令，其餘是終端機指令。
+
+### 情境 A：改 JS / UI / 邏輯 → OTA 熱更新（最常見，不用送審）
+
+```
+1.  /git:branch              從 main 開 feature 分支
+2.  （開發）                  完成後再 commit，不要逐檔 commit
+3.  /git:commit              產生 conventional commit
+4.  /create-pr               推分支 + 開 PR（base 自動是 develop）
+5.  （在 GitHub merge PR 進 develop）
+6.  git checkout develop && git pull
+7.  /git:changelog --ota     記錄這次改動到 CHANGELOG
+8.  「推 OTA」                Claude 會先確認版號不變、跑乾跑驗證，再 eas update
+9.  git checkout main && git merge develop && git push origin main
+```
+
+用戶重開 App 後幾分鐘內生效，設定頁的「更新於」會變成新時間。
+
+### 情境 B：動到原生 → 重新打包送審
+
+觸發條件：新增／移除原生套件、升級 Expo SDK、改 `app.json` 原生設定、換 icon 或 App 名稱。
+
+```
+1-6. 同情境 A
+7.   /git:changelog --release   開新的 ## X.Y 區段（這段文字等下要用）
+8.   「上架」                    Claude 會跟你確認版號（例：1.1 → 1.2）後
+                                改 app.json → eas build → eas submit
+9.   （到 App Store Connect）    新增版本 → 貼上第 7 步的 CHANGELOG 文字
+                                → 選 build → 送審（1–3 天）
+10.  git checkout main && git merge develop && git push origin main
+```
+
+### 不確定是 A 還是 B？
+
+直接說「**發版**」或「**推更新**」，`/mobile-release` 會看 diff 自動判斷並告訴你走哪條路。
+判斷錯誤的代價很高——把需要原生模組的 JS 用 OTA 推出去會讓 App 直接閃退——所以不確定時就問。
+
+### 日常開發
+
+```bash
+pnpm dev                              # 後端 API（手機透過 LAN IP 連）
+pnpm --filter @repo/mobile start -c   # Expo，Expo Go 輸入 exp://<LAN_IP>:8081
+```
+
 ## Mobile 發版
 
 版號**只在原生打包時 bump**，OTA 不動它 —— 詳見 [`/mobile-release`](.claude/skills/mobile-release/SKILL.md) skill。
@@ -97,8 +143,10 @@ grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # 要是 0
 `feature/*` → `develop` → `main`。Feature 分支一律從 `main` checkout。
 
 ```
-main ──► feature/*  ──/create-pr──►  develop  ──merge──►  main ──tag──► origin
+main ──► feature/*  ──/create-pr──►  develop  ──merge──►  main
 ```
+
+> 完整的指令順序見上面「[🚀 完整流程速查](#-完整流程速查從改動到上線)」。
 
 1. **`/git:branch`** — 從 staged diff 或對話自動建議分支名；也可附帶情境：`/git:branch 加上 hero 動畫`。從 `main` 開分支。
 2. **開發** — 整個 feature 完成前不要逐檔 commit。
