@@ -3,11 +3,10 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "references": [
-    { "path": "./packages/shared" },
-    { "path": "./packages/server" },
-    { "path": "./packages/client" }
-  ],
+  // Only `shared` is a composite project. `ui` ships .tsx source with no build
+  // step (so it is deliberately not composite), and `eslint-config` is plain JS
+  // with no tsconfig — neither can be a project reference.
+  "references": [{ "path": "./packages/shared" }],
   "include": [],
   "exclude": ["node_modules"]
 }

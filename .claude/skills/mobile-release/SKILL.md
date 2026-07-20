@@ -33,19 +33,85 @@ as Road B.
 
 ---
 
+## Step 0.5 — Version confirmation (MANDATORY, both roads)
+
+The app shows its version in Settings, so every release must leave that display
+correct. **Confirm the version with the user before publishing anything** — state
+the current value, the value after this release, and why.
+
+**The rule that makes this non-obvious:** `app.json` has
+`runtimeVersion.policy: "appVersion"`, so **runtimeVersion IS the `version`
+string**. An OTA is only delivered to binaries whose runtimeVersion matches
+exactly. Bumping `version` for an OTA therefore publishes an update that **no
+installed device can ever receive — silently, with no error**.
+
+| Road             | `app.json` `version` | What the user sees in Settings         |
+| ---------------- | -------------------- | -------------------------------------- |
+| A — OTA          | **Never touch it**   | Same version, new 「更新於」 timestamp |
+| B — native build | **Bump it**          | New version number                     |
+
+So the version display stays honest without manual bookkeeping on Road A:
+`app/(app)/settings.tsx` renders `Constants.expoConfig?.version` plus
+`Updates.createdAt` (when the running OTA bundle was published), which changes on
+every `eas update` by itself.
+
+Confirm like this before running the publish command:
+
+> Road A (OTA). Version stays **1.1** — bumping it would make the update
+> undeliverable to the 1.1 binaries users have installed. Settings will show
+> `版本 1.1` with 「更新於」 refreshed to now. Proceed?
+
+> Road B (native build). Version **1.1 → 1.2** (new feature). Settings will show
+> `版本 1.2`. This one goes through Apple review. Proceed?
+
+**Do not bump the build number.** EAS owns it (`autoIncrement` +
+`appVersionSource: "remote"`), so `app.json`'s `buildNumber` is permanently stale
+at `"1"` and must not be read or edited. Showing the real build number in-app
+would need `expo-application` — a native module, so it can only be added on a
+Road B release, never via OTA.
+
+If the user ever asks to bump the version on an OTA anyway, the only correct way
+is switching `runtimeVersion.policy` to `"fingerprint"` — which itself requires a
+Road B build first, and cuts existing users off from OTAs until they install it.
+Say so rather than quietly bumping.
+
+**No git tags, no `package.json` bump.** `apps/mobile/app.json` is the single
+source of truth for the version; root `package.json`'s `version` is scaffold
+residue and nothing consumes it. EAS records the commit hash for every build and
+update, which is why tagging was deliberately dropped.
+
+### Record it in CHANGELOG.md
+
+After the release, run **`/git:changelog`** on `develop`:
+
+- Road A → `/git:changelog --ota` (dated bullet under the current version)
+- Road B → `/git:changelog --release` (new `## X.Y` section)
+
+On Road B this matters twice over: that section's text **is** the App Store
+Connect 「此版本新增功能」 copy, so write it as user-visible behaviour rather than
+implementation detail.
+
+---
+
 ## Road A — OTA hot update (most small updates)
 
 For JS/UI/logic-only changes. No version bump, no App Store Connect, no review.
 
 ```bash
 cd apps/mobile
-eas update --branch production
+eas update --branch production --clear-cache --message "…"
 ```
 
-- Do NOT change `app.json` `version`.
+- Do **NOT** change `app.json` `version` (see Step 0.5) — but DO confirm it with
+  the user first.
 - Users get it on next app reopen (minutes).
 - Verify locally first in Expo Go (`pnpm --filter @repo/mobile start`) — but note
   Expo Go does not run RevenueCat/native store (see Gotchas).
+- **Dry-run what the OTA would ship before publishing** (catches wrong env vars):
+  ```bash
+  cd apps/mobile && NODE_ENV=production npx expo export --platform ios
+  grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # want 0
+  ```
 
 ---
 
@@ -122,6 +188,21 @@ Only Road B bumps the version. Road A (OTA) keeps the same version.
 
 ## Project-specific gotchas (from real incidents)
 
+- **`eas update` ignores `eas.json`'s `env` blocks** — those apply to `eas build`
+  only. It bundles at `NODE_ENV=production` and inlines whatever `EXPO_PUBLIC_*`
+  Expo's dotenv chain resolves. A 2026-07-09 OTA shipped the LAN dev URL to every
+  user ("Network request failed"). Fixed 2026-07-20 by committing
+  **`apps/mobile/.env.production`** (prod values), which outranks `.env` at
+  `NODE_ENV=production` while `.env` still serves local Expo Go dev. **Keep
+  `.env.production` in sync with `eas.json`'s `build.production.env`** — they feed
+  OTA and native builds respectively, and drift between them produces a working
+  OTA with a broken rebuild.
+- **Version display in Settings** — `app/(app)/settings.tsx` reads
+  `Constants.expoConfig?.version` + `Updates.createdAt`. Both come from
+  `expo-constants` / `expo-updates`, which are already in the binary, so this
+  ships fine over OTA. Do not reach for `expo-application` to get the build
+  number without a Road B rebuild.
+
 - **pnpm + Sentry native build:** the iOS "Bundle React Native code and images"
   phase does `require.resolve('@sentry/cli/package.json')` from `ios/`, which
   fails in this pnpm monorepo unless `@sentry/cli` is a **direct devDependency**
@@ -151,7 +232,9 @@ Only Road B bumps the version. Road A (OTA) keeps the same version.
 
 ```
 Change made
-  ├─ JS / UI / logic only ──────────► eas update --branch production   (Road A: no version, no review)
+  │  (always: confirm the version with the user first — Step 0.5)
+  ├─ JS / UI / logic only ──────────► eas update --branch production --clear-cache
+  │                                     (Road A: version UNCHANGED, no review)
   └─ touches native ────────────────► Road B:
         bump app.json version → git commit
         → eas build --profile production --platform ios
