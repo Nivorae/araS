@@ -75,6 +75,22 @@ is switching `runtimeVersion.policy` to `"fingerprint"` — which itself require
 Road B build first, and cuts existing users off from OTAs until they install it.
 Say so rather than quietly bumping.
 
+**No git tags, no `package.json` bump.** `apps/mobile/app.json` is the single
+source of truth for the version; root `package.json`'s `version` is scaffold
+residue and nothing consumes it. EAS records the commit hash for every build and
+update, which is why tagging was deliberately dropped.
+
+### Record it in CHANGELOG.md
+
+After the release, run **`/git:changelog`** on `develop`:
+
+- Road A → `/git:changelog --ota` (dated bullet under the current version)
+- Road B → `/git:changelog --release` (new `## X.Y` section)
+
+On Road B this matters twice over: that section's text **is** the App Store
+Connect 「此版本新增功能」 copy, so write it as user-visible behaviour rather than
+implementation detail.
+
 ---
 
 ## Road A — OTA hot update (most small updates)
