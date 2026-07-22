@@ -7,6 +7,7 @@ import type {
   Transaction,
   PortfolioItem,
   Recurrence,
+  Insurance,
   CreateEntry,
   UpdateEntry,
   CreateTransaction,
@@ -14,6 +15,8 @@ import type {
   UpdatePortfolioItem,
   CreateRecurrence,
   UpdateRecurrence,
+  CreateInsurance,
+  UpdateInsurance,
 } from "@repo/shared";
 
 export function useFinanceActions() {
@@ -190,6 +193,35 @@ export function useFinanceActions() {
     [api]
   );
 
+  const addInsurance = useCallback(
+    async (data: CreateInsurance) => api.post<Insurance>("/api/insurances", data),
+    [api]
+  );
+
+  const updateInsurance = useCallback(
+    async (id: string, data: UpdateInsurance) =>
+      api.patch<Insurance>(`/api/insurances/${id}`, data),
+    [api]
+  );
+
+  const deleteInsurance = useCallback(
+    async (id: string) => {
+      await api.delete(`/api/insurances/${id}`);
+    },
+    [api]
+  );
+
+  const fetchInsurance = useCallback(
+    async (id: string): Promise<Insurance | null> => {
+      try {
+        return await api.get<Insurance>(`/api/insurances/${id}`);
+      } catch {
+        return null;
+      }
+    },
+    [api]
+  );
+
   return {
     fetchAll,
     fetchEntryHistory,
@@ -204,5 +236,9 @@ export function useFinanceActions() {
     addRecurrence,
     updateRecurrence,
     deleteRecurrence,
+    addInsurance,
+    updateInsurance,
+    deleteInsurance,
+    fetchInsurance,
   };
 }
