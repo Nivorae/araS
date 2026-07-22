@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  INSURANCE_TYPES,
+  INSURANCE_COVERAGE_OPTIONS,
+  MAX_COVERAGE_ITEMS,
+  type InsuranceType,
+} from "../constants/insurance";
 
 // EntryHistory
 export const EntryHistorySchema = z.object({
@@ -214,3 +220,82 @@ export const ValueSnapshotSchema = z.object({
   totalLiabilities: z.number(),
 });
 export type ValueSnapshot = z.infer<typeof ValueSnapshotSchema>;
+
+// Insurance
+export const InsuranceTypeSchema = z.enum([...INSURANCE_TYPES] as [string, ...string[]]);
+
+export const CoverageItemSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  value: z.number(),
+});
+export type CoverageItem = z.infer<typeof CoverageItemSchema>;
+
+const coverageArray = z
+  .array(CoverageItemSchema)
+  .max(MAX_COVERAGE_ITEMS, `最多 ${MAX_COVERAGE_ITEMS} 項保障`)
+  .optional();
+
+// Cross-field rule: for the six structured types, every coverage key must be a
+// known option for that type. OTHER is free-form (any key allowed).
+function validCoverageKeys(type: InsuranceType, coverage: CoverageItem[] | undefined): boolean {
+  if (!coverage || coverage.length === 0 || type === "OTHER") return true;
+  const allowed = new Set(INSURANCE_COVERAGE_OPTIONS[type].map((o) => o.key));
+  return coverage.every((c) => allowed.has(c.key));
+}
+
+export const CreateInsuranceSchema = z
+  .object({
+    insurer: z.string().min(1, "保險公司為必填"),
+    insuredName: z.string().min(1, "被保人為必填"),
+    insuranceType: InsuranceTypeSchema,
+    policyName: z.string().optional(),
+    policyNumber: z.string().optional(),
+    startDate: z.string().optional(),
+    paymentTermYears: z.number().int().positive().optional(),
+    coveragePeriod: z.string().optional(),
+    annualPremium: z.number().nonnegative().optional(),
+    coverage: coverageArray,
+  })
+  .superRefine((data, ctx) => {
+    if (!validCoverageKeys(data.insuranceType, data.coverage)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coverage"],
+        message: "保障細項不屬於此險種",
+      });
+    }
+  });
+export type CreateInsurance = z.infer<typeof CreateInsuranceSchema>;
+
+export const UpdateInsuranceSchema = z.object({
+  insurer: z.string().min(1).optional(),
+  insuredName: z.string().min(1).optional(),
+  insuranceType: InsuranceTypeSchema.optional(),
+  policyName: z.string().nullable().optional(),
+  policyNumber: z.string().nullable().optional(),
+  startDate: z.string().nullable().optional(),
+  paymentTermYears: z.number().int().positive().nullable().optional(),
+  coveragePeriod: z.string().nullable().optional(),
+  annualPremium: z.number().nonnegative().nullable().optional(),
+  coverage: coverageArray,
+});
+export type UpdateInsurance = z.infer<typeof UpdateInsuranceSchema>;
+
+export const InsuranceSchema = z.object({
+  id: z.string(),
+  entryId: z.string(),
+  insurer: z.string(),
+  insuredName: z.string(),
+  insuranceType: InsuranceTypeSchema,
+  policyName: z.string().nullable(),
+  policyNumber: z.string().nullable(),
+  startDate: z.string().nullable(),
+  paymentTermYears: z.number().nullable(),
+  coveragePeriod: z.string().nullable(),
+  annualPremium: z.number().nullable(),
+  coverage: z.array(CoverageItemSchema),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Insurance = z.infer<typeof InsuranceSchema>;
