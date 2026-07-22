@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,11 +13,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Calendar, Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import { BankLogo } from "./BankLogo";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useFinanceStore } from "@/store/financeStore";
-import { useApi } from "@/lib/api";
+import { useApi, ApiError } from "@/lib/api";
 import { getNodeIcon } from "@/lib/categoryConfig";
 import {
   INVESTMENT_CATS,
@@ -125,6 +127,7 @@ export function EntryForm({
   const api = useApi();
   const apiRef = useRef(api);
   apiRef.current = api;
+  const router = useRouter();
 
   // ── Mode flags ───────────────────────────────────────────────────────────────
   const isInvestment =
@@ -398,6 +401,17 @@ export function EntryForm({
       }
       onSaved();
     } catch (e) {
+      if (e instanceof ApiError && e.code === "ENTRY_LIMIT_REACHED") {
+        Alert.alert(
+          "你的資產版圖越來越豐富了",
+          "身為重度用戶，你值得更大的空間。免費版可記 20 筆，升級 Premium 解鎖無上限，輕鬆管理。",
+          [
+            { text: "稍後再決定", style: "cancel" },
+            { text: "解鎖無上限", onPress: () => router.push("/paywall") },
+          ]
+        );
+        return;
+      }
       setError(e instanceof Error ? e.message : "儲存失敗，請重試");
     } finally {
       setSubmitting(false);
