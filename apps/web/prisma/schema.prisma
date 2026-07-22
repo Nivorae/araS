@@ -58,6 +58,16 @@ enum RecurrenceFreq {
   YEARLY
 }
 
+enum InsuranceType {
+  LIFE
+  MEDICAL
+  CANCER
+  ACCIDENT
+  SAVINGS_INVESTMENT
+  LONGTERM_CARE
+  OTHER
+}
+
 model EntryHistory {
   id        String   @id @default(cuid())
   entryId   String
@@ -101,25 +111,28 @@ model PortfolioItem {
 }
 
 model Insurance {
-  id                     String    @id @default(cuid())
-  entryId                String    @unique
-  entry                  Entry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  currency               String    @default("USD")
-  declaredRate           Decimal   @default(0)
-  premiumTotal           Decimal?
-  currentAge             Int       @default(0)
-  startDate              DateTime
-  cashValueData          Json      @default("[]")
-  insurer                String?
-  policyNumber           String?
-  sumInsured             Decimal   @default(0)
-  surrenderValue         Decimal   @default(0)
-  accumulatedBonus       Decimal   @default(0)
-  accumulatedSumIncrease Decimal   @default(0)
-  isPeriodicPayout       Boolean   @default(true)
-  lastUpdatedAt          DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  id             String        @id @default(cuid())
+  entryId        String        @unique
+  entry          Entry         @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  // 核心必填
+  insurer        String
+  insuredName    String
+  insuranceType  InsuranceType
+
+  // 核心選填（null = 不確定）
+  policyName       String?
+  policyNumber     String?
+  startDate        DateTime?
+  paymentTermYears Int?
+  coveragePeriod   String?
+  annualPremium    Decimal?
+
+  // 保障細項（最多 3）：[{ key, label, value }]
+  coverage       Json          @default("[]")
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 model Recurrence {
