@@ -222,7 +222,9 @@ export const ValueSnapshotSchema = z.object({
 export type ValueSnapshot = z.infer<typeof ValueSnapshotSchema>;
 
 // Insurance
-export const InsuranceTypeSchema = z.enum([...INSURANCE_TYPES] as [string, ...string[]]);
+export const InsuranceTypeSchema = z.enum(
+  INSURANCE_TYPES as unknown as [InsuranceType, ...InsuranceType[]]
+);
 
 export const CoverageItemSchema = z.object({
   key: z.string().min(1),

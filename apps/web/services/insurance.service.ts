@@ -73,7 +73,7 @@ export class InsuranceService {
         },
       });
 
-      return { entryId: entry.id, ...serializeInsurance(insurance) };
+      return serializeInsurance(insurance);
     });
   }
 
