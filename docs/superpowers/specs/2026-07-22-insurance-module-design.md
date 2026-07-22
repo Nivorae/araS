@@ -1,0 +1,154 @@
+# 保險模組設計
+
+**日期**：2026-07-22
+**範圍**：保險險種、欄位模型、保障清單、schema 調整、新增流程、詳情頁呈現
+**狀態**：設計定案，待實作
+**關聯**：付費分層見 `2026-07-20-premium-tier-design.md`（保險屬 Premium、決策五）
+
+---
+
+## 定位
+
+保險是 araS 的一個**純呈現分類**，目的是「統計你有哪些保單」，不做專業精算分析（市面保險公司 App 那種深度不是目標）。
+
+三個定案原則：
+
+1. **不計入淨資產**。保險不是資產也不是負債。技術上以 `Entry.includeInChart = false` 讓保險 entry 自動不進淨值圖表與總資產。
+2. **走既有新增流程**。透過 `+` → `entry/new` 新增，不進 nav。`entry/new` 由 `categoryConfig` 驅動，加一個「保險」top category 即可。
+3. **顯示於 entry 列表**。保險用新主題色卡片顯示，點開卡片列出每筆保單，點進去是獨立的保單詳情頁。
+
+現況：`Insurance` model 已存在但**無任何 UI、資料庫 0 筆**（2026-07-22 確認），因此本次可完全重設計欄位，migration 零風險。
+
+---
+
+## 欄位模型
+
+### A. 核心欄位（全部匯入資料庫）
+
+| 欄位     | 必填 | 型態                         | 空白時                |
+| -------- | ---- | ---------------------------- | --------------------- |
+| 保險公司 | ✅   | 文字                         | 擋下，不可送出        |
+| 被保人   | ✅   | select（自己／家人，可自訂） | 擋下，不可送出        |
+| 險種     | ✅   | select（六選一，見下）       | 擋下，不可送出        |
+| 保單名稱 |      | 文字                         | null → 顯示「不確定」 |
+| 保單號碼 |      | 文字                         | null → 顯示「不確定」 |
+| 投保日期 |      | 日期                         | null → 顯示「不確定」 |
+| 繳費年期 |      | 數字（年）                   | null → 顯示「不確定」 |
+| 保障期間 |      | 終身／定期到 X 歲            | null → 顯示「不確定」 |
+| 年繳保費 |      | 數字                         | null → 顯示「不確定」 |
+
+**必填規則**：只有 `保險公司 / 被保人 / 險種` 三個硬性必填（空白擋下送出），保住紀錄最低識別度。其餘欄位留白即存 null，前端一律顯示「不確定」——不需要獨立的「不確定」按鈕，留白就是不確定。
+
+### B. 保障欄位（隨險種變）
+
+- 選定險種後，B 區**預設帶出該險種的建議保障細項**（見下方六份清單）。
+- 使用者可**增減**，非必填。
+- 每個保障細項用 **select 從該險種清單挑選**，**最多 3 個**，每個填一個數值。
+- 有填就寫入資料庫；沒填不寫。
+
+---
+
+## 六種險種與保障清單
+
+險種為必填的單選。每種險種對應一份保障細項清單（供 select，最多選 3 項）。
+
+| 險種        | enum                 | 保障細項清單（選最多 3）                                                            |
+| ----------- | -------------------- | ----------------------------------------------------------------------------------- |
+| 壽險        | `LIFE`               | 身故/全殘保額、完全失能保險金、祝壽保險金、豁免保費                                 |
+| 醫療險      | `MEDICAL`            | 住院日額、實支實付上限、手術費用限額、門診手術金、加護病房日額、出院療養金          |
+| 癌症險      | `CANCER`             | 初次罹癌保險金、癌症住院日額、化療/放療給付、癌症手術保險金、癌症身故保險金         |
+| 意外險      | `ACCIDENT`           | 意外身故/失能保額、意外實支實付上限、意外住院日額、骨折未住院給付、重大燒燙傷保險金 |
+| 儲蓄/投資型 | `SAVINGS_INVESTMENT` | 保額、宣告利率、目前保價金、解約金、累積增值回饋金                                  |
+| 長照/失能   | `LONGTERM_CARE`      | 每月給付金、一次性給付金、失能扶助金、豁免保費、身故退還保費                        |
+
+---
+
+## Schema 調整
+
+現有 `Insurance` model 的欄位是為儲蓄/投資型設計的（`declaredRate`、`cashValueData`、`surrenderValue`、`accumulatedBonus` 等），無法涵蓋六種險種。因資料庫 0 筆，直接重設計。
+
+### 新 `Insurance` model（方向）
+
+```prisma
+enum InsuranceType {
+  LIFE
+  MEDICAL
+  CANCER
+  ACCIDENT
+  SAVINGS_INVESTMENT
+  LONGTERM_CARE
+}
+
+model Insurance {
+  id             String        @id @default(cuid())
+  entryId        String        @unique
+  entry          Entry         @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  // 核心必填
+  insurer        String                        // 保險公司
+  insuredName    String                        // 被保人
+  insuranceType  InsuranceType                 // 險種
+
+  // 核心選填（null = 不確定）
+  policyName     String?
+  policyNumber   String?
+  startDate      DateTime?                     // 投保日期
+  paymentTermYears Int?                        // 繳費年期
+  coveragePeriod String?                       // 保障期間：終身 / 定期到 X 歲
+  annualPremium  Decimal?                      // 年繳保費
+
+  // 保障細項（最多 3）：[{ key, label, value }]
+  coverage       Json          @default("[]")
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+```
+
+**設計說明**
+
+- `null` 統一代表「不確定」，前端據此顯示；不另設 flag 欄位。
+- `coverage` 用 JSON array 存最多 3 筆 `{ key, label, value }`，因為保障細項是「每險種一份清單、選填、可增減」，用固定欄位會膨脹成幾十個 nullable column。
+- 舊的儲蓄型專屬欄位（`declaredRate`、`cashValueData`、`sumInsured`、`surrenderValue`、`accumulatedBonus`、`accumulatedSumIncrease`、`currentAge`、`isPeriodicPayout`、`currency`、`premiumTotal`、`lastUpdatedAt`）移除；儲蓄/投資型的保價金、宣告利率改由 `coverage` JSON 承載。
+
+### Zod schema（@repo/shared）
+
+- 新增 `InsuranceType` enum 與保單建立/更新 schema。
+- `coverage` 驗證：array 長度 ≤ 3，每項 `{ key, label, value }`，`key` 須屬於該險種的合法清單。
+- 三個必填欄位在 schema 層強制。
+
+---
+
+## 新增流程
+
+1. `+` → `entry/new`：`categoryConfig` 新增「保險」top category（新主題色，標記為不計入淨值）。
+2. 選「保險」→ 進保單表單（**新表單，非沿用一般 entry 表單**，因欄位差異大）。
+3. 表單先選**險種**（必填），B 區保障細項清單隨之切換。
+4. 送出：建立 `Entry`（`includeInChart = false`）+ 關聯 `Insurance`。
+
+### 兩端都要改（monorepo）
+
+- `apps/mobile/lib/categoryConfig.ts` **和** `apps/web/components/finance/categoryConfig.ts` 各加一份「保險」category。
+- 保單表單頁：mobile 與 web 各一。
+- 保單詳情頁：mobile 與 web 各一。
+
+---
+
+## 詳情頁呈現
+
+點保險卡片 → 列出該分類下每張保單 → 點單張 → 獨立詳情頁：
+
+- **上半**：保險公司、被保人、險種、保單名稱/號碼；null 欄位顯示「不確定」。
+- **保障區**：列出 coverage 的 1～3 個細項與數值（如「住院日額 $2,000」）。
+- **保費/期間區**：年繳保費、繳費年期、保障期間、投保日期；null 顯示「不確定」。
+- 編輯/刪除入口。
+
+呈現要比照 web 既有卡片風格（glass morphism、同色系），mobile 需先讀 web 版對齊。
+
+---
+
+## 待解問題
+
+1. **保險卡片顯示的「金額」**：保險 entry 的 `Entry.value` 該放什麼？選項：(a) 0、(b) 年繳保費加總、(c) 不顯示金額只顯示保單張數。因 `includeInChart = false` 不影響淨值，但卡片仍需決定顯示內容。**待確認。**
+2. **被保人的「家人」清單**：是自由文字，還是預先定義的家庭成員清單（未來可跨保單統計「某成員的總保障」）？**待確認。**
+3. **淨值預測的交叉影響**：付費 spec 決策七的淨值預測原本引用 `Insurance.declaredRate` / `cashValueData`。這些欄位移除後，儲蓄/投資型的保價金改存於 `coverage` JSON；淨值預測（第二階段）屆時需改從 JSON 取值，或重新評估是否納入保單現金價值。**留待淨值預測 spec 處理，本階段不阻塞。**
