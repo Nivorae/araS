@@ -2,18 +2,18 @@ import { useEffect, useState } from "react";
 import { useApi } from "@/lib/api";
 
 // Source of truth is the backend (EntitlementsService), not RevenueCat's
-// client-side CustomerInfo — the client can't be trusted to self-report
-// premium status. Currently always resolves to true (v1 is fully free; no
-// feature is actually locked yet).
+// client-side CustomerInfo — the client can't self-report premium status.
+// Defaults to false and fails closed: an unverified client is treated as free,
+// matching the authoritative server-side enforcement.
 export function useIsPremium(): boolean {
   const api = useApi();
-  const [isPremium, setIsPremium] = useState(true);
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     api
       .get<{ isPremium: boolean }>("/api/entitlements")
       .then((data) => setIsPremium(data.isPremium))
-      .catch(() => setIsPremium(true));
+      .catch(() => setIsPremium(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
