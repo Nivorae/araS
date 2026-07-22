@@ -1,0 +1,119 @@
+import type { Prisma } from "@prisma/client";
+import type { CreateInsurance, UpdateInsurance } from "@repo/shared";
+import { prisma } from "@/lib/prisma";
+import { dn } from "@/lib/serialize";
+import { entitlementsService } from "@/services/entitlements.service";
+
+// Thrown when a non-premium user attempts an insurance write. The route maps
+// this to a 403 PREMIUM_REQUIRED envelope so the client can open the paywall.
+export class PremiumRequiredError extends Error {
+  constructor() {
+    super("Premium subscription required");
+    this.name = "PremiumRequiredError";
+  }
+}
+
+function serializeInsurance(ins: {
+  id: string;
+  entryId: string;
+  insurer: string;
+  insuredName: string;
+  insuranceType: string;
+  policyName: string | null;
+  policyNumber: string | null;
+  startDate: Date | null;
+  paymentTermYears: number | null;
+  coveragePeriod: string | null;
+  annualPremium: Prisma.Decimal | null;
+  coverage: Prisma.JsonValue;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    ...ins,
+    startDate: ins.startDate ? ins.startDate.toISOString() : null,
+    annualPremium: dn(ins.annualPremium),
+    coverage: (ins.coverage as unknown) ?? [],
+  };
+}
+
+export class InsuranceService {
+  async create(data: CreateInsurance, userId: string) {
+    if (!(await entitlementsService.isPremium(userId))) throw new PremiumRequiredError();
+
+    return prisma.$transaction(async (tx) => {
+      const entry = await tx.entry.create({
+        data: {
+          userId,
+          name: data.policyName?.trim() || data.insurer,
+          topCategory: "保險",
+          subCategory: data.insuranceType,
+          value: 0,
+          includeInChart: false,
+        },
+      });
+
+      await tx.entryHistory.create({
+        data: { entryId: entry.id, delta: 0, balance: 0 },
+      });
+
+      const insurance = await tx.insurance.create({
+        data: {
+          entryId: entry.id,
+          insurer: data.insurer,
+          insuredName: data.insuredName,
+          insuranceType: data.insuranceType,
+          policyName: data.policyName ?? null,
+          policyNumber: data.policyNumber ?? null,
+          startDate: data.startDate ? new Date(data.startDate) : null,
+          paymentTermYears: data.paymentTermYears ?? null,
+          coveragePeriod: data.coveragePeriod ?? null,
+          annualPremium: data.annualPremium ?? null,
+          coverage: (data.coverage ?? []) as Prisma.InputJsonValue,
+        },
+      });
+
+      return { entryId: entry.id, ...serializeInsurance(insurance) };
+    });
+  }
+
+  async findById(id: string, userId: string) {
+    const insurance = await prisma.insurance.findFirst({
+      where: { id, entry: { userId } },
+    });
+    return insurance ? serializeInsurance(insurance) : null;
+  }
+
+  async update(id: string, data: UpdateInsurance, userId: string) {
+    const existing = await prisma.insurance.findFirst({ where: { id, entry: { userId } } });
+    if (!existing) return null;
+
+    const updated = await prisma.insurance.update({
+      where: { id },
+      data: {
+        ...(data.insurer !== undefined && { insurer: data.insurer }),
+        ...(data.insuredName !== undefined && { insuredName: data.insuredName }),
+        ...(data.insuranceType !== undefined && { insuranceType: data.insuranceType }),
+        ...(data.policyName !== undefined && { policyName: data.policyName }),
+        ...(data.policyNumber !== undefined && { policyNumber: data.policyNumber }),
+        ...(data.startDate !== undefined && {
+          startDate: data.startDate ? new Date(data.startDate) : null,
+        }),
+        ...(data.paymentTermYears !== undefined && { paymentTermYears: data.paymentTermYears }),
+        ...(data.coveragePeriod !== undefined && { coveragePeriod: data.coveragePeriod }),
+        ...(data.annualPremium !== undefined && { annualPremium: data.annualPremium }),
+        ...(data.coverage !== undefined && {
+          coverage: (data.coverage ?? []) as Prisma.InputJsonValue,
+        }),
+      },
+    });
+    return serializeInsurance(updated);
+  }
+
+  async deleteByEntryId(entryId: string, userId: string) {
+    // Cascade on Entry→Insurance removes the insurance row.
+    return prisma.entry.deleteMany({ where: { id: entryId, userId } });
+  }
+}
+
+export const insuranceService = new InsuranceService();
