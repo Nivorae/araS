@@ -51,12 +51,17 @@ export class EntriesService {
     const entries = await prisma.entry.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      include: { loan: true, history: { select: { units: true } } },
+      include: {
+        loan: true,
+        history: { select: { units: true } },
+        insurance: { select: { insuranceType: true, insurer: true, insuredName: true } },
+      },
     });
-    return entries.map(({ history, loan, ...e }) => ({
+    return entries.map(({ history, loan, insurance, ...e }) => ({
       ...e,
       value: d(e.value),
       loan: loan ? serializeLoan(loan) : null,
+      insurance: insurance ?? null,
       units: history.some((h) => h.units != null)
         ? history.reduce((s, h) => s + (h.units ? d(h.units) : 0), 0)
         : null,

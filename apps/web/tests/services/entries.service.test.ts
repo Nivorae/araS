@@ -55,6 +55,42 @@ describe("EntriesService.list", () => {
       expect.objectContaining({ where: { userId: USER_ID } })
     );
   });
+
+  it("includes an insurance summary on the listed entries", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      {
+        id: "e1",
+        userId: USER_ID,
+        name: "醫療險",
+        topCategory: "保險",
+        subCategory: "MEDICAL",
+        stockCode: null,
+        bankCode: null,
+        note: null,
+        value: 0,
+        includeInChart: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        loan: null,
+        history: [],
+        insurance: { insuranceType: "MEDICAL", insurer: "國泰人壽", insuredName: "本人" },
+      },
+    ] as never);
+    const entries = await entriesService.list(USER_ID);
+    const entry = entries[0]!;
+    expect(entry.insurance).toEqual({
+      insuranceType: "MEDICAL",
+      insurer: "國泰人壽",
+      insuredName: "本人",
+    });
+    expect(prisma.entry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          insurance: { select: { insuranceType: true, insurer: true, insuredName: true } },
+        }),
+      })
+    );
+  });
 });
 
 describe("EntriesService.findById", () => {
