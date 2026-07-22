@@ -54,7 +54,7 @@ export class EntriesService {
       include: {
         loan: true,
         history: { select: { units: true } },
-        insurance: { select: { insuranceType: true, insurer: true, insuredName: true } },
+        insurance: { select: { id: true, insuranceType: true, insurer: true, insuredName: true } },
       },
     });
     return entries.map(({ history, loan, insurance, ...e }) => ({

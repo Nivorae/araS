@@ -73,6 +73,7 @@ export const InsuranceTypeSchema = z.enum(
 );
 
 export const InsuranceSummarySchema = z.object({
+  id: z.string(),
   insuranceType: InsuranceTypeSchema,
   insurer: z.string(),
   insuredName: z.string(),

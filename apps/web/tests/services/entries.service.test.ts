@@ -73,12 +73,18 @@ describe("EntriesService.list", () => {
         updatedAt: new Date(),
         loan: null,
         history: [],
-        insurance: { insuranceType: "MEDICAL", insurer: "國泰人壽", insuredName: "本人" },
+        insurance: {
+          id: "ins1",
+          insuranceType: "MEDICAL",
+          insurer: "國泰人壽",
+          insuredName: "本人",
+        },
       },
     ] as never);
     const entries = await entriesService.list(USER_ID);
     const entry = entries[0]!;
     expect(entry.insurance).toEqual({
+      id: "ins1",
       insuranceType: "MEDICAL",
       insurer: "國泰人壽",
       insuredName: "本人",
@@ -86,7 +92,9 @@ describe("EntriesService.list", () => {
     expect(prisma.entry.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         include: expect.objectContaining({
-          insurance: { select: { insuranceType: true, insurer: true, insuredName: true } },
+          insurance: {
+            select: { id: true, insuranceType: true, insurer: true, insuredName: true },
+          },
         }),
       })
     );
