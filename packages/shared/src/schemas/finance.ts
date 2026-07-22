@@ -66,6 +66,19 @@ export const UpdateLoanSchema = z.object({
 });
 export type UpdateLoan = z.infer<typeof UpdateLoanSchema>;
 
+// Insurance summary — subset returned inline on Entry (EntriesService.list()'s
+// `select`), NOT the full Insurance record used on the detail page.
+export const InsuranceTypeSchema = z.enum(
+  INSURANCE_TYPES as unknown as [InsuranceType, ...InsuranceType[]]
+);
+
+export const InsuranceSummarySchema = z.object({
+  insuranceType: InsuranceTypeSchema,
+  insurer: z.string(),
+  insuredName: z.string(),
+});
+export type InsuranceSummary = z.infer<typeof InsuranceSummarySchema>;
+
 // Entry (unified asset + liability)
 export const EntrySchema = z.object({
   id: z.string(),
@@ -81,6 +94,7 @@ export const EntrySchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   loan: LoanSchema.nullable().optional(),
+  insurance: InsuranceSummarySchema.nullable().optional(),
 });
 export type Entry = z.infer<typeof EntrySchema>;
 
@@ -222,10 +236,6 @@ export const ValueSnapshotSchema = z.object({
 export type ValueSnapshot = z.infer<typeof ValueSnapshotSchema>;
 
 // Insurance
-export const InsuranceTypeSchema = z.enum(
-  INSURANCE_TYPES as unknown as [InsuranceType, ...InsuranceType[]]
-);
-
 export const CoverageItemSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
