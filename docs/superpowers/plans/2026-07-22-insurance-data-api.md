@@ -4,7 +4,7 @@
 
 **Goal:** Build the backend foundation for the insurance module — redesigned `Insurance` model, shared constants (insurer list + per-type coverage options), Zod schemas, a premium-gated `InsuranceService` (CRUD), and REST routes — so the mobile/web UI plans can consume a stable API.
 
-**Architecture:** Insurance mirrors `Loan` structurally (a 1:1 extension of `Entry` via `entryId @unique`). `InsuranceService.create` runs a single `$transaction` that creates the backing `Entry` (`topCategory="保險"`, `includeInChart=false`, `value=0` — insurance never counts toward net worth), its opening `EntryHistory`, and the `Insurance` row. Creation is gated on `entitlementsService.isPremium` (insurance is a Premium feature). Routes follow the existing `/api/loans` + `/api/loans/[id]` shape.
+**Architecture:** Insurance is a **fully independent module** — its own model, service, routes, and top-level category. It does **not** live inside loans or the `負債` category, shares no code with `LoansService`, and imports nothing from it. It is a standalone 1:1 extension of `Entry` (via `entryId @unique`) — the same generic pattern several entities use, not a coupling to loans. `InsuranceService.create` runs a single `$transaction` that creates the backing `Entry` (`topCategory="保險"`, `includeInChart=false`, `value=0` — insurance never counts toward net worth), its opening `EntryHistory`, and the `Insurance` row. Creation is gated on `entitlementsService.isPremium` (insurance is a Premium feature). Routes live under their own `/api/insurances` namespace, separate from `/api/loans`.
 
 **Tech Stack:** Prisma 6 (Postgres), Zod (`@repo/shared`), Next.js 15 Route Handlers, Clerk, Vitest (service tests mock `@/lib/prisma`).
 
@@ -1021,7 +1021,7 @@ git commit -m "feat: include insurance summary in entry list"
 - Zod: 3 required fields, `coverage` ≤ 3, per-type key membership, `OTHER` free-form → Task 3. ✅
 - Insurance entry: `topCategory=保險`, `includeInChart=false`, `value=0` (不計入淨值) → Task 4 (test asserts it). ✅
 - Premium-only creation, server-enforced → Task 4 (`PremiumRequiredError`) + Task 5 (403 `PREMIUM_REQUIRED`). ✅
-- CRUD + owner-scoped routes mirroring loans → Tasks 4–5. ✅
+- CRUD + owner-scoped routes under an independent `/api/insurances` namespace → Tasks 4–5. ✅
 - Entry list surfaces insurance so the UI can render the 保險 card → Task 6. ✅
 - **Out of scope (separate plans):** the insurer `<select>` UI, the policy form, the detail page, and the `categoryConfig` 保險 category on web + mobile. Those are the Insurance **UI plans** (mobile, then web), which consume these endpoints. The card "共 N 張保單" display and `Entry.value=0` presentation are satisfied at the data layer here; their rendering is a UI-plan concern.
 
