@@ -106,17 +106,20 @@ const QUOTE_CACHE_SECONDS = 30; // Next.js Data Cache，跨 serverless 實例共
 
 **保留風險**：Yahoo API 為非官方、無 SLA，若未來遭 rate limit 或封鎖，需重新評估（屆時應考慮加長快取或改付費資料源，而非改為向用戶收費）。
 
-### 決策五：保單管理不進 nav，做在資產頁內
+### 決策五：保險為「純呈現、不計入淨值」的分類，欄位設計另開獨立 spec
 
-`Insurance` model 已存在於 schema，但**全 codebase 無任何 UI**（僅 `landing-content.tsx` 行銷文案提及）。屬於未實作功能。
+`Insurance` model 已存在於 schema，但**全 codebase 無任何 UI**（僅 `landing-content.tsx` 行銷文案提及）。且現有欄位（`declaredRate`、`cashValueData`、`surrenderValue`…）是針對**儲蓄／投資型保單**設計的，無法涵蓋醫療、癌症、意外等其他險種。
 
-實作時應比照 `Loan`：
+定案的產品定位：
 
-- `Insurance` 與 `Loan` 同為 `Entry` 的 1:1 延伸（`entryId @unique`）
-- `Loan` 沒有獨立 nav 分頁，是資產頁內的一種 entry 類型
-- 保單應完全比照：`topCategory = 保險` 時展開保單專屬欄位
+- 保險**不計入淨資產**。它不是資產也不是負債，而是「統計你有哪些保單」的呈現，不做專業精算分析。
+- 透過既有的 `+` → `entry/new` 流程新增（`entry/new` 由 `categoryConfig.ts` 的 `CATEGORIES` 驅動，加一個「保險」top category 即可），新增體驗與其他分類一致。
+- 技術上以 `Entry.includeInChart = false` 讓保險 entry 自動不進淨值圖表與總資產。
+- 保險卡片顯示在 entry 列表（新主題色），點開卡片列出每筆保單，點進去是**獨立的保單詳情頁**。
 
-**不新增 nav 分頁**，因為 `BottomNav.tsx` 是四格浮動玻璃膠囊（`資產 / 收支 / 退休金 / ＋ / 設定`），加第五格會破壞版面。更重要的是，做在 Entry 內可自動獲得淨值計算、歷史軌跡、圖表整合；做成獨立 tab 則全部要重寫。
+**不新增 nav 分頁**——`BottomNav.tsx` 是四格浮動玻璃膠囊（`資產 / 收支 / 退休金 / ＋ / 設定`），加第五格會破壞版面；且走 `entry/new` 已能滿足新增需求。
+
+**險種與欄位設計、詳情頁呈現，另開獨立 spec 處理**（涉及醫療／癌症／投資型／意外等多種險種，各自欄位不同，需專門 brainstorm）。本文件僅定義它的分層歸屬（Premium）與「不計入淨值」的定位。
 
 ### 決策六：退休試算維持免費
 
@@ -200,8 +203,47 @@ const QUOTE_CACHE_SECONDS = 30; // Next.js Data Cache，跨 serverless 實例共
 
 ---
 
+## 付費牆文案（定案）
+
+用於新增第 21 筆資產時的升級提示。選用原則：肯定使用者是重度用戶，避免「已達上限」的懲罰語氣（尤其那位 22 筆的既有用戶會第一個看到）。
+
+- **標題**：你的資產版圖越來越豐富了
+- **內文**：身為重度用戶，你值得更大的空間。免費版可記 20 筆，升級 Premium 解鎖無上限，輕鬆管理。
+- **主按鈕**：解鎖無上限
+- **次按鈕**：稍後再決定
+
+---
+
+## 訂閱設定需求（實作前置，僅 iOS）
+
+**平台範圍**：僅 iOS IAP（透過 RevenueCat）。**不做 web 端訂閱**——web 目前確定不使用。
+
+### App Store Connect
+
+- **訂閱群組（Subscription Group）**：月繳／年繳放同一群組，Apple 自動處理升降級與退款差額，同群組內單一用戶僅一個生效訂閱。
+- **產品**：設 Reference Name 與全域唯一 Product ID（如 `com.app.pro.monthly`），完成在地化名稱與描述。
+- **首購／試用（Introductory Offer）**：Free Trial／Pay As You Go／Pay Up Front，同群組單一 Apple ID 預設限用一次。
+- **定價**：只能選 Apple 固定價格點（Price Tiers），不可任意填數字；定價須與價值相稱，否則以欺詐性定價退件。台灣售價為含稅價。
+- **抽成**：標準 30%；連續訂閱滿一年或加入小型企業方案降為 15%。
+
+### RevenueCat 對應架構
+
+程式端只驗證 Entitlement：
+
+```
+App Store Product ID → RevenueCat Package（週期）
+  → RevenueCat Offering（Paywall 方案組合）
+    → RevenueCat Entitlement（功能權限識別碼，如 pro_access）
+```
+
+### 送審必備
+
+- **綁版本送審**：首個訂閱產品必須與一次 App 版本更新合併提交（Version 頁勾選加入），不可單獨送審。
+- **審核附件**：上傳 Paywall 完整截圖；審核備註提供沙盒測試帳號與購買路徑。
+- **Paywall 規範**：須明確標示訂閱名稱、價格、計費週期，並附「隱私權政策」與「使用條款（EULA）」可點連結。
+
+---
+
 ## 待解問題
 
-- **訂閱價格與方案**（月繳／年繳／買斷）尚未決定，需在 RevenueCat 與 App Store Connect 設定前確定。
-- **Web 端付費路徑**：目前僅 iOS IAP。Web 用戶如何訂閱（或是否僅能在 App 內訂閱）需決定。
-- **超額用戶的提示文案**：那位 22 筆的用戶會是第一個看到升級提示的人，文案需特別斟酌。
+- **訂閱價格與方案**（月繳／年繳、是否含免費試用）尚未決定——需先在 Apple 價格點中挑定，再回推實拿金額。這是 RevenueCat／ASC 設定的前置。
