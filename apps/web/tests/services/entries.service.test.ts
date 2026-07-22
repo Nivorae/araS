@@ -5,6 +5,7 @@ vi.mock("@/lib/prisma", () => ({
     entry: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       deleteMany: vi.fn(),
@@ -26,10 +27,24 @@ vi.mock("@/lib/serialize", () => ({
   dn: (v: unknown) => (v == null ? null : Number(v)),
 }));
 
+vi.mock("@/services/entitlements.service", () => ({
+  entitlementsService: { isPremium: vi.fn() },
+}));
+
 import { prisma } from "@/lib/prisma";
 import { entriesService } from "../../services/entries.service";
+import { entitlementsService } from "../../services/entitlements.service";
+import { EntryLimitError } from "../../services/entries.service";
+import { FREE_ENTRY_LIMIT } from "@repo/shared";
 
 const USER_ID = "user_test123";
+
+const VALID_ENTRY = {
+  name: "台積電",
+  topCategory: "流動資金",
+  subCategory: "現金",
+  value: 1000,
+};
 
 describe("EntriesService.list", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -207,5 +222,36 @@ describe("EntriesService.create — bankCode", () => {
         data: expect.objectContaining({ bankCode: null }),
       })
     );
+  });
+});
+
+describe("EntriesService.create limit guard", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("throws EntryLimitError when a non-premium user is at the limit", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
+    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT);
+    await expect(entriesService.create(VALID_ENTRY, USER_ID)).rejects.toBeInstanceOf(
+      EntryLimitError
+    );
+    expect(prisma.entry.create).not.toHaveBeenCalled();
+  });
+
+  it("allows a non-premium user below the limit", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
+    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT - 1);
+    vi.mocked(prisma.entry.create).mockResolvedValue({ id: "e1", value: 1000 } as never);
+    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    await entriesService.create(VALID_ENTRY, USER_ID);
+    expect(prisma.entry.create).toHaveBeenCalled();
+  });
+
+  it("allows a premium user regardless of count (never even counts)", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(true);
+    vi.mocked(prisma.entry.create).mockResolvedValue({ id: "e1", value: 1000 } as never);
+    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    await entriesService.create(VALID_ENTRY, USER_ID);
+    expect(prisma.entry.count).not.toHaveBeenCalled();
+    expect(prisma.entry.create).toHaveBeenCalled();
   });
 });
