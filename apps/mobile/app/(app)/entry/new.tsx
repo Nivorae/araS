@@ -104,6 +104,10 @@ export default function NewEntryScreen() {
               <View key={topCat.name} style={s.section}>
                 <TouchableOpacity
                   onPress={() => {
+                    if (topCat.name === "保險") {
+                      router.push("/insurance/new");
+                      return;
+                    }
                     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                     setState({ level: "root", expanded: isExpanded ? null : topCat.name });
                   }}

@@ -14,7 +14,6 @@ import {
   Receipt,
   Landmark,
   Flag,
-  Shield,
   HandCoins,
   type LucideIcon,
 } from "lucide-react-native";
@@ -93,8 +92,17 @@ export const CATEGORIES: TopCategory[] = [
       { name: "房屋", icon: Home },
       { name: "車輛", icon: Car },
       { name: "其他資產", icon: Building2 },
-      { name: "保險", icon: Shield },
     ],
+  },
+  {
+    name: "保險",
+    color: "#B8865E",
+    textColor: "#ffffff",
+    isLiability: false,
+    // Empty on purpose: 險種 (7-way) isn't picked via this drill-down menu — it's
+    // step 1 of InsuranceForm itself. Selecting this category skips straight to
+    // /insurance/new (see entry/new.tsx).
+    children: [],
   },
   {
     name: "應收款",
