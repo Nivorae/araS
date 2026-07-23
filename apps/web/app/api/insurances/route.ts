@@ -5,6 +5,20 @@ import { insuranceService, PremiumRequiredError } from "@/services/insurance.ser
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
 
+export async function GET() {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      logSecurityEvent({ type: "auth_fail", resource: "/api/insurances" });
+      return err("UNAUTHORIZED", "Authentication required", 401);
+    }
+    const insurances = await insuranceService.list(userId);
+    return ok(insurances);
+  } catch (e) {
+    return handleError(e);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();

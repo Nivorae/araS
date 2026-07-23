@@ -201,6 +201,7 @@ export function InsuranceForm({
           coverage: trimmedCoverage,
         };
         await updateInsurance(insuranceId, payload);
+        await fetchAll();
       } else {
         const payload: CreateInsurance = {
           insurer: insurer.trim(),
@@ -216,7 +217,6 @@ export function InsuranceForm({
         };
         await addInsurance(payload);
       }
-      await fetchAll();
       onSaved();
     } catch (e) {
       if (e instanceof ApiError && e.code === "PREMIUM_REQUIRED") {

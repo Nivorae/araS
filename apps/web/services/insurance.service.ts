@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { CreateInsurance, UpdateInsurance } from "@repo/shared";
 import { prisma } from "@/lib/prisma";
-import { dn } from "@/lib/serialize";
+import { d, dn } from "@/lib/serialize";
 import { entitlementsService } from "@/services/entitlements.service";
 
 // Thrown when a non-premium user attempts an insurance write. The route maps
@@ -73,8 +73,44 @@ export class InsuranceService {
         },
       });
 
-      return serializeInsurance(insurance);
+      // The created Entry is returned alongside the Insurance record (shaped
+      // like entries.service.ts's list() output) so callers can push it
+      // straight into the local store — an insurance entry is always value:0
+      // and includeInChart:false, so there's nothing to (re)compute; a full
+      // refetch just to see it appear is unnecessary network round-trips.
+      return {
+        ...serializeInsurance(insurance),
+        entry: {
+          id: entry.id,
+          name: entry.name,
+          topCategory: entry.topCategory,
+          subCategory: entry.subCategory,
+          stockCode: null,
+          bankCode: null,
+          note: null,
+          value: d(entry.value),
+          includeInChart: entry.includeInChart,
+          createdAt: entry.createdAt.toISOString(),
+          updatedAt: entry.updatedAt.toISOString(),
+          loan: null,
+          units: null,
+          insurance: {
+            id: insurance.id,
+            insuranceType: insurance.insuranceType,
+            insurer: insurance.insurer,
+            insuredName: insurance.insuredName,
+          },
+        },
+      };
     });
+  }
+
+  async list(userId: string) {
+    const insurances = await prisma.insurance.findMany({
+      where: { entry: { userId } },
+      orderBy: { createdAt: "desc" },
+    });
+    return insurances.map(serializeInsurance);
   }
 
   async findById(id: string, userId: string) {

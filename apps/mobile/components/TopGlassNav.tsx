@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePathname, useRouter } from "expo-router";
 import {
   BarChart3,
-  Building2,
+  GalleryVerticalEnd,
   PiggyBank,
   Plus,
   Settings,
@@ -23,12 +23,17 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { route: "/(app)/(tabs)", match: "", icon: Building2 },
+  { route: "/(app)/(tabs)", match: "", icon: GalleryVerticalEnd },
   { route: "/(app)/(tabs)/transactions", match: "transactions", icon: BarChart3 },
   { route: "/(app)/(tabs)/retirement", match: "retirement", icon: PiggyBank },
 ];
 
-export function TopGlassNav() {
+interface TopGlassNavProps {
+  /** Overrides the "+" button action. Defaults to opening the entry form. */
+  onAddPress?: () => void;
+}
+
+export function TopGlassNav({ onAddPress }: TopGlassNavProps = {}) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
@@ -39,7 +44,7 @@ export function TopGlassNav() {
   };
 
   return (
-    <View style={[s.wrap, { top: insets.top + 14 }]} pointerEvents="box-none">
+    <View style={[s.wrap, { top: insets.top + 22 }]} pointerEvents="box-none">
       <View style={s.pill}>
         {/* Tab buttons */}
         {TABS.map(({ route, match, icon: Icon }) => {
@@ -65,7 +70,7 @@ export function TopGlassNav() {
         <View style={s.divider} />
 
         {/* Add */}
-        <Pressable onPress={() => router.push("/entry/new")} style={s.addBtn}>
+        <Pressable onPress={onAddPress ?? (() => router.push("/entry/new"))} style={s.addBtn}>
           <View style={s.addInner}>
             <Plus size={18} color="#ffffff" strokeWidth={2.5} />
           </View>

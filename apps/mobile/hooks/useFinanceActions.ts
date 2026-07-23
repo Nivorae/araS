@@ -194,7 +194,16 @@ export function useFinanceActions() {
   );
 
   const addInsurance = useCallback(
-    async (data: CreateInsurance) => api.post<Insurance>("/api/insurances", data),
+    async (data: CreateInsurance) => {
+      // The create response carries the linked Entry (value:0,
+      // includeInChart:false) alongside the Insurance fields — pushed straight
+      // into the store so the new policy shows up instantly, with no extra
+      // fetch and no loading flicker (its value never affects net worth).
+      const result = await api.post<Insurance & { entry: Entry }>("/api/insurances", data);
+      const { entry, ...insurance } = result;
+      useFinanceStore.getState().addEntryLocal(entry);
+      return insurance;
+    },
     [api]
   );
 
@@ -222,6 +231,11 @@ export function useFinanceActions() {
     [api]
   );
 
+  const fetchInsurances = useCallback(
+    async (): Promise<Insurance[]> => api.get<Insurance[]>("/api/insurances"),
+    [api]
+  );
+
   return {
     fetchAll,
     fetchEntryHistory,
@@ -240,5 +254,6 @@ export function useFinanceActions() {
     updateInsurance,
     deleteInsurance,
     fetchInsurance,
+    fetchInsurances,
   };
 }

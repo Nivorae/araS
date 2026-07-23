@@ -8,6 +8,7 @@ export default function AppLayout() {
       <Stack.Screen name="entry/form" />
       <Stack.Screen name="entry/[id]" />
       <Stack.Screen name="entry/[id]/edit" />
+      <Stack.Screen name="insurance/overview" />
       <Stack.Screen name="insurance/new" />
       <Stack.Screen name="insurance/[id]" />
       <Stack.Screen name="settings" />

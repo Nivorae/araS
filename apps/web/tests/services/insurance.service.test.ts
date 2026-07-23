@@ -33,7 +33,16 @@ const BASE = { insurer: "國泰人壽", insuredName: "本人", insuranceType: "M
 describe("InsuranceService.create", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    txMock.entry.create.mockResolvedValue({ id: "entry-1", value: 0 });
+    txMock.entry.create.mockResolvedValue({
+      id: "entry-1",
+      name: "國泰人壽",
+      topCategory: "保險",
+      subCategory: "MEDICAL",
+      value: 0,
+      includeInChart: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
     txMock.entryHistory.create.mockResolvedValue({});
     txMock.insurance.create.mockResolvedValue({
       id: "ins-1",
