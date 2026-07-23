@@ -153,6 +153,16 @@ export function InsuranceForm({
     }
   };
 
+  const handleInsurerChange = (value: string) => {
+    setInsurer(value);
+    if (value.trim()) setErrors(({ insurer: _insurer, ...rest }) => rest);
+  };
+
+  const handleInsuredNameChange = (value: string) => {
+    setInsuredName(value);
+    if (value.trim()) setErrors(({ insuredName: _insuredName, ...rest }) => rest);
+  };
+
   const updateCoverageLabel = (key: string, label: string) =>
     setCoverage((prev) => prev.map((c) => (c.key === key ? { ...c, label } : c)));
   const updateCoverageValue = (key: string, valueStr: string) =>
@@ -294,7 +304,7 @@ export function InsuranceForm({
                   <TextInput
                     style={s.inputRight}
                     value={insurer}
-                    onChangeText={setInsurer}
+                    onChangeText={handleInsurerChange}
                     placeholder="輸入保險公司名稱"
                     placeholderTextColor="#c7c7cc"
                   />
@@ -320,7 +330,7 @@ export function InsuranceForm({
               <TextInput
                 style={s.inputRight}
                 value={insuredName}
-                onChangeText={setInsuredName}
+                onChangeText={handleInsuredNameChange}
                 placeholder="本人"
                 placeholderTextColor="#c7c7cc"
               />
@@ -463,7 +473,7 @@ export function InsuranceForm({
             setInsurer("");
           } else {
             setInsurerMode("list");
-            setInsurer(value);
+            handleInsurerChange(value);
           }
         }}
       />
