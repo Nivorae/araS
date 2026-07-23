@@ -124,25 +124,42 @@ export class InsuranceService {
     const existing = await prisma.insurance.findFirst({ where: { id, entry: { userId } } });
     if (!existing) return null;
 
-    const updated = await prisma.insurance.update({
-      where: { id },
-      data: {
-        ...(data.insurer !== undefined && { insurer: data.insurer }),
-        ...(data.insuredName !== undefined && { insuredName: data.insuredName }),
-        ...(data.insuranceType !== undefined && { insuranceType: data.insuranceType }),
-        ...(data.policyName !== undefined && { policyName: data.policyName }),
-        ...(data.policyNumber !== undefined && { policyNumber: data.policyNumber }),
-        ...(data.startDate !== undefined && {
-          startDate: data.startDate ? new Date(data.startDate) : null,
-        }),
-        ...(data.paymentTermYears !== undefined && { paymentTermYears: data.paymentTermYears }),
-        ...(data.coveragePeriod !== undefined && { coveragePeriod: data.coveragePeriod }),
-        ...(data.annualPremium !== undefined && { annualPremium: data.annualPremium }),
-        ...(data.coverage !== undefined && {
-          coverage: (data.coverage ?? []) as Prisma.InputJsonValue,
-        }),
-      },
-    });
+    // Entry.name is derived from insurer/policyName at creation time (see
+    // create() above) and otherwise never touched — keep it in sync so the
+    // entry-list row doesn't go stale after an edit.
+    const nextInsurer = data.insurer ?? existing.insurer;
+    const nextPolicyName = data.policyName !== undefined ? data.policyName : existing.policyName;
+    const nameChanged = data.insurer !== undefined || data.policyName !== undefined;
+
+    const [updated] = await prisma.$transaction([
+      prisma.insurance.update({
+        where: { id },
+        data: {
+          ...(data.insurer !== undefined && { insurer: data.insurer }),
+          ...(data.insuredName !== undefined && { insuredName: data.insuredName }),
+          ...(data.insuranceType !== undefined && { insuranceType: data.insuranceType }),
+          ...(data.policyName !== undefined && { policyName: data.policyName }),
+          ...(data.policyNumber !== undefined && { policyNumber: data.policyNumber }),
+          ...(data.startDate !== undefined && {
+            startDate: data.startDate ? new Date(data.startDate) : null,
+          }),
+          ...(data.paymentTermYears !== undefined && { paymentTermYears: data.paymentTermYears }),
+          ...(data.coveragePeriod !== undefined && { coveragePeriod: data.coveragePeriod }),
+          ...(data.annualPremium !== undefined && { annualPremium: data.annualPremium }),
+          ...(data.coverage !== undefined && {
+            coverage: (data.coverage ?? []) as Prisma.InputJsonValue,
+          }),
+        },
+      }),
+      ...(nameChanged
+        ? [
+            prisma.entry.update({
+              where: { id: existing.entryId },
+              data: { name: nextPolicyName?.trim() || nextInsurer },
+            }),
+          ]
+        : []),
+    ]);
     return serializeInsurance(updated);
   }
 

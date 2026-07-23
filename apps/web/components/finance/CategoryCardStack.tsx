@@ -137,7 +137,11 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                   {cat.name}
                 </p>
                 <p className="mt-[3px] text-[12px]" style={{ color: cat.textColor, opacity: 0.5 }}>
-                  {hideBalance ? "••••••" : formatCurrency(cat.total)}
+                  {cat.name === "保險"
+                    ? `共 ${cat.entries.length} 張保單`
+                    : hideBalance
+                      ? "••••••"
+                      : formatCurrency(cat.total)}
                 </p>
               </div>
 
@@ -194,7 +198,11 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                             {entry.name}
                           </span>
                           <span className="text-[12px] text-[#1c1c1e]">
-                            {hideBalance ? "••••" : formatCurrency(entry.value)}
+                            {entry.insurance
+                              ? entry.insurance.insurer
+                              : hideBalance
+                                ? "••••"
+                                : formatCurrency(entry.value)}
                           </span>
                           <span className="text-[11px] text-black/30">›</span>
                         </button>

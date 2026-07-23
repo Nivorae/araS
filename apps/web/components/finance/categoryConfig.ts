@@ -14,7 +14,6 @@ import {
   Receipt,
   Landmark,
   Flag,
-  Shield,
   HandCoins,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -93,8 +92,18 @@ export const CATEGORIES: TopCategory[] = [
       { name: "房屋", icon: Home },
       { name: "車輛", icon: Car },
       { name: "其他資產", icon: Building2 },
-      { name: "保險", icon: Shield },
     ],
+  },
+  {
+    name: "保險",
+    color: "#B8865E",
+    textColor: "#FFFFFF",
+    isLiability: false,
+    // Empty: insurance type isn't a categoryConfig child node — it's the first
+    // step inside InsuranceFormPage. Selecting this top category skips the
+    // drill-down menu and opens the insurance form directly (see
+    // AddAccountPage's onSelectInsurance branch).
+    children: [],
   },
 
   {

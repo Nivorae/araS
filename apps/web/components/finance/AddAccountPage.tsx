@@ -24,9 +24,10 @@ interface Props {
     icon: LucideIcon,
     color: string
   ) => void;
+  onSelectInsurance: () => void;
 }
 
-export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
+export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsurance }: Props) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [drillTarget, setDrillTarget] = useState<DrillTarget | null>(null);
 
@@ -50,6 +51,13 @@ export function AddAccountPage({ open, onClose, onSelectCategory }: Props) {
   };
 
   const handleTopCategoryClick = (topCat: TopCategory) => {
+    // 保險 has no children — its "category" is really the insurance form's own
+    // first step (險種), so tapping it skips the drill-down entirely.
+    if (topCat.name === "保險") {
+      handleClose();
+      onSelectInsurance();
+      return;
+    }
     setExpandedCategory((prev) => (prev === topCat.name ? null : topCat.name));
   };
 

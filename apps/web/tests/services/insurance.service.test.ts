@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    $transaction: vi.fn(async (fn) => fn(txMock)),
+    // create() uses the callback form; update() uses the array (batch) form.
+    $transaction: vi.fn(async (arg) => (Array.isArray(arg) ? Promise.all(arg) : arg(txMock))),
     insurance: { findFirst: vi.fn(), update: vi.fn() },
-    entry: { deleteMany: vi.fn() },
+    entry: { deleteMany: vi.fn(), update: vi.fn() },
   },
 }));
 
@@ -105,6 +106,71 @@ describe("InsuranceService.findById", () => {
     expect(prisma.insurance.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "ins-1", entry: { userId: USER_ID } } })
     );
+  });
+});
+
+describe("InsuranceService.update", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const EXISTING = {
+    id: "ins-1",
+    entryId: "entry-1",
+    insurer: "國泰人壽",
+    insuredName: "本人",
+    insuranceType: "MEDICAL",
+    policyName: null,
+    policyNumber: null,
+    startDate: null,
+    paymentTermYears: null,
+    coveragePeriod: null,
+    annualPremium: null,
+    coverage: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it("syncs Entry.name to the new policyName when it changes", async () => {
+    vi.mocked(prisma.insurance.findFirst).mockResolvedValue(EXISTING as never);
+    vi.mocked(prisma.insurance.update).mockResolvedValue({
+      ...EXISTING,
+      policyName: "我的保單",
+    } as never);
+    vi.mocked(prisma.entry.update).mockResolvedValue({} as never);
+
+    await insuranceService.update("ins-1", { policyName: "我的保單" }, USER_ID);
+
+    expect(prisma.entry.update).toHaveBeenCalledWith({
+      where: { id: "entry-1" },
+      data: { name: "我的保單" },
+    });
+  });
+
+  it("syncs Entry.name to the insurer when it changes and there is no policyName", async () => {
+    vi.mocked(prisma.insurance.findFirst).mockResolvedValue(EXISTING as never);
+    vi.mocked(prisma.insurance.update).mockResolvedValue({
+      ...EXISTING,
+      insurer: "富邦人壽",
+    } as never);
+    vi.mocked(prisma.entry.update).mockResolvedValue({} as never);
+
+    await insuranceService.update("ins-1", { insurer: "富邦人壽" }, USER_ID);
+
+    expect(prisma.entry.update).toHaveBeenCalledWith({
+      where: { id: "entry-1" },
+      data: { name: "富邦人壽" },
+    });
+  });
+
+  it("does not touch Entry.name when neither insurer nor policyName changes", async () => {
+    vi.mocked(prisma.insurance.findFirst).mockResolvedValue(EXISTING as never);
+    vi.mocked(prisma.insurance.update).mockResolvedValue({
+      ...EXISTING,
+      annualPremium: 1200,
+    } as never);
+
+    await insuranceService.update("ins-1", { annualPremium: 1200 }, USER_ID);
+
+    expect(prisma.entry.update).not.toHaveBeenCalled();
   });
 });
 

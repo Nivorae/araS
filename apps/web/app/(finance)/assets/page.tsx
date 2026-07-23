@@ -18,6 +18,8 @@ import {
   getTopCategory,
 } from "../../../components/finance/categoryConfig";
 import { LoanDetailSheet } from "../../../components/finance/LoanDetailSheet";
+import { InsuranceFormPage } from "../../../components/finance/InsuranceFormPage";
+import { InsuranceDetailPage } from "../../../components/finance/InsuranceDetailPage";
 import {
   CategoryCardStack,
   type CategoryCardStackHandle,
@@ -45,7 +47,7 @@ interface EditItem {
 }
 
 export default function AssetsPage() {
-  const { fetchAll, entries, loading, deleteEntry } = useFinanceStore();
+  const { fetchAll, refreshEntries, entries, loading, deleteEntry } = useFinanceStore();
   const { setAddAction } = useNavContext();
   const [showMenu, setShowMenu] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -57,6 +59,10 @@ export default function AssetsPage() {
   const [showLoanDetail, setShowLoanDetail] = useState(false);
   const [loanDetailLoanId, setLoanDetailLoanId] = useState<string | null>(null);
   const [loanDetailColor, setLoanDetailColor] = useState("#C7C7D4");
+  const [showInsuranceForm, setShowInsuranceForm] = useState(false);
+  const [showInsuranceDetail, setShowInsuranceDetail] = useState(false);
+  const [insuranceDetailId, setInsuranceDetailId] = useState<string | null>(null);
+  const insuranceColor = getTopCategory("保險")?.color ?? "#B8865E";
   const [isCardExpanded, setIsCardExpanded] = useState(false);
   const cardStackRef = useRef<CategoryCardStackHandle>(null);
 
@@ -98,7 +104,10 @@ export default function AssetsPage() {
   });
 
   const openDetail = (entry: Entry) => {
-    if (entry.loan) {
+    if (entry.insurance) {
+      setInsuranceDetailId(entry.insurance.id);
+      setShowInsuranceDetail(true);
+    } else if (entry.loan) {
       const topCat = getTopCategory(entry.topCategory);
       setLoanDetailLoanId(entry.loan.id);
       setLoanDetailColor(topCat?.color ?? "#C7C7D4");
@@ -242,6 +251,7 @@ export default function AssetsPage() {
         open={showMenu}
         onClose={() => setShowMenu(false)}
         onSelectCategory={openFormForNew}
+        onSelectInsurance={() => setShowInsuranceForm(true)}
       />
 
       <EntryDetailPage
@@ -291,6 +301,27 @@ export default function AssetsPage() {
           onDeleted={fetchAll}
         />
       )}
+
+      <InsuranceFormPage
+        open={showInsuranceForm}
+        onClose={() => setShowInsuranceForm(false)}
+        onSaved={() => {
+          setShowInsuranceForm(false);
+          refreshEntries();
+        }}
+        categoryColor={insuranceColor}
+      />
+
+      <InsuranceDetailPage
+        open={showInsuranceDetail}
+        insuranceId={insuranceDetailId}
+        color={insuranceColor}
+        onClose={() => {
+          setShowInsuranceDetail(false);
+          setInsuranceDetailId(null);
+        }}
+        onChanged={refreshEntries}
+      />
     </div>
   );
 }
