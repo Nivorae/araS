@@ -27,7 +27,9 @@ import {
 } from "@/components/CategoryCardStack";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 
-const CARD_ORDER = CATEGORIES.map((c) => c.name);
+// Deck order, bottom card → top card. In CategoryCardStack the LAST name renders
+// at the very top of the stack, so 保險 is forced to the end to sit above 應收款.
+const CARD_ORDER = [...CATEGORIES.map((c) => c.name).filter((n) => n !== "保險"), "保險"];
 
 export default function AssetsScreen() {
   const router = useRouter();
@@ -148,27 +150,37 @@ export default function AssetsScreen() {
               />
             }
           >
-            <View style={s.netLabelRow}>
-              <Text style={s.netLabel}>Net Worth (TWD)</Text>
-              <TouchableOpacity onPress={() => setHideBalance((v) => !v)} hitSlop={8}>
-                {hideBalance ? (
-                  <EyeOff size={14} color="#8e8e93" />
-                ) : (
-                  <Eye size={14} color="#8e8e93" />
-                )}
-              </TouchableOpacity>
-            </View>
-            {hideBalance ? (
-              <Text style={s.netValue}>araS</Text>
-            ) : marketLoading ? (
-              // Investments still being priced — hold the total behind a spinner
-              // so it doesn't flash the cost-basis figure first.
-              <View style={s.netLoading}>
-                <ActivityIndicator size="small" color="#8e8e93" />
+            {/* Tapping anywhere in the net-worth block (label OR the number)
+                collapses an expanded card. The eye toggle is a nested touchable,
+                so it still just flips hideBalance without collapsing. */}
+            <Pressable
+              style={s.netBlock}
+              onPress={() => {
+                if (isCardExpanded) cardStackRef.current?.collapse();
+              }}
+            >
+              <View style={s.netLabelRow}>
+                <Text style={s.netLabel}>Net Worth (TWD)</Text>
+                <TouchableOpacity onPress={() => setHideBalance((v) => !v)} hitSlop={8}>
+                  {hideBalance ? (
+                    <EyeOff size={14} color="#8e8e93" />
+                  ) : (
+                    <Eye size={14} color="#8e8e93" />
+                  )}
+                </TouchableOpacity>
               </View>
-            ) : (
-              <Text style={s.netValue}>{formatCurrency(netWorth).replace("NT", "")}</Text>
-            )}
+              {hideBalance ? (
+                <Text style={s.netValue}>araS</Text>
+              ) : marketLoading ? (
+                // Investments still being priced — hold the total behind a spinner
+                // so it doesn't flash the cost-basis figure first.
+                <View style={s.netLoading}>
+                  <ActivityIndicator size="small" color="#8e8e93" />
+                </View>
+              ) : (
+                <Text style={s.netValue}>{formatCurrency(netWorth).replace("NT", "")}</Text>
+              )}
+            </Pressable>
           </ScrollView>
         </Animated.View>
 
@@ -188,13 +200,20 @@ export default function AssetsScreen() {
               hideBalance={hideBalance}
               getEntryIcon={(topCategory, subCategory) => getNodeIcon(topCategory, subCategory)}
               onEntryClick={(entry) =>
+                // 保險走總攬頁（3D 翻轉＋發票預覽），focus 定位到點選的那張保單。
                 entry.insurance
-                  ? router.push(`/insurance/${entry.insurance.id}`)
+                  ? router.push({
+                      pathname: "/insurance/overview",
+                      params: { focus: entry.insurance.id },
+                    })
                   : router.push(`/entry/${entry.id}`)
               }
               onExpandChange={setIsCardExpanded}
               onAddClick={(categoryName) =>
-                router.push(`/entry/new?topCategory=${encodeURIComponent(categoryName)}`)
+                // 保險走專屬表單，其餘分類走一般 entry 新增流程。
+                categoryName === "保險"
+                  ? router.push("/insurance/new")
+                  : router.push(`/entry/new?topCategory=${encodeURIComponent(categoryName)}`)
               }
             />
           ) : (
@@ -223,6 +242,7 @@ const s = StyleSheet.create({
 
   topZone: { overflow: "hidden" },
   netScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
+  netBlock: { alignItems: "center" },
   netLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   netLabel: { fontSize: 12, fontWeight: "600", color: "#8e8e93" },
   netValue: { fontSize: 40, fontWeight: "700", letterSpacing: -1, color: "#1c1c1e" },
