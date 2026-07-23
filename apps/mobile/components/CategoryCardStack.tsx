@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { ArrowDown, ArrowUp, type LucideIcon } from "lucide-react-native";
-import type { Entry } from "@repo/shared";
+import { INSURANCE_TYPE_LABELS, type Entry } from "@repo/shared";
 import { formatCurrency } from "@/lib/format";
 import { BankLogo } from "./BankLogo";
 
@@ -296,6 +296,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
         {categories.map((cat, index) => {
           const isSelected = selectedName === cat.name;
           const isDisplayed = displayedName === cat.name;
+          const isInsurance = cat.name === "保險";
           const widthPct = Math.max(50, 92 - index * 8);
           const leftPct = (100 - widthPct) / 2;
           // Only the actively-selected card floats on top. On collapse it drops
@@ -321,13 +322,17 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                   zIndex,
                   transform: [{ translateY: Animated.add(y, peek) }],
                 },
+                isInsurance && st.insuranceCardBorder,
               ]}
             >
               {/* Always-visible header */}
-              <Pressable onPress={() => handleCardPress(cat.name)} style={st.header}>
+              <Pressable
+                onPress={() => handleCardPress(cat.name)}
+                style={[st.header, isInsurance && st.headerRow]}
+              >
                 <Text style={[st.headerTitle, { color: cat.textColor }]}>{cat.name}</Text>
                 <Text style={[st.headerTotal, { color: cat.textColor }]}>
-                  {cat.name === "保險"
+                  {isInsurance
                     ? `共 ${cat.entries.length} 張保單`
                     : hideBalance
                       ? "••••••"
@@ -339,7 +344,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
               {isDisplayed && (
                 <Animated.View style={[st.contentWrap, { opacity: contentOpacity }]}>
                   {/* 保險列出的是保單張數而非金額，排序按鈕沒有意義，故不顯示。 */}
-                  {cat.name !== "保險" && (
+                  {!isInsurance && (
                     <View style={st.sortRow}>
                       <Pressable
                         onPress={() => toggleSort(cat.name)}
@@ -367,24 +372,28 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                           onPress={() => onEntryClick(entry)}
                           style={st.entryRow}
                         >
-                          <View style={st.entryIcon}>
-                            {entry.bankCode ? (
-                              <BankLogo code={entry.bankCode} name={entry.name} size={28} />
-                            ) : (
-                              <EntryIcon size={15} color="#1c1c1e" />
-                            )}
-                          </View>
-                          <Text style={st.entryName} numberOfLines={1}>
-                            {entry.name}
-                          </Text>
+                          {!entry.insurance && (
+                            <View style={st.entryIcon}>
+                              {entry.bankCode ? (
+                                <BankLogo code={entry.bankCode} name={entry.name} size={28} />
+                              ) : (
+                                <EntryIcon size={15} color="#1c1c1e" />
+                              )}
+                            </View>
+                          )}
                           {entry.insurance ? (
-                            <Text style={st.entryValue} numberOfLines={1}>
-                              {entry.insurance.insurer}
+                            <Text style={st.entryName} numberOfLines={1}>
+                              🧾 {INSURANCE_TYPE_LABELS[entry.insurance.insuranceType]}
                             </Text>
                           ) : (
-                            <Text style={st.entryValue}>
-                              {hideBalance ? "••••" : formatCurrency(entry.value)}
-                            </Text>
+                            <>
+                              <Text style={st.entryName} numberOfLines={1}>
+                                {entry.name}
+                              </Text>
+                              <Text style={st.entryValue}>
+                                {hideBalance ? "••••" : formatCurrency(entry.value)}
+                              </Text>
+                            </>
                           )}
                           <Text style={st.chevron}>›</Text>
                         </Pressable>
@@ -423,9 +432,21 @@ const st = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
+  insuranceCardBorder: {
+    borderWidth: 1,
+    borderColor: "rgba(28,28,30,0.12)",
+  },
   header: { alignItems: "center", paddingTop: 14 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: FRONT_CARD_HEADER_HEIGHT,
+    paddingTop: 0,
+  },
   headerTitle: { fontSize: 18, fontWeight: "800" },
-  headerTotal: { fontSize: 12, marginTop: 3, opacity: 0.5 },
+  headerTotal: { fontSize: 12, opacity: 0.5 },
 
   contentWrap: { flex: 1, marginTop: 14 },
   sortRow: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: "6.5%" },

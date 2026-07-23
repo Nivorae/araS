@@ -96,8 +96,8 @@ export const CATEGORIES: TopCategory[] = [
   },
   {
     name: "保險",
-    color: "#B8865E",
-    textColor: "#ffffff",
+    color: "#f2f2f7",
+    textColor: "#1c1c1e",
     isLiability: false,
     // Empty on purpose: 險種 (7-way) isn't picked via this drill-down menu — it's
     // step 1 of InsuranceForm itself. Selecting this category skips straight to
