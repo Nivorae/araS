@@ -118,7 +118,14 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       if (zoneHeight === 0) return;
       const firstRun = !initialized.current;
       initialized.current = true;
-      const collapsing = selectedName === null;
+      // A selection that no longer maps to a visible card — its category was
+      // removed while this stack stayed mounted (e.g. the user deleted the last
+      // policy on the insurance detail screen) — must behave as collapsed.
+      // Otherwise every remaining card counts as "not selected" and gets flung
+      // off-screen, which reads as "all the cards vanished".
+      const selectionValid =
+        selectedName !== null && categories.some((c) => c.name === selectedName);
+      const collapsing = !selectionValid;
       // Just below the zone — guaranteed off-screen even while the zone is
       // expanded (~1.2×), without the huge travel that amplifies overshoot.
       const offScreenY = Math.round(zoneHeight * 1.3);
@@ -163,6 +170,19 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
     useImperativeHandle(ref, () => ({ collapse }));
 
     useEffect(() => () => clearTimers(), []);
+
+    // If the selected category disappears entirely (its last entry was deleted
+    // on a detail screen while this stack stayed mounted), fold the deck back up
+    // and tell the parent. The position effect above already keeps the remaining
+    // cards home; this syncs the selection + expanded state so they don't stick.
+    useEffect(() => {
+      if (selectedName !== null && !categories.some((c) => c.name === selectedName)) {
+        clearTimers();
+        setSelectedName(null);
+        setDisplayedName(null);
+        onExpandChange(false);
+      }
+    }, [categories, selectedName, onExpandChange]);
 
     const handleCardPress = (name: string) => {
       if (selectedName === name) {
@@ -318,16 +338,23 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
               {/* Entry list — deferred mount + fade, kept until card returns home */}
               {isDisplayed && (
                 <Animated.View style={[st.contentWrap, { opacity: contentOpacity }]}>
-                  <View style={st.sortRow}>
-                    <Pressable onPress={() => toggleSort(cat.name)} style={st.sortBtn} hitSlop={8}>
-                      <Text style={[st.sortText, { color: cat.textColor }]}>金額</Text>
-                      {dir === "desc" ? (
-                        <ArrowDown size={13} color={cat.textColor} />
-                      ) : (
-                        <ArrowUp size={13} color={cat.textColor} />
-                      )}
-                    </Pressable>
-                  </View>
+                  {/* 保險列出的是保單張數而非金額，排序按鈕沒有意義，故不顯示。 */}
+                  {cat.name !== "保險" && (
+                    <View style={st.sortRow}>
+                      <Pressable
+                        onPress={() => toggleSort(cat.name)}
+                        style={st.sortBtn}
+                        hitSlop={8}
+                      >
+                        <Text style={[st.sortText, { color: cat.textColor }]}>金額</Text>
+                        {dir === "desc" ? (
+                          <ArrowDown size={13} color={cat.textColor} />
+                        ) : (
+                          <ArrowUp size={13} color={cat.textColor} />
+                        )}
+                      </Pressable>
+                    </View>
+                  )}
                   <ScrollView
                     contentContainerStyle={st.listContent}
                     showsVerticalScrollIndicator={false}
