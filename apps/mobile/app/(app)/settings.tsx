@@ -15,8 +15,9 @@ import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { ArrowLeft, LogOut, Sparkles, Trash2, type LucideIcon } from "lucide-react-native";
+import { ArrowLeft, Check, LogOut, Loader, Trash2, type LucideIcon } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
+import { useIsPremium } from "@/hooks/useIsPremium";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -104,6 +105,7 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const { user } = useUser();
   const api = useApi();
+  const { isPremium, loading: premiumLoading } = useIsPremium();
   const [deleting, setDeleting] = useState(false);
 
   const email =
@@ -165,11 +167,16 @@ export default function SettingsScreen() {
 
           {/* Actions */}
           <View style={s.stack}>
+            {/* One card in three states: reading (spinner), already-premium, and
+                free. All three route into the paywall on tap — a premium user can
+                still open it to review what their plan includes. The cached
+                premium status means later visits skip the spinner entirely. */}
             <SettingCard
-              icon={Sparkles}
-              label="升級 Premium"
+              icon={isPremium ? Check : Loader}
+              label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
               color="#374254"
               textColor="#ffffff"
+              loading={premiumLoading}
               onPress={() => router.push("/paywall")}
             />
             <SettingCard

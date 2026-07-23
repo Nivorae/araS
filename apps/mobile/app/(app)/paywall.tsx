@@ -14,6 +14,11 @@ import { ArrowLeft, Check } from "lucide-react-native";
 import Purchases, { PURCHASES_ERROR_CODE, type PurchasesPackage } from "react-native-purchases";
 import { isPurchasesConfigured } from "@/lib/purchases";
 
+const PREMIUM_FEATURES = [
+  "資產／負債記錄無上限（免費版上限 20 筆）",
+  "保單管理（新增、編輯、刪除保單）",
+] as const;
+
 export default function PaywallScreen() {
   const router = useRouter();
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
@@ -58,6 +63,15 @@ export default function PaywallScreen() {
         </View>
 
         <ScrollView contentContainerStyle={s.content}>
+          <View style={s.featureCard}>
+            {PREMIUM_FEATURES.map((feature) => (
+              <View key={feature} style={s.featureRow}>
+                <Check size={18} color="#374254" />
+                <Text style={s.featureText}>{feature}</Text>
+              </View>
+            ))}
+          </View>
+
           {loading ? (
             <ActivityIndicator style={s.loading} />
           ) : packages.length === 0 ? (
@@ -111,6 +125,14 @@ const s = StyleSheet.create({
     padding: 16,
   },
   emptyText: { fontSize: 15, color: "#8e8e93", textAlign: "center" },
+  featureCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 16,
+    gap: 14,
+  },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  featureText: { flex: 1, fontSize: 15, color: "#1c1c1e" },
   packageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   packageInfo: { gap: 2 },
   packageTitle: { fontSize: 16, fontWeight: "600", color: "#1c1c1e" },
