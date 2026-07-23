@@ -307,7 +307,11 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
               <Pressable onPress={() => handleCardPress(cat.name)} style={st.header}>
                 <Text style={[st.headerTitle, { color: cat.textColor }]}>{cat.name}</Text>
                 <Text style={[st.headerTotal, { color: cat.textColor }]}>
-                  {hideBalance ? "••••••" : formatCurrency(cat.total)}
+                  {cat.name === "保險"
+                    ? `共 ${cat.entries.length} 張保單`
+                    : hideBalance
+                      ? "••••••"
+                      : formatCurrency(cat.total)}
                 </Text>
               </Pressable>
 
@@ -346,9 +350,15 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                           <Text style={st.entryName} numberOfLines={1}>
                             {entry.name}
                           </Text>
-                          <Text style={st.entryValue}>
-                            {hideBalance ? "••••" : formatCurrency(entry.value)}
-                          </Text>
+                          {entry.insurance ? (
+                            <Text style={st.entryValue} numberOfLines={1}>
+                              {entry.insurance.insurer}
+                            </Text>
+                          ) : (
+                            <Text style={st.entryValue}>
+                              {hideBalance ? "••••" : formatCurrency(entry.value)}
+                            </Text>
+                          )}
                           <Text style={st.chevron}>›</Text>
                         </Pressable>
                       );

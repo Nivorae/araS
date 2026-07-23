@@ -187,7 +187,11 @@ export default function AssetsScreen() {
               categories={stackCategories}
               hideBalance={hideBalance}
               getEntryIcon={(topCategory, subCategory) => getNodeIcon(topCategory, subCategory)}
-              onEntryClick={(entry) => router.push(`/entry/${entry.id}`)}
+              onEntryClick={(entry) =>
+                entry.insurance
+                  ? router.push(`/insurance/${entry.insurance.id}`)
+                  : router.push(`/entry/${entry.id}`)
+              }
               onExpandChange={setIsCardExpanded}
               onAddClick={(categoryName) =>
                 router.push(`/entry/new?topCategory=${encodeURIComponent(categoryName)}`)
