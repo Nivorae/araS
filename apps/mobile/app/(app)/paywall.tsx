@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -37,6 +37,25 @@ const PACKAGE_LABELS: Record<string, string> = {
 };
 const isAnnual = (pkg: PurchasesPackage) => String(pkg.packageType) === "ANNUAL";
 
+// Common view model for a selectable plan — real RevenueCat packages and the
+// preview placeholders below both render through this shape.
+interface PlanOption {
+  id: string;
+  label: string;
+  priceString: string;
+  bestValue: boolean;
+}
+
+// Shown only when RevenueCat is genuinely unconfigured (Expo Go, where the
+// native store module doesn't exist), so the full paywall UI can be seen and
+// tested instead of a dead-end message. NOT used in a configured production
+// build — there we never show placeholder prices, even if offerings fail to
+// load. Real purchases can't run in this environment; the CTA explains that.
+const PREVIEW_PLANS: PlanOption[] = [
+  { id: "preview_annual", label: "年繳", priceString: "NT$300 / 年", bestValue: true },
+  { id: "preview_monthly", label: "月繳", priceString: "NT$30 / 月", bestValue: false },
+];
+
 const PRIVACY_URL = "https://ara-s-web.vercel.app/privacy";
 const SUPPORT_URL = "https://ara-s-web.vercel.app/support";
 
@@ -47,6 +66,11 @@ export default function PaywallScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+
+  // RevenueCat's native module doesn't exist in Expo Go, so no real offerings
+  // load there. In that case we show preview plans instead of a dead-end
+  // message, and the CTA explains purchases only work in a real build.
+  const previewMode = !isPurchasesConfigured();
 
   useEffect(() => {
     if (!isPurchasesConfigured()) {
@@ -59,15 +83,37 @@ export default function PaywallScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Default to the annual plan (best value) once offerings load, if nothing's
-  // been picked yet.
+  // Real offerings when RevenueCat provides them; otherwise the preview plans,
+  // but only when genuinely unconfigured — never placeholder prices in a
+  // configured production build whose offerings merely failed to load.
+  const plans = useMemo<PlanOption[]>(() => {
+    if (packages.length > 0) {
+      return packages.map((pkg) => ({
+        id: pkg.identifier,
+        label: PACKAGE_LABELS[String(pkg.packageType)] ?? pkg.product.title,
+        priceString: pkg.product.priceString,
+        bestValue: isAnnual(pkg),
+      }));
+    }
+    return previewMode ? PREVIEW_PLANS : [];
+  }, [packages, previewMode]);
+
+  // Default to the best-value plan once plans are known, if nothing's picked.
   useEffect(() => {
-    if (packages.length === 0 || selectedId) return;
-    const annual = packages.find(isAnnual);
-    setSelectedId((annual ?? packages[0]!).identifier);
-  }, [packages, selectedId]);
+    if (plans.length === 0 || selectedId) return;
+    const best = plans.find((p) => p.bestValue);
+    setSelectedId((best ?? plans[0]!).id);
+  }, [plans, selectedId]);
 
   const handlePurchase = useCallback(async () => {
+    // Preview mode has no real package to buy (Expo Go / unconfigured store).
+    if (previewMode) {
+      Alert.alert(
+        "測試環境無法購買",
+        "Expo Go 無法完成實際購買。請於正式版（TestFlight／App Store）購買，或用「設定 → 模擬升級」測試 Premium 功能。"
+      );
+      return;
+    }
     const pkg = packages.find((p) => p.identifier === selectedId);
     if (!pkg) return;
     setPurchasing(true);
@@ -86,7 +132,7 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [packages, selectedId, refresh]);
+  }, [previewMode, packages, selectedId, refresh]);
 
   return (
     <View style={s.root}>
@@ -94,7 +140,7 @@ export default function PaywallScreen() {
       <View style={s.overlay} pointerEvents="none" />
 
       <SafeAreaView edges={["top", "bottom"]} style={s.safe}>
-        {/* Top 40% — just the hero title/subtitle, floating over the background. */}
+        {/* Top hero — just the title/subtitle, floating over the background. */}
         <View style={s.top}>
           <Pressable onPress={() => router.back()} hitSlop={8} style={s.closeBtn}>
             <X size={18} color="#ffffff" />
@@ -105,7 +151,7 @@ export default function PaywallScreen() {
           </View>
         </View>
 
-        {/* Bottom 60% — plans, feature list, CTA, footer links. */}
+        {/* Bottom sheet — plans, feature list, CTA, footer links. */}
         <View style={s.bottom}>
           <ScrollView
             style={s.scroll}
@@ -133,41 +179,44 @@ export default function PaywallScreen() {
                 <Check size={20} color="#ffffff" />
                 <Text style={s.messageText}>你已是 Premium 會員</Text>
               </View>
-            ) : packages.length === 0 ? (
+            ) : plans.length > 0 ? (
+              <>
+                <View style={s.packageGroup}>
+                  {plans.map((plan) => {
+                    const selected = plan.id === selectedId;
+                    return (
+                      <Pressable
+                        key={plan.id}
+                        onPress={() => setSelectedId(plan.id)}
+                        style={[s.packageRow, selected && s.packageRowSelected]}
+                      >
+                        <View style={[s.radio, selected && s.radioSelected]}>
+                          {selected ? <View style={s.radioDot} /> : null}
+                        </View>
+                        <View style={s.packageInfo}>
+                          <Text style={s.packageTitle}>{plan.label}</Text>
+                          <Text style={s.packagePrice}>{plan.priceString}</Text>
+                        </View>
+                        {plan.bestValue ? (
+                          <View style={s.badge}>
+                            <Text style={s.badgeText}>最划算</Text>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {previewMode ? (
+                  <Text style={s.previewNote}>預覽模式：實際方案與價格以正式版為準</Text>
+                ) : null}
+              </>
+            ) : (
               <View style={s.messageCard}>
                 <Text style={s.messageText}>訂閱方案尚未上架，敬請期待。</Text>
               </View>
-            ) : (
-              <View style={s.packageGroup}>
-                {packages.map((pkg) => {
-                  const selected = pkg.identifier === selectedId;
-                  const bestValue = isAnnual(pkg);
-                  const label = PACKAGE_LABELS[String(pkg.packageType)] ?? pkg.product.title;
-                  return (
-                    <Pressable
-                      key={pkg.identifier}
-                      onPress={() => setSelectedId(pkg.identifier)}
-                      style={[s.packageRow, selected && s.packageRowSelected]}
-                    >
-                      <View style={[s.radio, selected && s.radioSelected]}>
-                        {selected ? <View style={s.radioDot} /> : null}
-                      </View>
-                      <View style={s.packageInfo}>
-                        <Text style={s.packageTitle}>{label}</Text>
-                        <Text style={s.packagePrice}>{pkg.product.priceString}</Text>
-                      </View>
-                      {bestValue ? (
-                        <View style={s.badge}>
-                          <Text style={s.badgeText}>最划算</Text>
-                        </View>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
             )}
 
-            {!isPremium && !loading && packages.length > 0 ? (
+            {!isPremium && !loading && plans.length > 0 ? (
               <Pressable
                 onPress={handlePurchase}
                 disabled={purchasing || !selectedId}
@@ -206,9 +255,10 @@ const s = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(8,10,18,0.78)" },
   safe: { flex: 1 },
 
-  // Top 40% — hero only, floating directly over the animated background.
+  // Top hero — kept compact so the bottom sheet has room to fit its content
+  // without scrolling.
   top: {
-    flex: 0.4,
+    flex: 0.26,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
@@ -225,9 +275,9 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
 
-  // Bottom 60% — a sheet holding everything else.
+  // Bottom sheet — holds everything else; enlarged so content fits unscrolled.
   bottom: {
-    flex: 0.6,
+    flex: 0.74,
     backgroundColor: "rgba(20,22,34,0.55)",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -256,6 +306,13 @@ const s = StyleSheet.create({
     gap: 8,
   },
   messageText: { fontSize: 15, color: "rgba(255,255,255,0.85)", textAlign: "center" },
+
+  previewNote: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    marginTop: 2,
+  },
 
   packageGroup: {
     backgroundColor: "rgba(255,255,255,0.06)",
