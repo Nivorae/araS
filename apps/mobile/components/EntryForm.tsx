@@ -36,6 +36,10 @@ import type { RepaymentType } from "@repo/shared";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+// Money amount fields (帳戶餘額 / 投入金額 / …) accept at most 10 digits — a
+// 10-digit whole number is already ~100 億, well past any realistic balance.
+const MAX_AMOUNT_LENGTH = 10;
+
 function getBalanceLabel(topCategory: string) {
   if (topCategory === "應收款") return "應收餘額";
   if (topCategory === "負債") return "負債金額";
@@ -608,6 +612,7 @@ export function EntryForm({
                               placeholder="0"
                               placeholderTextColor="#c7c7cc"
                               keyboardType="decimal-pad"
+                              maxLength={MAX_AMOUNT_LENGTH}
                             />
                           </>
                         ) : (
@@ -697,6 +702,7 @@ export function EntryForm({
                       placeholder="0"
                       placeholderTextColor="#c7c7cc"
                       keyboardType="decimal-pad"
+                      maxLength={MAX_AMOUNT_LENGTH}
                     />
                     <View style={[s.badge, isLiability && { backgroundColor: "#ff3b30" }]}>
                       <Text style={s.badgeText}>TWD</Text>
