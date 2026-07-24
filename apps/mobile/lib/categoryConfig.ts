@@ -51,6 +51,7 @@ export const CATEGORIES: TopCategory[] = [
         children: [
           { name: "Line Pay", icon: Smartphone },
           { name: "Apple Pay", icon: Smartphone },
+          { name: "街口支付", icon: Smartphone },
         ],
       },
       { name: "金融卡", icon: CreditCard },
