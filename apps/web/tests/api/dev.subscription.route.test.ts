@@ -1,14 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { SubscriptionStatus } from "@prisma/client";
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({
-  prisma: { subscription: { upsert: vi.fn(), deleteMany: vi.fn() } },
+vi.mock("@/services/subscription.service", () => ({
+  subscriptionService: { setDevStatus: vi.fn() },
 }));
 
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
+import { subscriptionService } from "@/services/subscription.service";
 import { POST } from "../../app/api/dev/subscription/route";
 
 function req(body: unknown) {
@@ -48,31 +47,25 @@ describe("POST /api/dev/subscription", () => {
     expect(res.status).toBe(400);
   });
 
-  it("activate upserts an active Subscription keyed by the derived apple account token, not the raw userId", async () => {
+  it("activate calls setDevStatus(userId, true) and returns isPremium: true", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user_1" } as never);
-    vi.mocked(prisma.subscription.upsert).mockResolvedValue({} as never);
+    vi.mocked(subscriptionService.setDevStatus).mockResolvedValue(undefined);
 
     const res = await POST(req({ action: "activate" }));
 
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual({ isPremium: true });
-    const call = vi.mocked(prisma.subscription.upsert).mock.calls[0]?.[0];
-    expect(call?.where.appleAccountToken).toBeDefined();
-    expect(call?.where.appleAccountToken).not.toBe("user_1");
-    expect(call?.create.status).toBe(SubscriptionStatus.active);
-    expect(call?.create.environment).toBe("Sandbox");
-    expect((call?.create.expiresAt as Date).getTime()).toBeGreaterThan(Date.now());
+    expect(subscriptionService.setDevStatus).toHaveBeenCalledWith("user_1", true);
   });
 
-  it("deactivate deletes the caller's Subscription row and returns isPremium: false", async () => {
+  it("deactivate calls setDevStatus(userId, false) and returns isPremium: false", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user_1" } as never);
-    vi.mocked(prisma.subscription.deleteMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(subscriptionService.setDevStatus).mockResolvedValue(undefined);
 
     const res = await POST(req({ action: "deactivate" }));
 
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual({ isPremium: false });
-    const call = vi.mocked(prisma.subscription.deleteMany).mock.calls[0]?.[0];
-    expect(call?.where?.appleAccountToken).toBeDefined();
+    expect(subscriptionService.setDevStatus).toHaveBeenCalledWith("user_1", false);
   });
 });
