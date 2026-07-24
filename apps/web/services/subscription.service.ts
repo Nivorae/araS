@@ -90,6 +90,13 @@ export class SubscriptionService {
   // 20-entry free cap, insurance restrictions) can be exercised end-to-end
   // from Expo Go, where apps/mobile/lib/purchases.ts no-ops (no real IAP
   // possible). Callers are responsible for gating this to non-production.
+  //
+  // CAUTION: DATABASE_URL is a single shared Supabase instance (see
+  // CLAUDE.md). Running this against your own account while it holds a real
+  // webhook-written subscription will overwrite it (active=true) or
+  // deleteMany it (active=false). It self-heals on the next real Apple
+  // notification (keyed by originalTransactionId, which the update branch
+  // preserves), but prefer a throwaway account or a separate dev DB.
   async setDevStatus(userId: string, active: boolean): Promise<void> {
     const appleAccountToken = deriveAppleAccountToken(userId);
 

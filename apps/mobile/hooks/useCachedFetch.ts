@@ -52,13 +52,18 @@ export function useCachedFetch<T>(endpoint: string): CachedFetchState<T> {
     api
       .get<T>(endpoint)
       .then((d) => {
-        caches.set(endpoint, d);
+        // Only the current (active) fetch may write the cache. A stale
+        // pre-invalidation GET can resolve after the post-invalidation one;
+        // gating the write here stops it from poisoning the cache with an
+        // out-of-date value once its effect has been superseded.
         if (active) {
+          caches.set(endpoint, d);
           setData(d);
           setError(false);
         }
       })
       .catch(() => {
+        // Keep whatever we last knew; only surface an error if we never had it.
         if (active && !caches.has(endpoint)) setError(true);
       })
       .finally(() => {
