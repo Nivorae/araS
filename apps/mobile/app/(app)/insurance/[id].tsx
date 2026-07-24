@@ -34,13 +34,13 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 export default function InsuranceDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
   const router = useRouter();
   const { fetchInsurance, deleteInsurance, fetchAll } = useFinanceActions();
 
   const [insurance, setInsurance] = useState<Insurance | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [mode, setMode] = useState<"view" | "edit">(edit === "1" ? "edit" : "view");
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
