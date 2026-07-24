@@ -18,6 +18,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ArrowLeft, Check, LogOut, Loader, Trash2, type LucideIcon } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
+import { invalidateCachedFetch } from "@/hooks/useCachedFetch";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -107,6 +108,21 @@ export default function SettingsScreen() {
   const api = useApi();
   const { isPremium, loading: premiumLoading } = useIsPremium();
   const [deleting, setDeleting] = useState(false);
+  const [devToggling, setDevToggling] = useState(false);
+
+  async function simulatePremium(action: "activate" | "deactivate") {
+    if (devToggling) return;
+    setDevToggling(true);
+    try {
+      await api.post("/api/dev/subscription", { action });
+      invalidateCachedFetch("/api/entitlements");
+    } catch (e) {
+      const msg = e instanceof ApiError || e instanceof Error ? e.message : "請稍後再試";
+      Alert.alert("模擬失敗", msg);
+    } finally {
+      setDevToggling(false);
+    }
+  }
 
   const email =
     user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? "—";
@@ -179,6 +195,28 @@ export default function SettingsScreen() {
               loading={premiumLoading}
               onPress={() => router.push("/paywall")}
             />
+            {__DEV__ ? (
+              <>
+                <SettingCard
+                  icon={Check}
+                  label="模擬升級（僅開發模式）"
+                  color="#34C759"
+                  textColor="#ffffff"
+                  loading={devToggling}
+                  disabled={devToggling}
+                  onPress={() => simulatePremium("activate")}
+                />
+                <SettingCard
+                  icon={Trash2}
+                  label="模擬取消（僅開發模式）"
+                  color="#FF9500"
+                  textColor="#ffffff"
+                  loading={devToggling}
+                  disabled={devToggling}
+                  onPress={() => simulatePremium("deactivate")}
+                />
+              </>
+            ) : null}
             <SettingCard
               icon={LogOut}
               label="登出"
