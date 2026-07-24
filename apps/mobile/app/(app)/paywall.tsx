@@ -42,7 +42,7 @@ const SUPPORT_URL = "https://ara-s-web.vercel.app/support";
 
 export default function PaywallScreen() {
   const router = useRouter();
-  const { isPremium } = useIsPremium();
+  const { isPremium, refresh } = useIsPremium();
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -73,6 +73,10 @@ export default function PaywallScreen() {
     setPurchasing(true);
     try {
       await Purchases.purchasePackage(pkg);
+      // The backend learns of the purchase via Apple's server notification, so
+      // re-read entitlement status now rather than waiting for the next app
+      // launch — otherwise the just-upgraded user still reads as free.
+      await refresh();
       Alert.alert("完成", "感謝訂閱！");
     } catch (e) {
       const err = e as { code?: PURCHASES_ERROR_CODE; message?: string };
@@ -82,7 +86,7 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [packages, selectedId]);
+  }, [packages, selectedId, refresh]);
 
   return (
     <View style={s.root}>

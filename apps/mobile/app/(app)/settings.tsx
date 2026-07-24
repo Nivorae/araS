@@ -18,7 +18,6 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ArrowLeft, Check, LogOut, Loader, Trash2, type LucideIcon } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
-import { invalidateCachedFetch } from "@/hooks/useCachedFetch";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -106,7 +105,7 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const { user } = useUser();
   const api = useApi();
-  const { isPremium, loading: premiumLoading } = useIsPremium();
+  const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const [deleting, setDeleting] = useState(false);
   const [devToggling, setDevToggling] = useState(false);
 
@@ -115,7 +114,7 @@ export default function SettingsScreen() {
     setDevToggling(true);
     try {
       await api.post("/api/dev/subscription", { action });
-      invalidateCachedFetch("/api/entitlements");
+      await refresh();
     } catch (e) {
       const msg = e instanceof ApiError || e instanceof Error ? e.message : "請稍後再試";
       Alert.alert("模擬失敗", msg);
