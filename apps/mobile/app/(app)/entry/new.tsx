@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
+import { ChevronLeft, LayoutGrid } from "lucide-react-native";
 import {
   CATEGORIES,
   getTopCategory,
@@ -42,6 +42,8 @@ function chunk<T>(items: T[], size: number): T[][] {
 type PickerState =
   | { level: "root"; expanded: string | null }
   | { level: "drill"; topCat: TopCategory; items: CategoryNode[]; title: string };
+
+type GridCell = { type: "back" } | { type: "node"; node: CategoryNode };
 
 export default function NewEntryScreen() {
   const router = useRouter();
@@ -79,6 +81,15 @@ export default function NewEntryScreen() {
     setState({ level: "root", expanded: alreadyExpanded ? null : topCat.name });
   };
 
+  // From a drilled-in level (e.g. 股票 → 台股/美股) back up to the parent
+  // sub-category grid that contains it (投資's children), rather than leaving
+  // the screen the way the header back button does.
+  const handleDrillBack = () => {
+    if (state.level !== "drill") return;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setState({ level: "root", expanded: state.topCat.name });
+  };
+
   const activeTopCat: TopCategory | null =
     state.level === "drill"
       ? state.topCat
@@ -92,7 +103,14 @@ export default function NewEntryScreen() {
 
   const isActiveDark = activeTopCat?.textColor === "#ffffff";
   const heroIconColor = isActiveDark ? (activeTopCat?.color ?? "#3c3c3e") : "#3c3c3e";
-  const gridRows = chunk(gridItems, GRID_COLUMNS);
+
+  // At a drilled-in level, lead the grid with a 返回 tile so the user can step
+  // back up one level (not out of the screen).
+  const gridCells: GridCell[] =
+    state.level === "drill"
+      ? [{ type: "back" }, ...gridItems.map((node) => ({ type: "node" as const, node }))]
+      : gridItems.map((node) => ({ type: "node" as const, node }));
+  const gridRows = chunk(gridCells, GRID_COLUMNS);
 
   return (
     <SafeAreaView style={s.root}>
@@ -116,7 +134,10 @@ export default function NewEntryScreen() {
               <Text style={s.heroLabel}>{activeTopCat.name}</Text>
             </>
           ) : (
-            <Text style={s.heroLabelEmpty}>請選擇分類</Text>
+            <>
+              <LayoutGrid size={128} color="#c7c7cc" strokeWidth={1.5} />
+              <Text style={s.heroLabelEmpty}>請選擇分類</Text>
+            </>
           )}
         </View>
 
@@ -127,10 +148,17 @@ export default function NewEntryScreen() {
               <TouchableOpacity
                 key={topCat.name}
                 onPress={() => handleTopCategoryPress(topCat)}
-                style={[s.dot, { backgroundColor: topCat.color }, isSelected && s.dotSelected]}
+                style={s.dotCol}
                 activeOpacity={0.85}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-              />
+              >
+                <View
+                  style={[s.dot, { backgroundColor: topCat.color }, isSelected && s.dotSelected]}
+                />
+                <Text style={[s.dotLabel, isSelected && s.dotLabelSelected]} numberOfLines={1}>
+                  {topCat.name}
+                </Text>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -138,10 +166,30 @@ export default function NewEntryScreen() {
         <View style={s.gridArea}>
           {gridRows.map((row, rowIdx) => (
             <View key={rowIdx} style={s.gridRow}>
-              {row.map((node) => {
-                const Icon = node.icon;
+              {row.map((cell) => {
                 const isDark = activeTopCat?.textColor === "#ffffff";
                 const iconColor = isDark ? (activeTopCat?.color ?? "#3c3c3e") : "#3c3c3e";
+
+                if (cell.type === "back") {
+                  return (
+                    <TouchableOpacity
+                      key="__back__"
+                      onPress={handleDrillBack}
+                      style={s.gridItem}
+                      activeOpacity={0.7}
+                    >
+                      <View style={s.gridIcon}>
+                        <ChevronLeft size={28} color={iconColor} />
+                      </View>
+                      <Text style={s.gridLabel} numberOfLines={2}>
+                        返回
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+
+                const { node } = cell;
+                const Icon = node.icon;
                 return (
                   <TouchableOpacity
                     key={node.name}
@@ -203,6 +251,7 @@ const s = StyleSheet.create({
     color: "#1c1c1e",
   },
   heroLabelEmpty: {
+    marginTop: 14,
     fontSize: 16,
     fontWeight: "500",
     color: "#8e8e93",
@@ -210,8 +259,11 @@ const s = StyleSheet.create({
 
   dotRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     paddingHorizontal: 8,
+  },
+  dotCol: {
+    flex: 1,
+    alignItems: "center",
   },
   dot: {
     width: 44,
@@ -223,6 +275,17 @@ const s = StyleSheet.create({
   dotSelected: {
     borderWidth: 2,
     borderColor: "#1c1c1e",
+  },
+  dotLabel: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#8e8e93",
+    textAlign: "center",
+  },
+  dotLabelSelected: {
+    color: "#1c1c1e",
+    fontWeight: "700",
   },
 
   gridArea: { flex: 1 },
