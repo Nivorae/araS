@@ -27,6 +27,7 @@ import {
   type UpdateInsurance,
 } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useIsPremium } from "@/hooks/useIsPremium";
 import { ApiError } from "@/lib/api";
 import { InsurerPickerModal } from "./InsurerPickerModal";
 import { CoverageItemPicker } from "./CoverageItemPicker";
@@ -86,6 +87,7 @@ export function InsuranceForm({
   onSaved,
 }: InsuranceFormProps) {
   const { addInsurance, updateInsurance, fetchAll } = useFinanceActions();
+  const { isPremium, loading: premiumLoading } = useIsPremium();
   const router = useRouter();
 
   const [insuranceType, setInsuranceType] = useState<InsuranceType | null>(
@@ -178,8 +180,26 @@ export function InsuranceForm({
     return Object.keys(errs).length === 0;
   };
 
+  const promptPremiumUpgrade = () => {
+    Alert.alert("保單管理是 Premium 功能", "升級 Premium 即可無限新增與管理保單。", [
+      { text: "稍後再決定", style: "cancel" },
+      { text: "解鎖 Premium", onPress: () => router.push("/paywall") },
+    ]);
+  };
+
   const handleSubmit = async () => {
     if (!validate() || !insuranceType) return;
+
+    // Premium status is prefetched at app entry, so a non-premium user gets the
+    // upgrade prompt instantly instead of waiting for the server to reject the
+    // save. Only creation is premium-gated (edits aren't), and only short-circuit
+    // once the status is actually known — otherwise fall through and let the
+    // server (the authoritative enforcer) decide.
+    if (!isEdit && !premiumLoading && !isPremium) {
+      promptPremiumUpgrade();
+      return;
+    }
+
     setError(null);
     setSubmitting(true);
     try {
@@ -220,10 +240,7 @@ export function InsuranceForm({
       onSaved();
     } catch (e) {
       if (e instanceof ApiError && e.code === "PREMIUM_REQUIRED") {
-        Alert.alert("保單管理是 Premium 功能", "升級 Premium 即可無限新增與管理保單。", [
-          { text: "稍後再決定", style: "cancel" },
-          { text: "解鎖 Premium", onPress: () => router.push("/paywall") },
-        ]);
+        promptPremiumUpgrade();
         return;
       }
       setError(e instanceof Error ? e.message : "儲存失敗，請重試");

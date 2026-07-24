@@ -124,6 +124,18 @@ export const UpdateEntryHistorySchema = z.object({
 });
 export type UpdateEntryHistory = z.infer<typeof UpdateEntryHistorySchema>;
 
+// Asset allocation analysis — GET /api/entries/allocation response (Premium).
+export const AssetAllocationSchema = z.object({
+  breakdown: z.array(
+    z.object({ topCategory: z.string(), value: z.number(), percentage: z.number() })
+  ),
+  concentrationWarnings: z.array(
+    z.object({ entryId: z.string(), name: z.string(), percentage: z.number() })
+  ),
+  debtToAssetRatio: z.number().nullable(),
+});
+export type AssetAllocation = z.infer<typeof AssetAllocationSchema>;
+
 // Transaction
 export const TransactionTypeSchema = z.enum(["income", "expense"]);
 export type TransactionType = z.infer<typeof TransactionTypeSchema>;

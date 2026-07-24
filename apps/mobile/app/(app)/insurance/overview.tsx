@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   type LayoutRectangle,
   NativeScrollEvent,
@@ -14,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronLeft, X } from "lucide-react-native";
+import { ChevronLeft, Pencil, Trash2, X } from "lucide-react-native";
 import { INSURANCE_TYPE_LABELS, type Insurance } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { formatCurrency } from "@/lib/format";
@@ -75,7 +76,7 @@ export default function InsuranceOverviewScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: screenW, height: screenH } = useWindowDimensions();
-  const { fetchInsurances } = useFinanceActions();
+  const { fetchInsurances, deleteInsurance, fetchAll } = useFinanceActions();
 
   // Coverflow geometry. Cards overlap (negative SPACING) so ~2 neighbours
   // peek on each side of the active card, like a Framer-style cover flow.
@@ -86,6 +87,9 @@ export default function InsuranceOverviewScreen() {
   const SPACING = -Math.round(CARD_W * 0.38);
   const INTERVAL = CARD_W + SPACING;
   const sideInset = (screenW - CARD_W) / 2;
+  // Extra vertical room around the deck so each card's drop shadow can
+  // render fully instead of being clipped by the scroll container's bounds.
+  const SHADOW_PAD = 32;
 
   // Bounds the tapped card grows into — a near-fullscreen detail card,
   // centred over the deck.
@@ -148,17 +152,34 @@ export default function InsuranceOverviewScreen() {
     }
   }, [insurances, sorted, focus, INTERVAL]);
 
+  // activeIndex drives each card's zIndex, so it must track the scroll
+  // position continuously (not just on settle) — otherwise the incoming
+  // card stays layered behind its neighbour for the whole swipe gesture,
+  // visibly "catching" on it before the transition completes.
+  const sortedLengthRef = useRef(sorted.length);
+  sortedLengthRef.current = sorted.length;
+  const intervalRef = useRef(INTERVAL);
+  intervalRef.current = INTERVAL;
+
+  const updateActiveIndex = useCallback((offsetX: number) => {
+    const count = sortedLengthRef.current || 1;
+    const idx = Math.round(offsetX / intervalRef.current);
+    const next = Math.max(0, Math.min(idx, count - 1));
+    setActiveIndex((prev) => (prev === next ? prev : next));
+  }, []);
+
   const onScroll = useRef(
-    Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })
+    Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+      useNativeDriver: true,
+      listener: (e: NativeSyntheticEvent<NativeScrollEvent>) =>
+        updateActiveIndex(e.nativeEvent.contentOffset.x),
+    })
   ).current;
 
   const onMomentumEnd = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const count = sorted.length || 1;
-      const idx = Math.round(e.nativeEvent.contentOffset.x / INTERVAL);
-      setActiveIndex(Math.max(0, Math.min(idx, count - 1)));
-    },
-    [sorted.length, INTERVAL]
+    (e: NativeSyntheticEvent<NativeScrollEvent>) =>
+      updateActiveIndex(e.nativeEvent.contentOffset.x),
+    [updateActiveIndex]
   );
 
   const goTo = useCallback(
@@ -186,12 +207,60 @@ export default function InsuranceOverviewScreen() {
     [growth]
   );
 
+  const [deleting, setDeleting] = useState(false);
+
+  // Only ever called when it's safe to close (user taps are gated on
+  // `deleting` at the call site) — the post-delete success path also calls
+  // this directly, so it must not itself refuse to run while deleting=true.
   const closeDetail = useCallback(() => {
     Animated.timing(growth, { toValue: 0, duration: 220, useNativeDriver: false }).start(() => {
       setExpanded(null);
       setCardOrigin(null);
     });
   }, [growth]);
+
+  // Skips the collapse animation — used when navigating away, where waiting
+  // for the 220ms close animation before pushing the next screen would just
+  // add a delay the user gains nothing from.
+  const dismissDetailImmediately = useCallback(() => {
+    growth.setValue(0);
+    setExpanded(null);
+    setCardOrigin(null);
+  }, [growth]);
+
+  const handleEdit = useCallback(() => {
+    if (!expanded) return;
+    const id = expanded.id;
+    dismissDetailImmediately();
+    router.push(`/insurance/${id}?edit=1`);
+  }, [expanded, dismissDetailImmediately, router]);
+
+  const handleDelete = useCallback(() => {
+    if (!expanded) return;
+    const target = expanded;
+    Alert.alert("刪除保單", "確定要刪除這張保單嗎？此動作無法復原。", [
+      { text: "取消", style: "cancel" },
+      {
+        text: "刪除",
+        style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            await deleteInsurance(target.id);
+            const updated = await fetchInsurances();
+            setInsurances(updated);
+            setActiveIndex((i) => Math.max(0, Math.min(i, updated.length - 1)));
+            await fetchAll();
+            closeDetail();
+          } catch {
+            Alert.alert("刪除失敗", "請稍後再試");
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
+  }, [expanded, deleteInsurance, fetchInsurances, fetchAll, closeDetail]);
 
   if (insurances === null) {
     return (
@@ -252,7 +321,7 @@ export default function InsuranceOverviewScreen() {
           {sorted.length === 0 ? (
             <Text style={s.emptyText}>還沒有保單</Text>
           ) : (
-            <View style={{ height: CARD_H }}>
+            <View style={{ height: CARD_H + SHADOW_PAD * 2 }}>
               <Animated.ScrollView
                 ref={scrollRef}
                 horizontal
@@ -343,7 +412,10 @@ export default function InsuranceOverviewScreen() {
           <Animated.View
             style={[StyleSheet.absoluteFill, s.backdrop, { opacity: backdropOpacity }]}
           >
-            <Pressable style={StyleSheet.absoluteFill} onPress={closeDetail} />
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={deleting ? undefined : closeDetail}
+            />
           </Animated.View>
 
           <Animated.View
@@ -373,6 +445,7 @@ export default function InsuranceOverviewScreen() {
             {/* Detail content fades in below the header once the card has mostly grown. */}
             <Animated.View style={[s.growDetail, { top: headerHeight, opacity: detailOpacity }]}>
               <ScrollView
+                style={s.growDetailScroll}
                 contentContainerStyle={s.expandedContent}
                 showsVerticalScrollIndicator={false}
               >
@@ -432,17 +505,46 @@ export default function InsuranceOverviewScreen() {
                   </>
                 )}
               </ScrollView>
+
+              <View style={s.actionsBar}>
+                <Pressable
+                  style={[s.actionBarBtn, { backgroundColor: expandedTheme.closeBg }]}
+                  onPress={handleEdit}
+                  disabled={deleting}
+                >
+                  <Pencil size={18} color={expandedTheme.text} />
+                  <Text style={[s.actionBarLabel, { color: expandedTheme.text }]}>編輯</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    s.actionBarBtn,
+                    { backgroundColor: expandedTheme.closeBg, opacity: deleting ? 0.5 : 1 },
+                  ]}
+                  onPress={handleDelete}
+                  disabled={deleting}
+                >
+                  <Trash2 size={18} color="#ff3b30" />
+                  <Text style={[s.actionBarLabel, { color: "#ff3b30" }]}>刪除</Text>
+                </Pressable>
+              </View>
             </Animated.View>
 
             <Animated.View style={[s.closeBtnWrap, { opacity: detailOpacity }]}>
               <Pressable
                 style={[s.closeBtn, { backgroundColor: expandedTheme.closeBg }]}
                 onPress={closeDetail}
+                disabled={deleting}
                 hitSlop={10}
               >
                 <X size={18} color={expandedTheme.text} />
               </Pressable>
             </Animated.View>
+
+            {deleting && (
+              <View style={[StyleSheet.absoluteFill, s.deletingOverlay]}>
+                <ActivityIndicator size="large" color={expandedTheme.text} />
+              </View>
+            )}
           </Animated.View>
         </View>
       )}
@@ -504,7 +606,14 @@ const s = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
   },
-  growDetail: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  growDetail: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "column",
+  },
+  growDetailScroll: { flex: 1 },
   closeBtnWrap: {
     position: "absolute",
     top: 14,
@@ -518,7 +627,30 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  expandedContent: { paddingHorizontal: 20, paddingBottom: 24 },
+  actionsBar: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+  actionBarBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  actionBarLabel: { fontSize: 15, fontWeight: "600" },
+  deletingOverlay: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.15)",
+    zIndex: 3,
+  },
+  expandedContent: { paddingHorizontal: 20, paddingBottom: 12 },
   expandedPolicyName: { fontSize: 14, textAlign: "center" },
   dashed: {
     borderBottomWidth: 1,

@@ -1,48 +1,65 @@
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createElement } from "react";
 import { useApi } from "@/lib/api";
-
-// Module-level cache, shared across every mount of the hook for the app's
-// lifetime. Once we've learned the user's premium status once, later screens
-// read the cached value on their very first render — no spinner, no "升級
-// Premium → 已升級" flash — while a background revalidate keeps it fresh.
-// `null` means "never fetched yet" (show loading); a boolean is a known result.
-let cachedIsPremium: boolean | null = null;
 
 export interface PremiumState {
   isPremium: boolean;
-  /** True only on the very first fetch, when we have no cached value to show. */
+  /** True only on the very first fetch, before we have any value to show. */
   loading: boolean;
+  /**
+   * Force a re-fetch of entitlement status. Call it at the two moments the
+   * value legitimately changes within a session: after a purchase completes,
+   * and when the dev-only toggle flips the simulated subscription.
+   */
+  refresh: () => Promise<void>;
 }
 
-// Source of truth is the backend (EntitlementsService), not RevenueCat's
+const PremiumContext = createContext<PremiumState | null>(null);
+
+// Source of truth is the backend (EntitlementsService), never RevenueCat's
 // client-side CustomerInfo — the client can't self-report premium status.
 // Fails closed: an unverified client is treated as free, matching the
 // authoritative server-side enforcement.
-export function useIsPremium(): PremiumState {
+//
+// Mounted once at the authenticated layout (app/(app)/_layout.tsx), so the
+// entitlement is fetched a single time when the app is entered — before any
+// tab or the entry flow — and then cached in this provider for the whole
+// session. Screens read the ready value via useIsPremium() without each one
+// re-confirming on its own mount.
+export function PremiumProvider({ children }: { children: ReactNode }) {
   const api = useApi();
-  const [isPremium, setIsPremium] = useState(cachedIsPremium ?? false);
-  // Only block with a loading state when there's nothing cached to show yet.
-  const [loading, setLoading] = useState(cachedIsPremium === null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-    api
-      .get<{ isPremium: boolean }>("/api/entitlements")
-      .then((data) => {
-        cachedIsPremium = data.isPremium;
-        if (active) setIsPremium(data.isPremium);
-      })
-      .catch(() => {
-        // Keep whatever we last knew; only fall back to free if we never had it.
-        if (active) setIsPremium(cachedIsPremium ?? false);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+  const refresh = useCallback(async () => {
+    try {
+      const data = await api.get<{ isPremium: boolean }>("/api/entitlements");
+      setIsPremium(data.isPremium);
+    } catch {
+      // Keep the last known value; fail-closed means the initial false stands
+      // if the very first fetch fails.
+    } finally {
+      setLoading(false);
+    }
   }, [api]);
 
-  return { isPremium, loading };
+  // `api` is referentially stable across renders (see useApi), so this runs
+  // exactly once for the lifetime of the authenticated session.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  return createElement(
+    PremiumContext.Provider,
+    { value: { isPremium, loading, refresh } },
+    children
+  );
+}
+
+export function useIsPremium(): PremiumState {
+  const ctx = useContext(PremiumContext);
+  if (!ctx) {
+    throw new Error("useIsPremium must be used within a PremiumProvider");
+  }
+  return ctx;
 }

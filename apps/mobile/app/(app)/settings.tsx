@@ -105,8 +105,23 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const { user } = useUser();
   const api = useApi();
-  const { isPremium, loading: premiumLoading } = useIsPremium();
+  const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const [deleting, setDeleting] = useState(false);
+  const [devToggling, setDevToggling] = useState(false);
+
+  async function simulatePremium(action: "activate" | "deactivate") {
+    if (devToggling) return;
+    setDevToggling(true);
+    try {
+      await api.post("/api/dev/subscription", { action });
+      await refresh();
+    } catch (e) {
+      const msg = e instanceof ApiError || e instanceof Error ? e.message : "請稍後再試";
+      Alert.alert("模擬失敗", msg);
+    } finally {
+      setDevToggling(false);
+    }
+  }
 
   const email =
     user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? "—";
@@ -179,6 +194,28 @@ export default function SettingsScreen() {
               loading={premiumLoading}
               onPress={() => router.push("/paywall")}
             />
+            {__DEV__ ? (
+              <>
+                <SettingCard
+                  icon={Check}
+                  label="模擬升級（僅開發模式）"
+                  color="#34C759"
+                  textColor="#ffffff"
+                  loading={devToggling}
+                  disabled={devToggling}
+                  onPress={() => simulatePremium("activate")}
+                />
+                <SettingCard
+                  icon={Trash2}
+                  label="模擬取消（僅開發模式）"
+                  color="#FF9500"
+                  textColor="#ffffff"
+                  loading={devToggling}
+                  disabled={devToggling}
+                  onPress={() => simulatePremium("deactivate")}
+                />
+              </>
+            ) : null}
             <SettingCard
               icon={LogOut}
               label="登出"
