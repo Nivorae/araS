@@ -1,50 +1,50 @@
-# Premium Dev Toggle — Design
+# Premium Dev Toggle 設計文件
 
-## Problem
+## 問題
 
-The premium entitlement system is server-authoritative and fail-closed: `EntitlementsService.isPremium(userId)` reads a `Subscription` row that is only ever written by Apple's server-to-server webhook (`apps/web/app/api/webhooks/app-store-notifications/route.ts`). `apps/mobile/lib/purchases.ts` no-ops inside Expo Go (`Constants.executionEnvironment === "storeClient"`), so a real IAP purchase cannot be completed there. This blocks end-to-end testing of premium-gated behavior (paywall, 20-entry free cap, insurance restrictions) during Expo Go development.
+Premium 權限判斷是 server-authoritative、fail-closed 的：`EntitlementsService.isPremium(userId)` 讀取的 `Subscription` 資料列，只會由 Apple 的 server-to-server webhook（`apps/web/app/api/webhooks/app-store-notifications/route.ts`）寫入。`apps/mobile/lib/purchases.ts` 在 Expo Go 裡會直接 no-op（判斷 `Constants.executionEnvironment === "storeClient"`），所以在 Expo Go 裡無法完成真正的 IAP 購買。這使得無法端對端測試 premium 相關的功能（paywall、20 筆免費上限、保險功能限制）。
 
-## Goal
+## 目標
 
-Let a developer flip their own account between "premium" and "free" from within the Expo Go app, exercising the real server-side entitlement path (not a client-side fake), while guaranteeing this capability cannot be reached in production.
+讓開發者可以在 Expo Go App 內把自己的帳號在「premium」和「free」之間切換，並且走的是真正的後端權限判斷路徑（而不是前端假資料），同時要保證這個機制在正式環境裡完全不可觸及。
 
-## Design
+## 設計
 
-### Backend: `apps/web/app/api/dev/subscription/route.ts`
+### 後端：`apps/web/app/api/dev/subscription/route.ts`
 
 - `POST { action: "activate" | "deactivate" }`
-- First line: `if (process.env.NODE_ENV === "production") return 404`. This makes the route effectively not exist once deployed to Vercel production — the only guard that matters, since it's server-enforced and can't be bypassed by a modified client.
-- Otherwise: `auth()` via Clerk as usual; operates only on the caller's own `Subscription` row, keyed by `deriveAppleAccountToken(userId)` (same derivation used by the real webhook).
-- `activate`: upsert with `productId: "dev_test_premium"`, `status: "active"`, `expiresAt: now + 1 year`, `environment: "Sandbox"`, `originalTransactionId: "dev-" + userId`.
-- `deactivate`: delete the row.
-- Response uses the standard `ok`/`err` envelope.
+- 第一行就檢查：`if (process.env.NODE_ENV === "production") return 404`。這讓這支路由在部署到 Vercel production 後形同不存在——這是唯一真正有意義的防護，因為它是後端強制的，client 端怎麼改都繞不過去。
+- 非正式環境時：照常用 Clerk `auth()` 驗證身份；只會操作呼叫者自己的 `Subscription` 資料列，key 是 `deriveAppleAccountToken(userId)`（跟真正的 webhook 用同一套推導邏輯）。
+- `activate`：upsert 一筆資料，`productId: "dev_test_premium"`、`status: "active"`、`expiresAt: now + 1 年`、`environment: "Sandbox"`、`originalTransactionId: "dev-" + userId`。
+- `deactivate`：刪除該資料列。
+- 回應沿用標準的 `ok`/`err` envelope。
 
-### Mobile: `apps/mobile/app/(app)/settings.tsx`
+### 手機端：`apps/mobile/app/(app)/settings.tsx`
 
-- New section gated by `if (__DEV__)`, placed near the existing "升級 Premium" card.
-- Two buttons: "模擬升級" and "模擬取消", each calling the endpoint above via the existing API client, then invalidating the `useIsPremium` query so the UI reflects the new state immediately.
-- `__DEV__` controls visibility only (a convenience so the buttons don't ship in a production build); it is not the security boundary — the backend `NODE_ENV` check is.
+- 在既有的「升級 Premium」卡片附近，新增一個用 `if (__DEV__)` 包起來的區塊。
+- 兩顆按鈕：「模擬升級」與「模擬取消」，各自呼叫上面的 API（透過既有的 API client），成功後 invalidate `useIsPremium` 的 query，讓畫面立刻反映新狀態。
+- `__DEV__` 只控制按鈕要不要顯示（方便正式 build 不會出現這些按鈕），並不是安全防線——真正的防線是後端的 `NODE_ENV` 檢查。
 
-### Data flow
+### 資料流
 
-Button press → `POST /api/dev/subscription` → Clerk `auth()` → write/delete `Subscription` row → mobile invalidates `useIsPremium` → same query path production purchases use (`GET /api/entitlements` → `EntitlementsService.isPremium`) now returns the toggled state → all real enforcement (20-entry cap in `entries.service.ts`, insurance restrictions) reacts accordingly.
+按下按鈕 → `POST /api/dev/subscription` → Clerk `auth()` → 寫入/刪除 `Subscription` 資料列 → 手機端 invalidate `useIsPremium` → 走跟正式購買相同的查詢路徑（`GET /api/entitlements` → `EntitlementsService.isPremium`）回傳切換後的狀態 → 所有真實的限制邏輯（`entries.service.ts` 的 20 筆上限、保險功能限制）都會跟著反應。
 
-### Error handling
+### 錯誤處理
 
-- Production: route 404s: mobile shows a generic failure alert (should never actually be reachable since the button itself is `__DEV__`-gated).
-- Unauthenticated: existing 401 pattern via `auth()`, same as every other route.
-- Follows existing `ok`/`err`/`handleError` conventions — no new error-handling pattern introduced.
+- 正式環境：路由回 404，手機端顯示一般性的失敗提示（理論上不會真的碰到，因為按鈕本身就被 `__DEV__` 擋掉了）。
+- 未登入：沿用既有的 401 模式（透過 `auth()`），跟其他路由一致。
+- 沿用既有的 `ok`/`err`/`handleError` 慣例，不引入新的錯誤處理方式。
 
-### Testing
+### 測試方式
 
-Manual, since this is a dev-only tool:
+手動測試，因為這只是個開發用工具：
 
-1. Press "模擬升級" → confirm paywall-gated UI unlocks and adding a 21st entry succeeds.
-2. Press "模擬取消" → confirm the cap is enforced again (21st entry blocked) and paywall reappears where expected.
-3. Confirm the route 404s when `NODE_ENV=production` is set locally (sanity check on the guard).
+1. 按「模擬升級」→ 確認 paywall 相關限制解除，且可以新增第 21 筆 entry。
+2. 按「模擬取消」→ 確認上限限制恢復（第 21 筆會被擋），且該出現 paywall 的地方會正常出現。
+3. 確認本機設定 `NODE_ENV=production` 時該路由會回 404（驗證防護機制有效）。
 
-## Out of scope
+## 不在範圍內
 
-- Any change to the real Apple IAP / RevenueCat flow.
-- A general-purpose feature-flag system — this is a single-purpose dev toggle for one entitlement.
-- Automated tests — this endpoint only exists in non-production and is not part of the product's tested surface.
+- 任何真實 Apple IAP / RevenueCat 流程的變更。
+- 通用的 feature-flag 系統——這只是針對單一權限狀態的專用開發工具。
+- 自動化測試——這支路由只存在於非正式環境，不屬於產品的測試範圍。
