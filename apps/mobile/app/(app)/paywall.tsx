@@ -21,6 +21,7 @@ import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
 const PREMIUM_FEATURES = [
   `資產／負債無限新增（免費版上限 ${FREE_ENTRY_LIMIT} 筆）`,
   "保單新增、編輯、刪除",
+  "資產配置分析，掌握資產分佈與風險",
 ] as const;
 
 // RevenueCat's PACKAGE_TYPE is a string enum ("ANNUAL", "MONTHLY", …) — reading
