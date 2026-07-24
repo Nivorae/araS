@@ -100,8 +100,9 @@ export default function NewEntryScreen() {
           CATEGORIES.map((topCat) => {
             const isExpanded = state.expanded === topCat.name;
             const isDark = topCat.textColor === "#ffffff";
+            const isInsurance = topCat.name === "保險";
             return (
-              <View key={topCat.name} style={s.section}>
+              <View key={topCat.name} style={[s.section, isInsurance && s.insuranceSectionBorder]}>
                 <TouchableOpacity
                   onPress={() => {
                     if (topCat.name === "保險") {
@@ -192,6 +193,10 @@ const s = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
+  },
+  insuranceSectionBorder: {
+    borderWidth: 1,
+    borderColor: "rgba(28,28,30,0.12)",
   },
   sectionHeader: {
     flexDirection: "row",
