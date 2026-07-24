@@ -94,6 +94,14 @@ export const CATEGORIES: TopCategory[] = [
       { name: "其他資產", icon: Building2 },
     ],
   },
+
+  {
+    name: "應收款",
+    color: "#0e1424",
+    textColor: "#ffffff",
+    isLiability: false,
+    children: [{ name: "一般應收款", icon: Receipt }],
+  },
   {
     name: "保險",
     color: "#f2f2f7",
@@ -103,13 +111,6 @@ export const CATEGORIES: TopCategory[] = [
     // step 1 of InsuranceForm itself. Selecting this category skips straight to
     // /insurance/new (see entry/new.tsx).
     children: [],
-  },
-  {
-    name: "應收款",
-    color: "#0e1424",
-    textColor: "#ffffff",
-    isLiability: false,
-    children: [{ name: "一般應收款", icon: Receipt }],
   },
 ];
 
