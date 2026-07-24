@@ -4,6 +4,7 @@ import {
   CreditCard,
   LayoutGrid,
   TrendingUp,
+  TrendingDown,
   BarChart2,
   Bitcoin,
   Gem,
@@ -15,6 +16,8 @@ import {
   Landmark,
   Flag,
   HandCoins,
+  Shield,
+  Plus,
   type LucideIcon,
 } from "lucide-react-native";
 
@@ -26,6 +29,7 @@ export interface CategoryNode {
 
 export interface TopCategory {
   name: string;
+  icon: LucideIcon;
   color: string;
   textColor: string;
   isLiability: boolean;
@@ -35,6 +39,7 @@ export interface TopCategory {
 export const CATEGORIES: TopCategory[] = [
   {
     name: "流動資金",
+    icon: Wallet,
     color: "#FFFFFF",
     textColor: "#1c1c1e",
     isLiability: false,
@@ -54,6 +59,7 @@ export const CATEGORIES: TopCategory[] = [
   },
   {
     name: "負債",
+    icon: TrendingDown,
     color: "#C7C7D4",
     textColor: "#1c1c1e",
     isLiability: true,
@@ -65,6 +71,7 @@ export const CATEGORIES: TopCategory[] = [
   },
   {
     name: "投資",
+    icon: TrendingUp,
     color: "#66788E",
     textColor: "#ffffff",
     isLiability: false,
@@ -85,6 +92,7 @@ export const CATEGORIES: TopCategory[] = [
   },
   {
     name: "固定資產",
+    icon: Building2,
     color: "#374254",
     textColor: "#ffffff",
     isLiability: false,
@@ -97,6 +105,7 @@ export const CATEGORIES: TopCategory[] = [
 
   {
     name: "應收款",
+    icon: Receipt,
     color: "#0e1424",
     textColor: "#ffffff",
     isLiability: false,
@@ -104,13 +113,14 @@ export const CATEGORIES: TopCategory[] = [
   },
   {
     name: "保險",
+    icon: Shield,
     color: "#f2f2f7",
     textColor: "#1c1c1e",
     isLiability: false,
-    // Empty on purpose: 險種 (7-way) isn't picked via this drill-down menu — it's
-    // step 1 of InsuranceForm itself. Selecting this category skips straight to
+    // 險種 (7-way) isn't picked via this drill-down menu — it's step 1 of
+    // InsuranceForm itself. Picking the single "新增" child routes straight to
     // /insurance/new (see entry/new.tsx).
-    children: [],
+    children: [{ name: "新增", icon: Plus }],
   },
 ];
 

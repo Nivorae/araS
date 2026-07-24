@@ -1,8 +1,8 @@
 import { useState } from "react";
 import {
+  Dimensions,
   LayoutAnimation,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,11 +11,32 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react-native";
-import { CATEGORIES, type CategoryNode, type TopCategory } from "@/lib/categoryConfig";
+import { ChevronLeft } from "lucide-react-native";
+import {
+  CATEGORIES,
+  getTopCategory,
+  type CategoryNode,
+  type TopCategory,
+} from "@/lib/categoryConfig";
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
+
+const HERO_HEIGHT = Dimensions.get("window").height * 0.4;
+const GRID_COLUMNS = 3;
+const GRID_GAP = 12;
+const BODY_PADDING = 16;
+const GRID_ITEM_WIDTH =
+  (Dimensions.get("window").width - BODY_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) /
+  GRID_COLUMNS;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    rows.push(items.slice(i, i + size));
+  }
+  return rows;
 }
 
 type PickerState =
@@ -31,18 +52,14 @@ export default function NewEntryScreen() {
   });
 
   const handleBack = () => {
-    if (state.level === "drill") {
-      setState({ level: "root", expanded: state.topCat.name });
-      return;
-    }
-    if (state.level === "root" && state.expanded) {
-      setState({ level: "root", expanded: null });
-      return;
-    }
     router.back();
   };
 
   const pushToForm = (topCat: TopCategory, subName: string) => {
+    if (topCat.name === "保險") {
+      router.push("/insurance/new");
+      return;
+    }
     router.push(
       `/entry/form?topCategory=${encodeURIComponent(topCat.name)}&subCategory=${encodeURIComponent(subName)}`
     );
@@ -56,7 +73,26 @@ export default function NewEntryScreen() {
     }
   };
 
+  const handleTopCategoryPress = (topCat: TopCategory) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const alreadyExpanded = state.level === "root" && state.expanded === topCat.name;
+    setState({ level: "root", expanded: alreadyExpanded ? null : topCat.name });
+  };
+
+  const activeTopCat: TopCategory | null =
+    state.level === "drill"
+      ? state.topCat
+      : state.expanded
+        ? (getTopCategory(state.expanded) ?? null)
+        : null;
+  const gridItems: CategoryNode[] =
+    state.level === "drill" ? state.items : (activeTopCat?.children ?? []);
+
   const title = state.level === "drill" ? state.title : "新增帳戶";
+
+  const isActiveDark = activeTopCat?.textColor === "#ffffff";
+  const heroIconColor = isActiveDark ? (activeTopCat?.color ?? "#3c3c3e") : "#3c3c3e";
+  const gridRows = chunk(gridItems, GRID_COLUMNS);
 
   return (
     <SafeAreaView style={s.root}>
@@ -72,96 +108,66 @@ export default function NewEntryScreen() {
         <View style={s.placeholder} />
       </View>
 
-      <ScrollView contentContainerStyle={s.scrollContent}>
-        {state.level === "drill" ? (
-          <View style={s.card}>
-            {state.items.map((node, idx) => {
-              const Icon = node.icon;
-              const accentColor = state.topCat.color === "#FFFFFF" ? "#374254" : state.topCat.color;
-              const isLast = idx === state.items.length - 1;
-              return (
-                <View key={node.name}>
+      <View style={s.body}>
+        <View style={s.hero}>
+          {activeTopCat ? (
+            <>
+              <activeTopCat.icon size={128} color={heroIconColor} strokeWidth={1.5} />
+              <Text style={s.heroLabel}>{activeTopCat.name}</Text>
+            </>
+          ) : (
+            <Text style={s.heroLabelEmpty}>請選擇分類</Text>
+          )}
+        </View>
+
+        <View style={s.dotRow}>
+          {CATEGORIES.map((topCat) => {
+            const isSelected = activeTopCat?.name === topCat.name;
+            return (
+              <TouchableOpacity
+                key={topCat.name}
+                onPress={() => handleTopCategoryPress(topCat)}
+                style={[s.dot, { backgroundColor: topCat.color }, isSelected && s.dotSelected]}
+                activeOpacity={0.85}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              />
+            );
+          })}
+        </View>
+
+        <View style={s.gridArea}>
+          {gridRows.map((row, rowIdx) => (
+            <View key={rowIdx} style={s.gridRow}>
+              {row.map((node) => {
+                const Icon = node.icon;
+                const isDark = activeTopCat?.textColor === "#ffffff";
+                const iconColor = isDark ? (activeTopCat?.color ?? "#3c3c3e") : "#3c3c3e";
+                return (
                   <TouchableOpacity
-                    onPress={() => pushToForm(state.topCat, node.name)}
-                    style={s.subItem}
+                    key={node.name}
+                    onPress={() => activeTopCat && handleSubItemClick(node, activeTopCat)}
+                    style={s.gridItem}
                     activeOpacity={0.7}
                   >
-                    <View style={[s.nodeIcon, { backgroundColor: accentColor + "20" }]}>
-                      <Icon size={20} color={accentColor} />
+                    <View style={s.gridIcon}>
+                      <Icon size={28} color={iconColor} />
                     </View>
-                    <Text style={s.nodeLabel}>{node.name}</Text>
+                    <Text style={s.gridLabel} numberOfLines={2}>
+                      {node.name}
+                    </Text>
                   </TouchableOpacity>
-                  {!isLast && <View style={s.sep} />}
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          CATEGORIES.map((topCat) => {
-            const isExpanded = state.expanded === topCat.name;
-            const isDark = topCat.textColor === "#ffffff";
-            const isInsurance = topCat.name === "保險";
-            return (
-              <View key={topCat.name} style={[s.section, isInsurance && s.insuranceSectionBorder]}>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (topCat.name === "保險") {
-                      router.push("/insurance/new");
-                      return;
-                    }
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setState({ level: "root", expanded: isExpanded ? null : topCat.name });
-                  }}
-                  style={[s.sectionHeader, { backgroundColor: topCat.color }]}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[s.sectionTitle, { color: topCat.textColor }]}>{topCat.name}</Text>
-                  {isExpanded ? (
-                    <ChevronDown size={18} color={topCat.textColor} />
-                  ) : (
-                    <ChevronRight size={18} color={topCat.textColor} />
-                  )}
-                </TouchableOpacity>
-
-                {isExpanded && (
-                  <View style={s.subList}>
-                    {topCat.children.map((node, idx) => {
-                      const Icon = node.icon;
-                      const hasChildren = !!node.children?.length;
-                      const isLast = idx === topCat.children.length - 1;
-                      const iconColor = isDark ? topCat.color : "#3c3c3e";
-                      const iconBg = isDark ? topCat.color + "20" : "rgba(0,0,0,0.06)";
-                      return (
-                        <View key={node.name}>
-                          <TouchableOpacity
-                            onPress={() => handleSubItemClick(node, topCat)}
-                            style={s.subItem}
-                            activeOpacity={0.7}
-                          >
-                            <View style={[s.nodeIcon, { backgroundColor: iconBg }]}>
-                              <Icon size={18} color={iconColor} />
-                            </View>
-                            <Text style={[s.nodeLabel, s.flex1]}>{node.name}</Text>
-                            {hasChildren && <ChevronRight size={16} color="#c7c7cc" />}
-                          </TouchableOpacity>
-                          {!isLast && <View style={s.sep} />}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#f2f2f7" },
-  flex1: { flex: 1 },
 
   header: {
     flexDirection: "row",
@@ -183,59 +189,65 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#1c1c1e" },
   placeholder: { width: 40 },
 
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
+  body: { flex: 1, padding: BODY_PADDING, gap: 16 },
 
-  section: {
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  insuranceSectionBorder: {
-    borderWidth: 1,
-    borderColor: "rgba(28,28,30,0.12)",
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  sectionTitle: { fontSize: 17, fontWeight: "600" },
-
-  subList: { backgroundColor: "#fff" },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  subItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  sep: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#f2f2f7",
-    marginHorizontal: 20,
-  },
-  nodeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  hero: {
+    height: HERO_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
   },
-  nodeLabel: { fontSize: 15, fontWeight: "500", color: "#1c1c1e" },
+  heroLabel: {
+    marginTop: 14,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1c1c1e",
+  },
+  heroLabelEmpty: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#8e8e93",
+  },
+
+  dotRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+  },
+  dot: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.12)",
+  },
+  dotSelected: {
+    borderWidth: 2,
+    borderColor: "#1c1c1e",
+  },
+
+  gridArea: { flex: 1 },
+  gridRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: GRID_GAP,
+  },
+  gridItem: {
+    width: GRID_ITEM_WIDTH,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridIcon: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  gridLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#1c1c1e",
+    textAlign: "center",
+  },
 });
