@@ -14,9 +14,11 @@
 
 ## 決策
 
-### 決策一：進入點——併入淨值圖表的切換檢視
+### 決策一：進入點——併入投資損益頁的走勢圖切換
 
-不新增頁面、不新增路由。淨值圖表區塊加一個切換（「歷史走勢」⇄「資產配置」），兩者共用同一塊畫面空間。
+原規劃是「併入淨值圖表」，但查證後發現 mobile 資產頁（`(tabs)/index.tsx`）只有一個淨值數字，沒有任何歷史走勢圖表可掛；真正符合「淨值圖表（歷史）」的元件其實是 `(tabs)/transactions.tsx`（收支頁，UI 標題「投資損益」）裡的 `InvestmentChart`，已經在畫 `totalAssets`／`netWorth` 的期間長條圖。
+
+改為在 `transactions.tsx` 加一個切換（「走勢」⇄「配置」），不新增頁面、不新增路由，兩者共用同一塊 `chartZone`。
 
 ### 決策二：一次顯示三件事
 
@@ -97,16 +99,17 @@
   - `entitlementsService.isPremium(userId)` 檢查 → 非 premium 回 403（沿用 `ENTRY_LIMIT_REACHED` 類似的明確錯誤碼，例如 `PREMIUM_REQUIRED`）
   - 呼叫 service，`ok()` 包裝回傳
 
-## 前端（mobile）
+## 前端（mobile）——已實作
 
-- 淨值圖表元件加一個 tab/switch 狀態（沿用現有玻璃膠囊風格）
-- Free 用戶點「資產配置」→ 開現有 Paywall（復用 `c210880` 接好的 cache + open paywall pattern）
-- Premium 用戶 → 呼叫 `GET /api/entries/allocation`，渲染三個區塊
+- `apps/mobile/app/(app)/(tabs)/transactions.tsx`：header 內加「走勢／配置」二段式 pill toggle，`chartZone` 依 `view` state 切換渲染 `InvestmentChart` 或新元件 `AssetAllocationView`
+- Free 用戶（`useIsPremium`）點「配置」→ 直接 `router.push("/paywall")`，不切換畫面
+- Premium 用戶 → 切到 `AssetAllocationView`（`apps/mobile/components/AssetAllocationView.tsx`），內部呼叫 `GET /api/entries/allocation`，渲染佔比清單、集中度警示、負債佔總資產比率
 
 ## 測試
 
-- **Service 單元測試**（mock Prisma）：總資產為 0（除以零保護）、多筆 entry 同時超過 40%、負債類別不進佔比清單、`includeInChart=false` 的 entry（保單）被排除
-- **Route 測試**：free 用戶 403、未登入 401、premium 用戶正常回傳（比照 `entries.route.test.ts` 既有模式）
+- **Service 單元測試**（mock Prisma，`apps/web/tests/services/entries.service.test.ts`）：分類佔比計算、40% 集中度警示（含未達標不觸發）、`includeInChart=false` 排除、負債類別排除＋`debtToAssetRatio` 計算、總資產為 0 時的除以零保護 — 共 6 個測項，全數 TDD red→green
+- **Route 測試**（`apps/web/tests/api/entries.allocation.route.test.ts`）：未登入 401、free 用戶 403 `PREMIUM_REQUIRED`（且不呼叫 service）、premium 用戶 200
+- Mobile 端目前無自動化測試基礎設施（`apps/mobile` 無任何 `.test.ts(x)` 檔案、`package.json` 無 `test` script），UI 部分僅靠 lint + type-check 把關，與現有其他 mobile 功能開發模式一致
 
 ## 明確排除
 

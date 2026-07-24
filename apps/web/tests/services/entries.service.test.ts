@@ -299,3 +299,80 @@ describe("EntriesService.create limit guard", () => {
     expect(prisma.entry.create).toHaveBeenCalled();
   });
 });
+
+describe("EntriesService.getAssetAllocation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("computes each top category's percentage of total assets", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { topCategory: "投資", value: 600, includeInChart: true },
+      { topCategory: "流動資金", value: 400, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.breakdown).toEqual([
+      { topCategory: "投資", value: 600, percentage: 60 },
+      { topCategory: "流動資金", value: 400, percentage: 40 },
+    ]);
+  });
+
+  it("flags entries at or above 40% of total assets as concentration warnings", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "台積電", topCategory: "投資", value: 500, includeInChart: true },
+      { id: "e2", name: "現金", topCategory: "流動資金", value: 500, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.concentrationWarnings).toEqual([
+      { entryId: "e1", name: "台積電", percentage: 50 },
+      { entryId: "e2", name: "現金", percentage: 50 },
+    ]);
+  });
+
+  it("does not flag entries below the 40% threshold", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "台積電", topCategory: "投資", value: 300, includeInChart: true },
+      { id: "e2", name: "現金", topCategory: "流動資金", value: 700, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.concentrationWarnings).toEqual([{ entryId: "e2", name: "現金", percentage: 70 }]);
+  });
+
+  it("excludes entries with includeInChart=false from the breakdown and totals", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "現金", topCategory: "流動資金", value: 1000, includeInChart: true },
+    ] as never);
+
+    await entriesService.getAssetAllocation(USER_ID);
+
+    expect(prisma.entry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER_ID, includeInChart: true } })
+    );
+  });
+
+  it("excludes liability categories from the breakdown and computes debtToAssetRatio", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "現金", topCategory: "流動資金", value: 800, includeInChart: true },
+      { id: "e2", name: "信用卡", topCategory: "負債", value: 200, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.breakdown).toEqual([{ topCategory: "流動資金", value: 800, percentage: 100 }]);
+    expect(result.debtToAssetRatio).toBe(25);
+  });
+
+  it("returns a null debtToAssetRatio and empty breakdown when there are no assets", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([]);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.breakdown).toEqual([]);
+    expect(result.concentrationWarnings).toEqual([]);
+    expect(result.debtToAssetRatio).toBeNull();
+  });
+});

@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { d, dn } from "@/lib/serialize";
 import type { CreateEntry, UpdateEntry, UpdateEntryHistory } from "@repo/shared";
 import { entitlementsService } from "@/services/entitlements.service";
-import { FREE_ENTRY_LIMIT } from "@repo/shared";
+import { FREE_ENTRY_LIMIT, LIABILITY_TOP_CATEGORIES } from "@repo/shared";
+
+const LIABILITY_SET = new Set(LIABILITY_TOP_CATEGORIES);
 
 function serializeHistory(h: {
   id: string;
@@ -250,6 +252,45 @@ export class EntriesService {
     if (data.createdAt) payload.createdAt = data.createdAt;
     const row = await prisma.entryHistory.create({ data: payload });
     return serializeHistory(row);
+  }
+
+  async getAssetAllocation(userId: string) {
+    const entries = await prisma.entry.findMany({
+      where: { userId, includeInChart: true },
+      select: { id: true, name: true, topCategory: true, value: true },
+    });
+
+    // Single pass: decode each entry's Decimal once, split into asset/liability
+    // totals, and accumulate the per-category breakdown map as we go.
+    let totalAssets = 0;
+    let totalLiabilities = 0;
+    const byTopCategory = new Map<string, number>();
+    const assetValues: { id: string; name: string; value: number }[] = [];
+    for (const e of entries) {
+      const value = d(e.value);
+      if (LIABILITY_SET.has(e.topCategory)) {
+        totalLiabilities += value;
+        continue;
+      }
+      totalAssets += value;
+      byTopCategory.set(e.topCategory, (byTopCategory.get(e.topCategory) ?? 0) + value);
+      assetValues.push({ id: e.id, name: e.name, value });
+    }
+    const debtToAssetRatio = totalAssets > 0 ? (totalLiabilities / totalAssets) * 100 : null;
+
+    const breakdown = [...byTopCategory.entries()]
+      .map(([topCategory, value]) => ({
+        topCategory,
+        value,
+        percentage: (value / totalAssets) * 100,
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    const concentrationWarnings = assetValues
+      .map((e) => ({ entryId: e.id, name: e.name, percentage: (e.value / totalAssets) * 100 }))
+      .filter((w) => w.percentage >= 40);
+
+    return { breakdown, concentrationWarnings, debtToAssetRatio };
   }
 
   async verifyHistoryOwnership(historyId: string, userId: string): Promise<boolean> {
