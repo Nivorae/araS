@@ -39,9 +39,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
+# env files — ignore every variant so ad-hoc copies (.env.bak, .env.prod-backup,
+# .env.old) can never be committed, then re-allow the two that are deliberately
+# tracked: the checked-in example, and the mobile production values that
+# `eas update` inlines into OTA builds.
 .env
-.env*.local
+.env.*
+!.env.example
+!apps/mobile/.env.production
 
 # vercel
 .vercel
