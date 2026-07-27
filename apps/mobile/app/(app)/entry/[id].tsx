@@ -65,6 +65,25 @@ const buildYfSymbol = _buildYfSymbol;
 // keeps one identity across renders and the useMemo hooks below stay valid.
 const NO_HISTORY: EntryHistory[] = [];
 
+// Circuit breaker for the focus-driven history refresh. React Navigation re-runs
+// a focus effect whenever it rebuilds the screen's navigation object, without
+// the screen ever losing focus — and one production session was seen issuing
+// history reads at roughly frame rate until React aborted with "Maximum update
+// depth exceeded". What drove the re-runs that fast is still unidentified: it
+// was another user's session and has not been reproduced. So rather than assume
+// a cause, bound the damage — past this many focus reads the screen stops
+// refreshing (cached rows stay on screen, the entry is still usable) and reports
+// once. The report carries the preceding request breadcrumbs, which is exactly
+// the diagnostic the original crash lacked.
+//
+// The limit counts a *consecutive run* of reads with no idle gap, not reads per
+// fixed window: a runaway loop is sequential at round-trip cadence (~300-400ms),
+// so any fixed window short enough to catch it would keep resetting mid-run.
+// Normal use does two reads per visit, and leaving the screen unmounts it, which
+// resets these refs — so navigating in and out repeatedly cannot accumulate.
+const HISTORY_READ_IDLE_GAP_MS = 1000;
+const HISTORY_READ_LIMIT = 12;
+
 // ─── Integer-with-thousands input (變動金額) ───────────────────────────────────
 // Strips decimals and non-digit characters as the user types, keeping at most
 // one leading "-" for negative adjustments, so the underlying value is always a
@@ -196,15 +215,71 @@ export default function EntryDetailScreen() {
 
   // Wraps the actions-layer fetch with this screen's loading flag. The rows land
   // in the store, so the selector above picks them up.
-  const fetchHistory = useCallback(async (): Promise<EntryHistory[] | null> => {
-    if (!id) return null;
-    setHistoryLoading(true);
-    try {
-      return await fetchEntryHistory(id);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [id, fetchEntryHistory]);
+  //
+  // Concurrent reads collapse onto one request. This matters because a focus
+  // effect is NOT once-per-visit: React Navigation rebuilds a screen's
+  // navigation object whenever its navigator's cache is invalidated, and
+  // useFocusEffect re-runs its body on that new identity (measured: two runs in
+  // a single visit with no dependency change and no remount). Every run used to
+  // issue a request whose response wrote to the store and re-rendered this
+  // screen, with nothing stopping request N+1 from going out while N was still
+  // open — so a burst of re-runs became one request per frame and tripped
+  // React's "Maximum update depth exceeded".
+  const inFlight = useRef<Promise<EntryHistory[] | null> | null>(null);
+  // Read through refs, never through the useCallback dependency list: making
+  // fetchHistory depend on `history` would change its identity on every store
+  // write, which re-runs the focus effect below — the very loop being fixed.
+  const historyLenRef = useRef(0);
+  historyLenRef.current = history.length;
+  const lastReadAt = useRef(0);
+  const readCount = useRef(0);
+  const breakerTripped = useRef(false);
+
+  const fetchHistory = useCallback(
+    // `force` is for callers that must observe state written by their own
+    // preceding mutation: sharing a read that was issued *before* their PATCH
+    // would resolve to pre-edit rows, and syncEntryValueFromHistory would then
+    // write a stale balance onto the entry. Reads triggered by focus have no
+    // such ordering requirement and always dedupe. Forced reads also bypass the
+    // circuit breaker — they are one-per-tap and must not be silently dropped.
+    (opts?: { force?: boolean }): Promise<EntryHistory[] | null> => {
+      if (!id) return Promise.resolve(null);
+      if (!opts?.force) {
+        if (inFlight.current) return inFlight.current;
+        if (breakerTripped.current) return Promise.resolve(null);
+        const now = Date.now();
+        if (now - lastReadAt.current > HISTORY_READ_IDLE_GAP_MS) readCount.current = 0;
+        lastReadAt.current = now;
+        readCount.current += 1;
+        if (readCount.current > HISTORY_READ_LIMIT) {
+          breakerTripped.current = true;
+          Sentry.captureMessage("entry history refresh loop stopped", {
+            level: "warning",
+            tags: { context: "history.refreshLoop" },
+            extra: {
+              entryId: id,
+              consecutiveReads: readCount.current,
+              idleGapMs: HISTORY_READ_IDLE_GAP_MS,
+              cachedRows: historyLenRef.current,
+            },
+          });
+          return Promise.resolve(null);
+        }
+      }
+      setHistoryLoading(true);
+      const pending = fetchEntryHistory(id).finally(() => {
+        // A forced read supersedes this one; leave the flag to whichever request
+        // is still current so the refresh spinner doesn't clear early.
+        if (inFlight.current === pending) {
+          inFlight.current = null;
+          setHistoryLoading(false);
+        }
+      });
+      inFlight.current = pending;
+      return pending;
+    },
+    [id, fetchEntryHistory]
+  );
 
   // After a history edit/delete the backend recomputes the entry's value to the
   // most-recent record's running balance (0 when none remain). Mirror that into
@@ -223,6 +298,7 @@ export default function EntryDetailScreen() {
   );
 
   // Refetch on focus so a record added via the "+" flow shows up on return.
+  // Safe to run repeatedly: fetchHistory dedupes concurrent reads.
   useFocusEffect(
     useCallback(() => {
       fetchHistory();
@@ -282,13 +358,13 @@ export default function EntryDetailScreen() {
         units: editUnits !== "" ? parseFloat(editUnits) : null,
       });
       setEditingHistory(null);
-      const rows = await fetchHistory();
+      const rows = await fetchHistory({ force: true });
       if (rows) syncEntryValueFromHistory(rows);
     } catch (e) {
       if (isNotFoundError(e)) {
         // Record was already deleted elsewhere — close the modal and resync.
         setEditingHistory(null);
-        const rows = await fetchHistory();
+        const rows = await fetchHistory({ force: true });
         if (rows) syncEntryValueFromHistory(rows);
       } else if (isNetworkError(e)) {
         // Interrupted (e.g. app backgrounded mid-save). Keep the modal open so
@@ -308,12 +384,12 @@ export default function EntryDetailScreen() {
     try {
       await apiRef.current.delete(`/api/entries/${id}/history/${editingHistory.id}`);
       setEditingHistory(null);
-      const rows = await fetchHistory();
+      const rows = await fetchHistory({ force: true });
       if (rows) syncEntryValueFromHistory(rows);
     } catch (e) {
       if (isNotFoundError(e)) {
         setEditingHistory(null);
-        const rows = await fetchHistory();
+        const rows = await fetchHistory({ force: true });
         if (rows) syncEntryValueFromHistory(rows);
       } else if (isNetworkError(e)) {
         // Keep the modal open so the user can retry the delete.
