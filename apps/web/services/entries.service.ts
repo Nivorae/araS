@@ -168,16 +168,17 @@ export class EntriesService {
     return prisma.entry.deleteMany({ where: { id, userId } });
   }
 
-  async listHistory(id: string) {
-    const rows = await prisma.entryHistory.findMany({
-      where: { entryId: id },
-      orderBy: { createdAt: "desc" },
+  // `userId` scopes the lookup through the parent Entry — EntryHistory carries no
+  // userId column of its own. Enforcing that here rather than trusting the caller
+  // keeps the method safe on its own: a future route that forgets the
+  // verifyHistoryOwnership pre-check still cannot reach another user's record.
+  // Same shape as insurance.service.ts / loans.service.ts — null means "not
+  // yours or not there", which the route turns into a 404.
+  async updateHistory(historyId: string, data: UpdateEntryHistory, userId: string) {
+    const existing = await prisma.entryHistory.findFirst({
+      where: { id: historyId, entry: { userId } },
     });
-    return rows.map(serializeHistory);
-  }
-
-  async updateHistory(historyId: string, data: UpdateEntryHistory) {
-    const existing = await prisma.entryHistory.findUniqueOrThrow({ where: { id: historyId } });
+    if (!existing) return null;
 
     const existingDelta = d(existing.delta);
     const existingBalance = d(existing.balance);
@@ -217,8 +218,15 @@ export class EntriesService {
     return serializeHistory(updated);
   }
 
-  async deleteHistory(historyId: string) {
-    const existing = await prisma.entryHistory.findUniqueOrThrow({ where: { id: historyId } });
+  // Scoped through the parent Entry for the same reason as updateHistory above.
+  // A missing row is a no-op, not an error: the only way to get here past the
+  // route's ownership check is a concurrent delete, and "already gone" is the
+  // outcome the caller wanted.
+  async deleteHistory(historyId: string, userId: string) {
+    const existing = await prisma.entryHistory.findFirst({
+      where: { id: historyId, entry: { userId } },
+    });
+    if (!existing) return;
     const existingDelta = d(existing.delta);
 
     await prisma.entryHistory.delete({ where: { id: historyId } });
