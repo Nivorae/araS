@@ -75,7 +75,7 @@ const s = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: "rgba(28,28,30,0.12)" },
   rowName: { flex: 1, fontSize: 13, color: "#1c1c1e", fontWeight: "600" },
   rowPercentage: { fontSize: 13, color: "#8e8e93", width: 48, textAlign: "right" },
-  rowValue: { fontSize: 13, color: "#1c1c1e", width: 120, textAlign: "right" },
+  rowValue: { fontSize: 13, color: "#1c1c1e", width: 130, textAlign: "right" },
   emptyText: { fontSize: 13, color: "#8e8e93", textAlign: "center", marginTop: 12 },
   warningBox: {
     marginTop: 6,
