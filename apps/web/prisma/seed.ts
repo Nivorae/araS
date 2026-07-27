@@ -4,6 +4,11 @@ import { assertDevDatabase } from "./dev-db-guard";
 
 const prisma = new PrismaClient();
 
+// The designated test account for the dev database. Not a secret — Clerk user ids
+// are public identifiers — and safe to default to because every write below is
+// scoped to this one id. Override with SEED_USER_ID to seed a different account.
+const TEST_USER_ID = "user_3FcaiZZRQbEpYWCPqpBUngRxf8Q";
+
 const now = new Date();
 /** A date `monthsBack` months before today, on the given day of month. */
 function monthsAgo(monthsBack: number, day = 15): Date {
@@ -294,14 +299,7 @@ async function wipeUser(userId: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const userId = process.env.SEED_USER_ID ?? process.argv[2];
-  if (!userId) {
-    throw new Error(
-      "SEED_USER_ID is required — use the Clerk user id you sign in with on the device\n" +
-        '(Clerk dashboard → Users → copy the id, it looks like "user_2ab...").\n\n' +
-        "  SEED_USER_ID=user_2ab... pnpm db:seed"
-    );
-  }
+  const userId = process.env.SEED_USER_ID ?? process.argv[2] ?? TEST_USER_ID;
   if (!userId.startsWith("user_")) {
     throw new Error(`"${userId}" is not a Clerk user id — those start with "user_".`);
   }

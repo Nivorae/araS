@@ -19,9 +19,9 @@ cp .env.example .env
 # 2. Generate Prisma client (required before first run, and after schema changes)
 pnpm db:generate
 
-# 3. Create the schema and load test data (SEED_USER_ID is your Clerk user id)
+# 3. Create the schema and load test data
 pnpm db:migrate:deploy
-SEED_USER_ID=user_... pnpm db:seed
+pnpm db:seed
 
 # 4. Start dev server
 pnpm dev
@@ -58,16 +58,21 @@ pnpm db:check             # Abort if the target looks like production (>3 users)
 pnpm db:generate          # Generate Prisma client after schema changes
 pnpm db:migrate           # Create a migration (dev only — CAN reset the database)
 pnpm db:migrate:deploy    # Apply existing migrations without resetting
-SEED_USER_ID=user_... pnpm db:seed    # Load test data (21 entries: over the free cap)
-SEED_USER_ID=user_... pnpm db:reset   # check -> drop -> migrate -> seed. Destructive
+pnpm db:seed              # Load test data (21 entries: one over the free cap)
+pnpm db:reset             # check -> drop -> migrate -> seed. Destructive
 pnpm db:studio            # Prisma Studio UI
 pnpm docker:up            # Local PostgreSQL on 5434 (unused; dev runs on Supabase)
 ```
 
-`db:seed` and `db:reset` need `SEED_USER_ID` — the Clerk user id you sign in with
-on the device (Clerk dashboard → Users, looks like `user_2ab...`). The seed wipes
-only that user's rows. Both refuse to run when the database holds more than three
-distinct users, so pointing at production aborts instead of destroying data.
+`db:seed` and `db:reset` write to one shared test account,
+`user_3FcaiZZRQbEpYWCPqpBUngRxf8Q` — sign in as that account on the device to see
+the seeded data. Override with `SEED_USER_ID=user_... pnpm db:seed` for a different
+account. The seed wipes only the target user's rows, and both scripts refuse to run
+when the database holds more than three distinct users, so pointing at production
+aborts instead of destroying data.
+
+The seed deliberately creates one entry more than `FREE_ENTRY_LIMIT`, so the
+premium paywall gate is active as soon as it finishes.
 
 ## Architecture
 
