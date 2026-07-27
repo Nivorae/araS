@@ -16,7 +16,9 @@
     "db:migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "db:studio": "dotenv -e ../../.env -- prisma studio",
     "db:rollback": "prisma migrate resolve --rolled-back",
-    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
+    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "db:check": "dotenv -e ../../.env -- tsx prisma/assert-dev-db.ts",
+    "db:reset": "pnpm db:check && dotenv -e ../../.env -- prisma migrate reset --force --skip-seed && pnpm db:seed"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",

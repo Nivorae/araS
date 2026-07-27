@@ -14,10 +14,11 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, Pencil, Trash2, X } from "lucide-react-native";
 import { INSURANCE_TYPE_LABELS, type Insurance } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { formatCurrency } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 import { TopGlassNav, NAV_CLEARANCE } from "@/components/TopGlassNav";
@@ -112,20 +113,21 @@ export default function InsuranceOverviewScreen() {
 
   // Refetch on focus so an edit/delete on the detail screen is reflected on
   // return. Source of truth is the backend, not the store's slim entry copy.
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      fetchInsurances()
-        .then((data) => {
-          if (active) setInsurances(data);
-        })
-        .catch(() => {
-          if (active) setInsurances([]);
-        });
-      return () => {
-        active = false;
-      };
-    }, [fetchInsurances])
+  // Guarded by useFocusRefresh: the previous version cancelled stale replies but
+  // still issued one request per focus-effect run, and those runs are not once
+  // per visit — see the hook.
+  useFocusRefresh(
+    async () => {
+      try {
+        const data = await fetchInsurances();
+        setInsurances(data);
+        return data;
+      } catch {
+        setInsurances([]);
+        return null;
+      }
+    },
+    { context: "insurance.overview.refreshLoop" }
   );
 
   // Oldest first, so the deck reads left → right in creation order.

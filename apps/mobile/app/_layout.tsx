@@ -13,6 +13,10 @@ Sentry.init({
   ...(sentryDsn ? { dsn: sentryDsn } : {}),
   enabled: !!sentryDsn,
   tracesSampleRate: 0.1,
+  // Dev and production share one DSN, so without this every event a developer
+  // generates on a LAN build lands in the same stream as real user crashes —
+  // which makes triaging a production report needlessly hard.
+  environment: __DEV__ ? "development" : "production",
 });
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;

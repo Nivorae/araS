@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -9,10 +9,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, Pencil, Trash2 } from "lucide-react-native";
 import { INSURANCE_TYPE_LABELS, type Insurance } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { InsuranceForm } from "@/components/InsuranceForm";
 import { formatCurrency } from "@/lib/format";
 
@@ -39,22 +40,27 @@ export default function InsuranceDetailScreen() {
   const { fetchInsurance, deleteInsurance, fetchAll } = useFinanceActions();
 
   const [insurance, setInsurance] = useState<Insurance | null>(null);
-  const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"view" | "edit">(edit === "1" ? "edit" : "view");
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    const result = await fetchInsurance(id);
-    setInsurance(result);
-    setLoading(false);
-  }, [id, fetchInsurance]);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
+  // Guarded by useFocusRefresh: a focus effect can re-run several times per visit
+  // without the screen losing focus, and this read used to fire once per run with
+  // nothing bounding it — the same shape as the entry-history loop that tripped
+  // React's update-depth limit in production.
+  const { refresh: load, loading } = useFocusRefresh(
+    async () => {
+      if (!id) return null;
+      const result = await fetchInsurance(id);
+      setInsurance(result);
+      return result;
+    },
+    {
+      context: "insurance.detail.refreshLoop",
+      detail: () => ({ insuranceId: id }),
+      // Nothing is cached for a policy, so the first read shows a full-screen
+      // spinner rather than stale content.
+      initialLoading: true,
+    }
   );
 
   const handleDelete = () => {
@@ -119,7 +125,9 @@ export default function InsuranceDetailScreen() {
         onBack={() => setMode("view")}
         onSaved={() => {
           setMode("view");
-          load();
+          // Forced: a read already in flight was issued before this save and
+          // would resolve to the pre-edit policy.
+          void load({ force: true });
         }}
       />
     );

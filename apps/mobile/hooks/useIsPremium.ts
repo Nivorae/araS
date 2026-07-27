@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { createElement } from "react";
 import { useApi } from "@/lib/api";
 
@@ -49,11 +57,12 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  return createElement(
-    PremiumContext.Provider,
-    { value: { isPremium, loading, refresh } },
-    children
-  );
+  // Memoized because this provider wraps the whole authenticated Stack: a fresh
+  // object literal here re-renders every useIsPremium() consumer on any render of
+  // this component, however unrelated.
+  const value = useMemo(() => ({ isPremium, loading, refresh }), [isPremium, loading, refresh]);
+
+  return createElement(PremiumContext.Provider, { value }, children);
 }
 
 export function useIsPremium(): PremiumState {

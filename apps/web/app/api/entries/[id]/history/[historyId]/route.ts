@@ -21,7 +21,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return err("NOT_FOUND", "History record not found", 404);
     }
     const data = UpdateEntryHistorySchema.parse(await req.json());
-    const history = await entriesService.updateHistory(historyId, data);
+    const history = await entriesService.updateHistory(historyId, data, userId);
+    if (!history) {
+      // Deleted between the ownership check and the write. Report it as the 404
+      // the client already knows how to treat as an expected race, rather than
+      // letting a Prisma throw surface as a 500.
+      return err("NOT_FOUND", "History record not found", 404);
+    }
     return ok(history);
   } catch (e) {
     return handleError(e);
@@ -41,7 +47,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       logSecurityEvent({ type: "ownership_violation", userId, resource: `history/${historyId}` });
       return err("NOT_FOUND", "History record not found", 404);
     }
-    await entriesService.deleteHistory(historyId);
+    await entriesService.deleteHistory(historyId, userId);
     return ok(null);
   } catch (e) {
     return handleError(e);
