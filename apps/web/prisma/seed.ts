@@ -80,7 +80,9 @@ const ENTRY_SPECS: EntrySpec[] = [
     name: "Bitcoin",
     topCategory: "投資",
     subCategory: "加密貨幣",
-    stockCode: "BTC-USD",
+    // Bare ticker: buildYfSymbol appends "-USD" for 加密貨幣, so "BTC-USD" here
+    // would request "BTC-USD-USD" and the price proxy answers 502.
+    stockCode: "BTC",
     deltas: [95000, -30000],
     units: [0.05, -0.015],
   },
