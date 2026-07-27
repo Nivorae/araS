@@ -13,18 +13,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## First-time Setup
 
 ```bash
-# 1. Copy env and fill in Supabase credentials
+# 1. Copy env and fill in credentials for your DEV Supabase project (see below)
 cp .env.example .env
 
 # 2. Generate Prisma client (required before first run, and after schema changes)
 pnpm db:generate
 
-# 3. Start dev server
+# 3. Create the schema and load test data (SEED_USER_ID is your Clerk user id)
+pnpm db:migrate:deploy
+SEED_USER_ID=user_... pnpm db:seed
+
+# 4. Start dev server
 pnpm dev
 ```
 
-> **Important:** `.env` must have exactly one `DATABASE_URL` pointing to Supabase.
-> Never duplicate `DATABASE_URL` — the last value wins but it causes confusion.
+> **Important:** `.env` must point at the **dev** Supabase project, never
+> production. There are two projects: production is used only by the Vercel
+> deployment and its credentials belong solely in Vercel's env vars. Everything
+> that reads `.env` — `pnpm dev`, every `db:*` script, and any phone pointed at
+> the dev server — reads and writes whatever is configured there, deletes
+> included. A production URL in `.env` means test runs mutate real users' data.
+>
+> Define `DATABASE_URL` and `DIRECT_URL` exactly once each; duplicates silently
+> take the last value.
 
 ## Commands
 
@@ -42,12 +53,21 @@ pnpm test:e2e             # Playwright
 # Run a single test file
 pnpm --filter @repo/web exec vitest run tests/services/entries.service.test.ts
 
-# Database
-pnpm docker:up            # Start PostgreSQL on port 5434
+# Database (all of these act on whatever .env points at — keep it on dev)
+pnpm db:check             # Abort if the target looks like production (>3 users)
 pnpm db:generate          # Generate Prisma client after schema changes
-pnpm db:migrate           # Run migrations (dev)
+pnpm db:migrate           # Create a migration (dev only — CAN reset the database)
+pnpm db:migrate:deploy    # Apply existing migrations without resetting
+SEED_USER_ID=user_... pnpm db:seed    # Load test data (21 entries: over the free cap)
+SEED_USER_ID=user_... pnpm db:reset   # check -> drop -> migrate -> seed. Destructive
 pnpm db:studio            # Prisma Studio UI
+pnpm docker:up            # Local PostgreSQL on 5434 (unused; dev runs on Supabase)
 ```
+
+`db:seed` and `db:reset` need `SEED_USER_ID` — the Clerk user id you sign in with
+on the device (Clerk dashboard → Users, looks like `user_2ab...`). The seed wipes
+only that user's rows. Both refuse to run when the database holds more than three
+distinct users, so pointing at production aborts instead of destroying data.
 
 ## Architecture
 
