@@ -57,7 +57,14 @@ const PREVIEW_PLANS: PlanOption[] = [
 ];
 
 const PRIVACY_URL = "https://ara-s-web.vercel.app/privacy";
+const TERMS_URL = "https://ara-s-web.vercel.app/terms";
 const SUPPORT_URL = "https://ara-s-web.vercel.app/support";
+
+// Apple guideline 3.1.2 requires auto-renewable subscription paywalls to state
+// that the subscription renews automatically and how to cancel, next to the
+// purchase action.
+const RENEWAL_DISCLOSURE =
+  "訂閱會自動續訂，除非在當期結束前至少 24 小時關閉自動續訂。續訂費用將於當期結束前 24 小時內向你的 Apple ID 收取。你可隨時於 App Store 帳戶設定管理或取消訂閱。";
 
 export default function PaywallScreen() {
   const router = useRouter();
@@ -232,16 +239,26 @@ export default function PaywallScreen() {
                 )}
               </Pressable>
             ) : null}
+
+            {/* Apple guideline 3.1.2: auto-renewal terms must be shown on the
+                paywall itself, near the purchase action. */}
+            {!isPremium && !loading && plans.length > 0 ? (
+              <Text style={s.disclosure}>{RENEWAL_DISCLOSURE}</Text>
+            ) : null}
           </ScrollView>
 
           {/* Pinned to the very bottom of the page, outside the scroll area. */}
           <View style={s.privacyRow}>
+            <Pressable onPress={() => Linking.openURL(TERMS_URL)} hitSlop={8}>
+              <Text style={s.footerLink}>使用條款</Text>
+            </Pressable>
+            <Text style={s.footerDot}>·</Text>
             <Pressable onPress={() => Linking.openURL(PRIVACY_URL)} hitSlop={8}>
               <Text style={s.footerLink}>隱私權政策</Text>
             </Pressable>
             <Text style={s.footerDot}>·</Text>
             <Pressable onPress={() => Linking.openURL(SUPPORT_URL)} hitSlop={8}>
-              <Text style={s.footerLink}>支援與聯絡</Text>
+              <Text style={s.footerLink}>支援</Text>
             </Pressable>
           </View>
         </View>
@@ -312,6 +329,14 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.5)",
     textAlign: "center",
     marginTop: 2,
+  },
+
+  disclosure: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: "rgba(255,255,255,0.45)",
+    textAlign: "center",
+    marginTop: 4,
   },
 
   packageGroup: {
