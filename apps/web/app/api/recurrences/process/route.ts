@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-auth";
 import { recurrencesService } from "@/services/recurrences.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";

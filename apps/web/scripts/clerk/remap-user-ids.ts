@@ -6,13 +6,12 @@
  * (`.clerk-migration/user-map.json`), which is authoritative because each
  * production user was created with `external_id` = their old dev id.
  *
- * Why this does NOT reuse DATABASE_URL: the repo deliberately points `.env` at
- * the dev database and `prisma/dev-db-guard.ts` aborts anything destructive
- * once a database holds more than three distinct users. That guard is correct
- * and stays untouched. This script is the one operation that legitimately needs
- * production, so it takes a separate `MIGRATION_DATABASE_URL` and applies the
- * INVERSE check: it refuses to run against something that looks like dev,
- * because remapping the wrong database would be equally bad.
+ * Why this does NOT reuse DATABASE_URL: `.env` points at the dev database, and
+ * every other script in the repo is built on that assumption. This script is
+ * the one operation that legitimately needs production, so it takes a separate
+ * `MIGRATION_DATABASE_URL` and guards itself by refusing to run against a
+ * database that looks like dev (three or fewer distinct users) — remapping the
+ * wrong database would be as bad as remapping none.
  *
  * Only four models carry a `userId`. `Loan`, `EntryHistory` and `Insurance`
  * hang off `Entry.entryId` and follow automatically — updating them directly
@@ -36,8 +35,8 @@ const CONFIRM = process.argv.includes("--confirm");
 const MAP_FILE = ".clerk-migration/user-map.json";
 const OUT_DIR = ".clerk-migration";
 
-// Mirror of MAX_USERS_FOR_A_DEV_DB in prisma/dev-db-guard.ts, used in reverse:
-// a production database must have MORE than this, or we are pointed at dev.
+// A production database must have MORE distinct users than this; at or below it
+// we are almost certainly pointed at the dev database, so refuse to write.
 const MAX_USERS_FOR_A_DEV_DB = 3;
 
 type MappingRow = { devUserId: string; prodUserId: string; email: string; action: string };
