@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-auth";
 import { entitlementsService } from "@/services/entitlements.service";
 import { ok, err, handleError } from "@/lib/api-response";
 

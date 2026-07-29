@@ -1,4 +1,5 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-auth";
 import { accountService } from "@/services/account.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
