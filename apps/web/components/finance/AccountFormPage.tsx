@@ -459,6 +459,12 @@ export function AccountFormPage({
         }
       }
       onSaved();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "儲存失敗，請重試";
+      // Web has no in-app purchase path (iOS-only IAP); point users to the app.
+      window.alert(
+        msg.includes("上限") ? `${msg}。請於 araS App 內升級 Premium 解鎖無上限。` : msg
+      );
     } finally {
       setSubmitting(false);
     }

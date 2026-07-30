@@ -7,6 +7,7 @@ import type {
   Transaction,
   PortfolioItem,
   Recurrence,
+  Insurance,
   CreateEntry,
   UpdateEntry,
   CreateTransaction,
@@ -14,6 +15,8 @@ import type {
   UpdatePortfolioItem,
   CreateRecurrence,
   UpdateRecurrence,
+  CreateInsurance,
+  UpdateInsurance,
 } from "@repo/shared";
 
 export function useFinanceActions() {
@@ -190,6 +193,49 @@ export function useFinanceActions() {
     [api]
   );
 
+  const addInsurance = useCallback(
+    async (data: CreateInsurance) => {
+      // The create response carries the linked Entry (value:0,
+      // includeInChart:false) alongside the Insurance fields — pushed straight
+      // into the store so the new policy shows up instantly, with no extra
+      // fetch and no loading flicker (its value never affects net worth).
+      const result = await api.post<Insurance & { entry: Entry }>("/api/insurances", data);
+      const { entry, ...insurance } = result;
+      useFinanceStore.getState().addEntryLocal(entry);
+      return insurance;
+    },
+    [api]
+  );
+
+  const updateInsurance = useCallback(
+    async (id: string, data: UpdateInsurance) =>
+      api.patch<Insurance>(`/api/insurances/${id}`, data),
+    [api]
+  );
+
+  const deleteInsurance = useCallback(
+    async (id: string) => {
+      await api.delete(`/api/insurances/${id}`);
+    },
+    [api]
+  );
+
+  const fetchInsurance = useCallback(
+    async (id: string): Promise<Insurance | null> => {
+      try {
+        return await api.get<Insurance>(`/api/insurances/${id}`);
+      } catch {
+        return null;
+      }
+    },
+    [api]
+  );
+
+  const fetchInsurances = useCallback(
+    async (): Promise<Insurance[]> => api.get<Insurance[]>("/api/insurances"),
+    [api]
+  );
+
   return {
     fetchAll,
     fetchEntryHistory,
@@ -204,5 +250,10 @@ export function useFinanceActions() {
     addRecurrence,
     updateRecurrence,
     deleteRecurrence,
+    addInsurance,
+    updateInsurance,
+    deleteInsurance,
+    fetchInsurance,
+    fetchInsurances,
   };
 }

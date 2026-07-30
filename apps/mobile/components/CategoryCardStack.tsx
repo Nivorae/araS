@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { ArrowDown, ArrowUp, type LucideIcon } from "lucide-react-native";
-import type { Entry } from "@repo/shared";
+import { INSURANCE_TYPE_LABELS, type Entry } from "@repo/shared";
 import { formatCurrency } from "@/lib/format";
 import { BankLogo } from "./BankLogo";
 
@@ -118,7 +118,14 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       if (zoneHeight === 0) return;
       const firstRun = !initialized.current;
       initialized.current = true;
-      const collapsing = selectedName === null;
+      // A selection that no longer maps to a visible card — its category was
+      // removed while this stack stayed mounted (e.g. the user deleted the last
+      // policy on the insurance detail screen) — must behave as collapsed.
+      // Otherwise every remaining card counts as "not selected" and gets flung
+      // off-screen, which reads as "all the cards vanished".
+      const selectionValid =
+        selectedName !== null && categories.some((c) => c.name === selectedName);
+      const collapsing = !selectionValid;
       // Just below the zone — guaranteed off-screen even while the zone is
       // expanded (~1.2×), without the huge travel that amplifies overshoot.
       const offScreenY = Math.round(zoneHeight * 1.3);
@@ -163,6 +170,19 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
     useImperativeHandle(ref, () => ({ collapse }));
 
     useEffect(() => () => clearTimers(), []);
+
+    // If the selected category disappears entirely (its last entry was deleted
+    // on a detail screen while this stack stayed mounted), fold the deck back up
+    // and tell the parent. The position effect above already keeps the remaining
+    // cards home; this syncs the selection + expanded state so they don't stick.
+    useEffect(() => {
+      if (selectedName !== null && !categories.some((c) => c.name === selectedName)) {
+        clearTimers();
+        setSelectedName(null);
+        setDisplayedName(null);
+        onExpandChange(false);
+      }
+    }, [categories, selectedName, onExpandChange]);
 
     const handleCardPress = (name: string) => {
       if (selectedName === name) {
@@ -276,6 +296,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
         {categories.map((cat, index) => {
           const isSelected = selectedName === cat.name;
           const isDisplayed = displayedName === cat.name;
+          const isInsurance = cat.name === "保險";
           const widthPct = Math.max(50, 92 - index * 8);
           const leftPct = (100 - widthPct) / 2;
           // Only the actively-selected card floats on top. On collapse it drops
@@ -301,29 +322,44 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                   zIndex,
                   transform: [{ translateY: Animated.add(y, peek) }],
                 },
+                isInsurance && st.insuranceCardBorder,
               ]}
             >
               {/* Always-visible header */}
-              <Pressable onPress={() => handleCardPress(cat.name)} style={st.header}>
+              <Pressable
+                onPress={() => handleCardPress(cat.name)}
+                style={[st.header, isInsurance && st.headerRow]}
+              >
                 <Text style={[st.headerTitle, { color: cat.textColor }]}>{cat.name}</Text>
                 <Text style={[st.headerTotal, { color: cat.textColor }]}>
-                  {hideBalance ? "••••••" : formatCurrency(cat.total)}
+                  {isInsurance
+                    ? `共 ${cat.entries.length} 張保單`
+                    : hideBalance
+                      ? "••••••"
+                      : formatCurrency(cat.total)}
                 </Text>
               </Pressable>
 
               {/* Entry list — deferred mount + fade, kept until card returns home */}
               {isDisplayed && (
                 <Animated.View style={[st.contentWrap, { opacity: contentOpacity }]}>
-                  <View style={st.sortRow}>
-                    <Pressable onPress={() => toggleSort(cat.name)} style={st.sortBtn} hitSlop={8}>
-                      <Text style={[st.sortText, { color: cat.textColor }]}>金額</Text>
-                      {dir === "desc" ? (
-                        <ArrowDown size={13} color={cat.textColor} />
-                      ) : (
-                        <ArrowUp size={13} color={cat.textColor} />
-                      )}
-                    </Pressable>
-                  </View>
+                  {/* 保險列出的是保單張數而非金額，排序按鈕沒有意義，故不顯示。 */}
+                  {!isInsurance && (
+                    <View style={st.sortRow}>
+                      <Pressable
+                        onPress={() => toggleSort(cat.name)}
+                        style={st.sortBtn}
+                        hitSlop={8}
+                      >
+                        <Text style={[st.sortText, { color: cat.textColor }]}>金額</Text>
+                        {dir === "desc" ? (
+                          <ArrowDown size={13} color={cat.textColor} />
+                        ) : (
+                          <ArrowUp size={13} color={cat.textColor} />
+                        )}
+                      </Pressable>
+                    </View>
+                  )}
                   <ScrollView
                     contentContainerStyle={st.listContent}
                     showsVerticalScrollIndicator={false}
@@ -336,19 +372,29 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
                           onPress={() => onEntryClick(entry)}
                           style={st.entryRow}
                         >
-                          <View style={st.entryIcon}>
-                            {entry.bankCode ? (
-                              <BankLogo code={entry.bankCode} name={entry.name} size={28} />
-                            ) : (
-                              <EntryIcon size={15} color="#1c1c1e" />
-                            )}
-                          </View>
-                          <Text style={st.entryName} numberOfLines={1}>
-                            {entry.name}
-                          </Text>
-                          <Text style={st.entryValue}>
-                            {hideBalance ? "••••" : formatCurrency(entry.value)}
-                          </Text>
+                          {!entry.insurance && (
+                            <View style={st.entryIcon}>
+                              {entry.bankCode ? (
+                                <BankLogo code={entry.bankCode} name={entry.name} size={28} />
+                              ) : (
+                                <EntryIcon size={15} color="#1c1c1e" />
+                              )}
+                            </View>
+                          )}
+                          {entry.insurance ? (
+                            <Text style={st.entryName} numberOfLines={1}>
+                              🧾 {INSURANCE_TYPE_LABELS[entry.insurance.insuranceType]}
+                            </Text>
+                          ) : (
+                            <>
+                              <Text style={st.entryName} numberOfLines={1}>
+                                {entry.name}
+                              </Text>
+                              <Text style={st.entryValue}>
+                                {hideBalance ? "••••" : formatCurrency(entry.value)}
+                              </Text>
+                            </>
+                          )}
                           <Text style={st.chevron}>›</Text>
                         </Pressable>
                       );
@@ -386,9 +432,21 @@ const st = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
+  insuranceCardBorder: {
+    borderWidth: 1,
+    borderColor: "rgba(28,28,30,0.12)",
+  },
   header: { alignItems: "center", paddingTop: 14 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: FRONT_CARD_HEADER_HEIGHT,
+    paddingTop: 0,
+  },
   headerTitle: { fontSize: 18, fontWeight: "800" },
-  headerTotal: { fontSize: 12, marginTop: 3, opacity: 0.5 },
+  headerTotal: { fontSize: 12, opacity: 0.5 },
 
   contentWrap: { flex: 1, marginTop: 14 },
   sortRow: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: "6.5%" },

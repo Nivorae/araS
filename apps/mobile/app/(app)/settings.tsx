@@ -15,8 +15,9 @@ import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { ArrowLeft, LogOut, Sparkles, Trash2, type LucideIcon } from "lucide-react-native";
+import { ArrowLeft, Check, LogOut, Loader, Trash2, type LucideIcon } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
+import { useIsPremium } from "@/hooks/useIsPremium";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -104,7 +105,23 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const { user } = useUser();
   const api = useApi();
+  const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const [deleting, setDeleting] = useState(false);
+  const [devToggling, setDevToggling] = useState(false);
+
+  async function simulatePremium(action: "activate" | "deactivate") {
+    if (devToggling) return;
+    setDevToggling(true);
+    try {
+      await api.post("/api/dev/subscription", { action });
+      await refresh();
+    } catch (e) {
+      const msg = e instanceof ApiError || e instanceof Error ? e.message : "請稍後再試";
+      Alert.alert("模擬失敗", msg);
+    } finally {
+      setDevToggling(false);
+    }
+  }
 
   const email =
     user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? "—";
@@ -165,13 +182,40 @@ export default function SettingsScreen() {
 
           {/* Actions */}
           <View style={s.stack}>
+            {/* One card in three states: reading (spinner), already-premium, and
+                free. All three route into the paywall on tap — a premium user can
+                still open it to review what their plan includes. The cached
+                premium status means later visits skip the spinner entirely. */}
             <SettingCard
-              icon={Sparkles}
-              label="升級 Premium"
+              icon={isPremium ? Check : Loader}
+              label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
               color="#374254"
               textColor="#ffffff"
+              loading={premiumLoading}
               onPress={() => router.push("/paywall")}
             />
+            {__DEV__ ? (
+              <>
+                <SettingCard
+                  icon={Check}
+                  label="模擬升級（僅開發模式）"
+                  color="#34C759"
+                  textColor="#ffffff"
+                  loading={devToggling}
+                  disabled={devToggling}
+                  onPress={() => simulatePremium("activate")}
+                />
+                <SettingCard
+                  icon={Trash2}
+                  label="模擬取消（僅開發模式）"
+                  color="#FF9500"
+                  textColor="#ffffff"
+                  loading={devToggling}
+                  disabled={devToggling}
+                  onPress={() => simulatePremium("deactivate")}
+                />
+              </>
+            ) : null}
             <SettingCard
               icon={LogOut}
               label="登出"

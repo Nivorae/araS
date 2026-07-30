@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/clerk-expo";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { ApiResponse } from "@repo/shared";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -105,6 +105,14 @@ export type Api = ReturnType<typeof createApi>;
 
 // Hook for components: gives an api client bound to the current session token.
 export function useApi(): Api {
+  // Clerk's getToken is a new function identity on every render (it isn't
+  // memoized upstream). Reading it through a ref lets the returned `api` object
+  // stay referentially stable across renders — otherwise every useCallback that
+  // depends on `api` (directly, or via useFinanceActions) recreates every
+  // render, which turns useFocusEffect into an infinite fetch/render loop (see
+  // apps/mobile/app/(app)/insurance/[id].tsx and entry/[id].tsx).
   const { getToken } = useAuth();
-  return useMemo(() => createApi(getToken), [getToken]);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+  return useMemo(() => createApi((options) => getTokenRef.current(options)), []);
 }

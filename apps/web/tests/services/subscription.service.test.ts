@@ -4,11 +4,13 @@ import type {
   JWSTransactionDecodedPayload,
   ResponseBodyV2DecodedPayload,
 } from "@apple/app-store-server-library";
+import { deriveAppleAccountToken } from "@repo/shared";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     subscription: {
       upsert: vi.fn(),
+      deleteMany: vi.fn(),
     },
   },
 }));
@@ -114,5 +116,48 @@ describe("SubscriptionService.upsertFromNotification", () => {
         where: { originalTransactionId: BASE_TRANSACTION.originalTransactionId },
       })
     );
+  });
+});
+
+describe("SubscriptionService.setDevStatus", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("activate upserts keyed by the derived apple account token with status active", async () => {
+    const userId = "user_1";
+    const expectedToken = deriveAppleAccountToken(userId);
+
+    await subscriptionService.setDevStatus(userId, true);
+
+    expect(prisma.subscription.upsert).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(prisma.subscription.upsert).mock.calls[0]?.[0];
+    expect(call?.where.appleAccountToken).toBe(expectedToken);
+    expect(call?.where.appleAccountToken).not.toBe(userId);
+    expect(call?.create).toMatchObject({
+      appleAccountToken: expectedToken,
+      productId: "dev_test_premium",
+      status: "active",
+      environment: "Sandbox",
+      originalTransactionId: `dev-${userId}`,
+    });
+    expect((call?.create.expiresAt as Date).getTime()).toBeGreaterThan(Date.now());
+    expect(call?.update).toMatchObject({
+      productId: "dev_test_premium",
+      status: "active",
+      environment: "Sandbox",
+    });
+    expect(
+      (call?.update as { originalTransactionId?: string }).originalTransactionId
+    ).toBeUndefined();
+  });
+
+  it("deactivate calls deleteMany keyed by the derived apple account token", async () => {
+    const userId = "user_1";
+    const expectedToken = deriveAppleAccountToken(userId);
+
+    await subscriptionService.setDevStatus(userId, false);
+
+    expect(prisma.subscription.deleteMany).toHaveBeenCalledWith({
+      where: { appleAccountToken: expectedToken },
+    });
   });
 });

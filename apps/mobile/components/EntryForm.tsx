@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,11 +13,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Calendar, Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import { BankLogo } from "./BankLogo";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useFinanceStore } from "@/store/financeStore";
-import { useApi } from "@/lib/api";
+import { useApi, ApiError } from "@/lib/api";
 import { getNodeIcon } from "@/lib/categoryConfig";
 import {
   INVESTMENT_CATS,
@@ -33,6 +35,10 @@ import { DatePickerModal } from "./DatePickerModal";
 import type { RepaymentType } from "@repo/shared";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+// Money amount fields (帳戶餘額 / 投入金額 / …) accept at most 10 digits — a
+// 10-digit whole number is already ~100 億, well past any realistic balance.
+const MAX_AMOUNT_LENGTH = 10;
 
 function getBalanceLabel(topCategory: string) {
   if (topCategory === "應收款") return "應收餘額";
@@ -125,6 +131,7 @@ export function EntryForm({
   const api = useApi();
   const apiRef = useRef(api);
   apiRef.current = api;
+  const router = useRouter();
 
   // ── Mode flags ───────────────────────────────────────────────────────────────
   const isInvestment =
@@ -398,6 +405,17 @@ export function EntryForm({
       }
       onSaved();
     } catch (e) {
+      if (e instanceof ApiError && e.code === "ENTRY_LIMIT_REACHED") {
+        Alert.alert(
+          "你的資產版圖越來越豐富了",
+          "身為重度用戶，你值得更大的空間。免費版可記 20 筆，升級 Premium 解鎖無上限，輕鬆管理。",
+          [
+            { text: "稍後再決定", style: "cancel" },
+            { text: "解鎖無上限", onPress: () => router.push("/paywall") },
+          ]
+        );
+        return;
+      }
       setError(e instanceof Error ? e.message : "儲存失敗，請重試");
     } finally {
       setSubmitting(false);
@@ -594,6 +612,7 @@ export function EntryForm({
                               placeholder="0"
                               placeholderTextColor="#c7c7cc"
                               keyboardType="decimal-pad"
+                              maxLength={MAX_AMOUNT_LENGTH}
                             />
                           </>
                         ) : (
@@ -683,6 +702,7 @@ export function EntryForm({
                       placeholder="0"
                       placeholderTextColor="#c7c7cc"
                       keyboardType="decimal-pad"
+                      maxLength={MAX_AMOUNT_LENGTH}
                     />
                     <View style={[s.badge, isLiability && { backgroundColor: "#ff3b30" }]}>
                       <Text style={s.badgeText}>TWD</Text>

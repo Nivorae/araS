@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { d, dn } from "@/lib/serialize";
 import type { CreateEntry, UpdateEntry, UpdateEntryHistory } from "@repo/shared";
+import { entitlementsService } from "@/services/entitlements.service";
+import { FREE_ENTRY_LIMIT, LIABILITY_TOP_CATEGORIES } from "@repo/shared";
+
+const LIABILITY_SET = new Set(LIABILITY_TOP_CATEGORIES);
 
 function serializeHistory(h: {
   id: string;
@@ -35,17 +39,31 @@ function serializeLoan(loan: {
   };
 }
 
+// Thrown by create() when a non-premium user is already at FREE_ENTRY_LIMIT.
+// The route layer maps this to a 403 ENTRY_LIMIT_REACHED envelope.
+export class EntryLimitError extends Error {
+  constructor() {
+    super("Free plan entry limit reached");
+    this.name = "EntryLimitError";
+  }
+}
+
 export class EntriesService {
   async list(userId: string) {
     const entries = await prisma.entry.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      include: { loan: true, history: { select: { units: true } } },
+      include: {
+        loan: true,
+        history: { select: { units: true } },
+        insurance: { select: { id: true, insuranceType: true, insurer: true, insuredName: true } },
+      },
     });
-    return entries.map(({ history, loan, ...e }) => ({
+    return entries.map(({ history, loan, insurance, ...e }) => ({
       ...e,
       value: d(e.value),
       loan: loan ? serializeLoan(loan) : null,
+      insurance: insurance ?? null,
       units: history.some((h) => h.units != null)
         ? history.reduce((s, h) => s + (h.units ? d(h.units) : 0), 0)
         : null,
@@ -83,6 +101,14 @@ export class EntriesService {
   }
 
   async create(data: CreateEntry, userId: string) {
+    // Server-side enforcement is the authoritative defence (client hints are
+    // advisory). Premium users skip the count entirely.
+    const premium = await entitlementsService.isPremium(userId);
+    if (!premium) {
+      const count = await prisma.entry.count({ where: { userId } });
+      if (count >= FREE_ENTRY_LIMIT) throw new EntryLimitError();
+    }
+
     const { units, stockCode, bankCode, createdAt, note, includeInChart, ...rest } = data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
@@ -142,16 +168,17 @@ export class EntriesService {
     return prisma.entry.deleteMany({ where: { id, userId } });
   }
 
-  async listHistory(id: string) {
-    const rows = await prisma.entryHistory.findMany({
-      where: { entryId: id },
-      orderBy: { createdAt: "desc" },
+  // `userId` scopes the lookup through the parent Entry — EntryHistory carries no
+  // userId column of its own. Enforcing that here rather than trusting the caller
+  // keeps the method safe on its own: a future route that forgets the
+  // verifyHistoryOwnership pre-check still cannot reach another user's record.
+  // Same shape as insurance.service.ts / loans.service.ts — null means "not
+  // yours or not there", which the route turns into a 404.
+  async updateHistory(historyId: string, data: UpdateEntryHistory, userId: string) {
+    const existing = await prisma.entryHistory.findFirst({
+      where: { id: historyId, entry: { userId } },
     });
-    return rows.map(serializeHistory);
-  }
-
-  async updateHistory(historyId: string, data: UpdateEntryHistory) {
-    const existing = await prisma.entryHistory.findUniqueOrThrow({ where: { id: historyId } });
+    if (!existing) return null;
 
     const existingDelta = d(existing.delta);
     const existingBalance = d(existing.balance);
@@ -191,8 +218,15 @@ export class EntriesService {
     return serializeHistory(updated);
   }
 
-  async deleteHistory(historyId: string) {
-    const existing = await prisma.entryHistory.findUniqueOrThrow({ where: { id: historyId } });
+  // Scoped through the parent Entry for the same reason as updateHistory above.
+  // A missing row is a no-op, not an error: the only way to get here past the
+  // route's ownership check is a concurrent delete, and "already gone" is the
+  // outcome the caller wanted.
+  async deleteHistory(historyId: string, userId: string) {
+    const existing = await prisma.entryHistory.findFirst({
+      where: { id: historyId, entry: { userId } },
+    });
+    if (!existing) return;
     const existingDelta = d(existing.delta);
 
     await prisma.entryHistory.delete({ where: { id: historyId } });
@@ -226,6 +260,45 @@ export class EntriesService {
     if (data.createdAt) payload.createdAt = data.createdAt;
     const row = await prisma.entryHistory.create({ data: payload });
     return serializeHistory(row);
+  }
+
+  async getAssetAllocation(userId: string) {
+    const entries = await prisma.entry.findMany({
+      where: { userId, includeInChart: true },
+      select: { id: true, name: true, topCategory: true, value: true },
+    });
+
+    // Single pass: decode each entry's Decimal once, split into asset/liability
+    // totals, and accumulate the per-category breakdown map as we go.
+    let totalAssets = 0;
+    let totalLiabilities = 0;
+    const byTopCategory = new Map<string, number>();
+    const assetValues: { id: string; name: string; value: number }[] = [];
+    for (const e of entries) {
+      const value = d(e.value);
+      if (LIABILITY_SET.has(e.topCategory)) {
+        totalLiabilities += value;
+        continue;
+      }
+      totalAssets += value;
+      byTopCategory.set(e.topCategory, (byTopCategory.get(e.topCategory) ?? 0) + value);
+      assetValues.push({ id: e.id, name: e.name, value });
+    }
+    const debtToAssetRatio = totalAssets > 0 ? (totalLiabilities / totalAssets) * 100 : null;
+
+    const breakdown = [...byTopCategory.entries()]
+      .map(([topCategory, value]) => ({
+        topCategory,
+        value,
+        percentage: (value / totalAssets) * 100,
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    const concentrationWarnings = assetValues
+      .map((e) => ({ entryId: e.id, name: e.name, percentage: (e.value / totalAssets) * 100 }))
+      .filter((w) => w.percentage >= 40);
+
+    return { breakdown, concentrationWarnings, debtToAssetRatio };
   }
 
   async verifyHistoryOwnership(historyId: string, userId: string): Promise<boolean> {
