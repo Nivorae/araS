@@ -187,3 +187,21 @@ model Subscription {
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 }
+
+// Temporary: maps a user's OLD Clerk development-instance id to their new
+// production id, so `lib/clerk-auth.ts` can keep serving iOS builds that still
+// authenticate against the development instance. Populated from the pre-seed
+// map by `scripts/clerk/remap-user-ids.ts`, in the same transaction as the id
+// rewrite so the two can never disagree; every row mirrors the `external_id`
+// stored on the corresponding production Clerk user.
+//
+// Drop this table once `CLERK_LEGACY_SECRET_KEY` has been removed from Vercel
+// and old builds are no longer in circulation.
+model UserIdMigration {
+  legacyUserId String   @id
+  userId       String
+  email        String
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}

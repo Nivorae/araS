@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/clerk-auth";
 import { CreatePortfolioItemSchema } from "@repo/shared";
 import { portfolioService } from "@/services/portfolio.service";
 import { ok, err, handleError } from "@/lib/api-response";

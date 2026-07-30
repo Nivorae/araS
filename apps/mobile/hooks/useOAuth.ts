@@ -39,7 +39,20 @@ export function useOAuth() {
       try {
         const { createdSessionId, setActive } = await startSSOFlow({
           strategy,
-          redirectUrl: AuthSession.makeRedirectUri(),
+          // The path is load-bearing. Without it this resolves to `saraasset://`,
+          // and Clerk hands the session back as
+          // `saraasset://?rotating_token_nonce=…` — a URL with no authority,
+          // whose query does not survive parsing. That nonce is how the app's own
+          // client picks up the session created in the browser; lose it and
+          // `setActive` touches a session the client does not hold, which Clerk
+          // answers with `signed_out`.
+          //
+          // Only production shows this. Development instances carry the dev
+          // browser JWT instead, and Expo Go's `exp://host:port` redirect already
+          // has an authority — so both hid it until the first real device talked
+          // to the production instance. `saraasset://sso-callback` is allowlisted
+          // on that instance.
+          redirectUrl: AuthSession.makeRedirectUri({ path: "sso-callback" }),
         });
         if (createdSessionId && setActive) {
           await setActive({ session: createdSessionId });

@@ -48,6 +48,10 @@ yarn-error.log*
 !.env.example
 !apps/mobile/.env.production
 
+# Clerk dev -> prod migration working files. The user map pairs real users'
+# email addresses with their account ids; it must never reach the repo.
+.clerk-migration/
+
 # vercel
 .vercel
 

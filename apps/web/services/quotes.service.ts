@@ -45,6 +45,23 @@ export class QuotesService {
   }
 
   private async fetchFromYahoo(symbol: string): Promise<Quote> {
+    const quote = await this.fetchYahooChart(symbol);
+    if (quote) return { ...quote, symbol };
+
+    // TWSE (.TW) and Taipei Exchange / OTC (.TWO) are separate listings on
+    // Yahoo, and our symbol builder can't tell which one a code belongs to
+    // (e.g. OTC-only bond ETFs) — retry there before giving up.
+    if (symbol.endsWith(".TW")) {
+      const otcQuote = await this.fetchYahooChart(`${symbol.slice(0, -".TW".length)}.TWO`);
+      if (otcQuote) return { ...otcQuote, symbol };
+    }
+
+    throw new Error(`No data found for symbol ${symbol}`);
+  }
+
+  // Returns null for a 404 (symbol not found on this listing) so the caller
+  // can try an alternate suffix; throws for any other non-OK status.
+  private async fetchYahooChart(symbol: string): Promise<Quote | null> {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
 
     const response = await fetchWithRetry(url, {
@@ -52,16 +69,14 @@ export class QuotesService {
       next: { revalidate: QUOTE_CACHE_SECONDS },
     });
 
+    if (response.status === 404) return null;
     if (!response.ok) {
       throw new Error(`Yahoo Finance returned ${response.status} for ${symbol}`);
     }
 
     const data = (await response.json()) as YahooChartResponse;
     const result = data?.chart?.result?.[0];
-
-    if (!result?.meta) {
-      throw new Error(`No data found for symbol ${symbol}`);
-    }
+    if (!result?.meta) return null;
 
     return {
       symbol,
