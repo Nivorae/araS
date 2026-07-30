@@ -7,8 +7,8 @@ vi.mock("@/services/crypto-list.service", () => ({
 import { fetchCryptoList } from "@/services/crypto-list.service";
 import { QuotesService } from "../../services/quotes.service";
 
-function yahooResponse(ok: boolean, body?: unknown) {
-  return { ok, status: ok ? 200 : 500, json: async () => body } as Response;
+function yahooResponse(ok: boolean, body?: unknown, status = ok ? 200 : 500) {
+  return { ok, status, json: async () => body } as Response;
 }
 
 describe("QuotesService.fetchQuote", () => {
@@ -99,6 +99,31 @@ describe("QuotesService.fetchQuote", () => {
     await expect(new QuotesService().fetchQuote("ZZZZ-USD")).rejects.toThrow(
       "Yahoo Finance returned 500 for ZZZZ-USD"
     );
+  });
+
+  it("falls back to the .TWO (Taipei Exchange) listing when a .TW symbol 404s", async () => {
+    fetchMock
+      .mockResolvedValueOnce(yahooResponse(false, undefined, 404)) // .TW: not found
+      .mockResolvedValueOnce(
+        yahooResponse(true, {
+          chart: { result: [{ meta: { regularMarketPrice: 15.91, currency: "TWD" } }] },
+        })
+      ); // .TWO: found
+
+    const quote = await new QuotesService().fetchQuote("00933B.TW");
+
+    expect(quote).toEqual({ symbol: "00933B.TW", price: 15.91, currency: "TWD" });
+    const [, otcUrl] = fetchMock.mock.calls.map((call) => call[0] as string);
+    expect(otcUrl).toContain("00933B.TWO");
+  });
+
+  it("returns 'no data' (not a 502) when both .TW and .TWO 404", async () => {
+    fetchMock.mockResolvedValue(yahooResponse(false, undefined, 404));
+
+    await expect(new QuotesService().fetchQuote("BOGUS.TW")).rejects.toThrow(
+      "No data found for symbol BOGUS.TW"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2); // .TW then .TWO, no retries (404 isn't retryable)
   });
 
   it("rethrows the Yahoo error when the result is missing meta", async () => {
