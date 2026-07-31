@@ -22,6 +22,7 @@ import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { formatCurrency } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 import { TopGlassNav, NAV_CLEARANCE } from "@/components/TopGlassNav";
+import { InsuranceForm } from "@/components/InsuranceForm";
 
 const UNKNOWN = "不確定";
 const CARD_RADIUS = 22;
@@ -104,6 +105,7 @@ export default function InsuranceOverviewScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [expanded, setExpanded] = useState<Insurance | null>(null);
   const [expandedIndex, setExpandedIndex] = useState(0);
+  const [detailMode, setDetailMode] = useState<"view" | "edit">("view");
   const [cardOrigin, setCardOrigin] = useState<LayoutRectangle | null>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const growth = useRef(new Animated.Value(0)).current;
@@ -198,6 +200,7 @@ export default function InsuranceOverviewScreen() {
         setCardOrigin({ x, y, width, height });
         setExpanded(ins);
         setExpandedIndex(index);
+        setDetailMode("view");
         Animated.spring(growth, {
           toValue: 1,
           useNativeDriver: false,
@@ -218,24 +221,22 @@ export default function InsuranceOverviewScreen() {
     Animated.timing(growth, { toValue: 0, duration: 220, useNativeDriver: false }).start(() => {
       setExpanded(null);
       setCardOrigin(null);
+      setDetailMode("view");
     });
   }, [growth]);
 
-  // Skips the collapse animation — used when navigating away, where waiting
-  // for the 220ms close animation before pushing the next screen would just
-  // add a delay the user gains nothing from.
-  const dismissDetailImmediately = useCallback(() => {
-    growth.setValue(0);
-    setExpanded(null);
-    setCardOrigin(null);
-  }, [growth]);
+  // Editing happens in place — swapping the expanded card's content to
+  // `InsuranceForm`, not navigating to a separate screen.
+  const handleEdit = useCallback(() => setDetailMode("edit"), []);
+  const handleCancelEdit = useCallback(() => setDetailMode("view"), []);
 
-  const handleEdit = useCallback(() => {
-    if (!expanded) return;
-    const id = expanded.id;
-    dismissDetailImmediately();
-    router.push(`/insurance/${id}?edit=1`);
-  }, [expanded, dismissDetailImmediately, router]);
+  // `saved` is the record the update/create API call itself returned — no
+  // need to refetch the whole list just to see the same data back.
+  const handleInlineSaved = useCallback((saved: Insurance) => {
+    setInsurances((prev) => (prev ? prev.map((i) => (i.id === saved.id ? saved : i)) : prev));
+    setExpanded(saved);
+    setDetailMode("view");
+  }, []);
 
   const handleDelete = useCallback(() => {
     if (!expanded) return;
@@ -378,7 +379,7 @@ export default function InsuranceOverviewScreen() {
                             height: CARD_H,
                             marginRight: i === sorted.length - 1 ? 0 : SPACING,
                             backgroundColor: theme.bg,
-                            opacity: isBeingExpanded ? 0 : opacity,
+                            opacity,
                             transform: [{ perspective: 900 }, { rotateY }, { scale }],
                           },
                         ]}
@@ -389,6 +390,23 @@ export default function InsuranceOverviewScreen() {
                         <Text style={[s.policyInsurer, { color: theme.muted }]} numberOfLines={2}>
                           {ins.insurer}
                         </Text>
+                        {/* Plain conditional render, not an Animated opacity toggle —
+                            covers the source card while its content is shown in the
+                            grown overlay instead. A native-driven prop (this card's
+                            own `opacity` above, driven by `scrollX`) that gets swapped
+                            between an Animated node and a static value across renders
+                            leaves the native side stuck until an unrelated prop forces
+                            a re-bind; masking with an ordinary (non-Animated) View
+                            sidesteps that class of bug entirely. */}
+                        {isBeingExpanded && (
+                          <View
+                            pointerEvents="none"
+                            style={[
+                              StyleSheet.absoluteFill,
+                              { backgroundColor: theme.bg, borderRadius: CARD_RADIUS },
+                            ]}
+                          />
+                        )}
                       </Animated.View>
                     </Pressable>
                   );
@@ -433,114 +451,149 @@ export default function InsuranceOverviewScreen() {
               },
             ]}
           >
-            {/* Header text stays centred within its own (shrinking) box, so
-                it never jumps — it just settles into a smaller strip. */}
-            <Animated.View style={[s.growHeader, { height: headerHeight }]}>
-              <Text style={[s.policyType, { color: expandedTheme.text }]}>
-                {INSURANCE_TYPE_LABELS[expanded.insuranceType]}
-              </Text>
-              <Text style={[s.policyInsurer, { color: expandedTheme.muted }]} numberOfLines={2}>
-                {expanded.insurer}
-              </Text>
-            </Animated.View>
-
-            {/* Detail content fades in below the header once the card has mostly grown. */}
-            <Animated.View style={[s.growDetail, { top: headerHeight, opacity: detailOpacity }]}>
-              <ScrollView
-                style={s.growDetailScroll}
-                contentContainerStyle={s.expandedContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {expanded.policyName ? (
-                  <Text style={[s.expandedPolicyName, { color: expandedTheme.muted }]}>
-                    {expanded.policyName}
+            {detailMode === "edit" ? (
+              // Editing happens in place: the same grown card, just showing the
+              // form instead of the read-only rows — no separate screen.
+              <Animated.View style={[s.growEditFill, { opacity: detailOpacity }]}>
+                <InsuranceForm
+                  embedded
+                  headerColor={expandedTheme.text}
+                  isEdit
+                  insuranceId={expanded.id}
+                  initial={{
+                    insurer: expanded.insurer,
+                    insuredName: expanded.insuredName,
+                    insuranceType: expanded.insuranceType,
+                    policyName: expanded.policyName,
+                    policyNumber: expanded.policyNumber,
+                    startDate: expanded.startDate,
+                    paymentTermYears: expanded.paymentTermYears,
+                    coveragePeriod: expanded.coveragePeriod,
+                    annualPremium: expanded.annualPremium,
+                    coverage: expanded.coverage,
+                  }}
+                  onBack={handleCancelEdit}
+                  onSaved={handleInlineSaved}
+                />
+              </Animated.View>
+            ) : (
+              <>
+                {/* Header text stays centred within its own (shrinking) box, so
+                    it never jumps — it just settles into a smaller strip. */}
+                <Animated.View style={[s.growHeader, { height: headerHeight }]}>
+                  <Text style={[s.policyType, { color: expandedTheme.text }]}>
+                    {INSURANCE_TYPE_LABELS[expanded.insuranceType]}
                   </Text>
-                ) : null}
+                  <Text style={[s.policyInsurer, { color: expandedTheme.muted }]} numberOfLines={2}>
+                    {expanded.insurer}
+                  </Text>
+                </Animated.View>
 
-                <View style={[s.dashed, { borderColor: expandedTheme.dashed }]} />
+                {/* Detail content fades in below the header once the card has mostly grown. */}
+                <Animated.View
+                  style={[s.growDetail, { top: headerHeight, opacity: detailOpacity }]}
+                >
+                  <ScrollView
+                    style={s.growDetailScroll}
+                    contentContainerStyle={s.expandedContent}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {expanded.policyName ? (
+                      <Text style={[s.expandedPolicyName, { color: expandedTheme.muted }]}>
+                        {expanded.policyName}
+                      </Text>
+                    ) : null}
 
-                <Row label="被保人" value={expanded.insuredName} theme={expandedTheme} />
-                <Row
-                  label="保單號碼"
-                  value={expanded.policyNumber ?? UNKNOWN}
-                  theme={expandedTheme}
-                />
-                <Row
-                  label="投保日期"
-                  value={formatDate(expanded.startDate)}
-                  theme={expandedTheme}
-                />
-                <Row
-                  label="繳費年期"
-                  value={
-                    expanded.paymentTermYears != null ? `${expanded.paymentTermYears} 年` : UNKNOWN
-                  }
-                  theme={expandedTheme}
-                />
-                <Row
-                  label="保障期間"
-                  value={expanded.coveragePeriod ?? UNKNOWN}
-                  theme={expandedTheme}
-                />
-                <Row
-                  label="年繳保費"
-                  value={
-                    expanded.annualPremium != null
-                      ? formatCurrency(expanded.annualPremium)
-                      : UNKNOWN
-                  }
-                  theme={expandedTheme}
-                />
-
-                {expanded.coverage.length > 0 && (
-                  <>
                     <View style={[s.dashed, { borderColor: expandedTheme.dashed }]} />
-                    <Text style={[s.coverageTitle, { color: expandedTheme.muted }]}>保障項目</Text>
-                    {expanded.coverage.map((c) => (
-                      <Row
-                        key={c.key}
-                        label={c.label}
-                        value={formatCurrency(c.value)}
-                        theme={expandedTheme}
-                      />
-                    ))}
-                  </>
-                )}
-              </ScrollView>
 
-              <View style={s.actionsBar}>
-                <Pressable
-                  style={[s.actionBarBtn, { backgroundColor: expandedTheme.closeBg }]}
-                  onPress={handleEdit}
-                  disabled={deleting}
-                >
-                  <Pencil size={18} color={expandedTheme.text} />
-                  <Text style={[s.actionBarLabel, { color: expandedTheme.text }]}>編輯</Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    s.actionBarBtn,
-                    { backgroundColor: expandedTheme.closeBg, opacity: deleting ? 0.5 : 1 },
-                  ]}
-                  onPress={handleDelete}
-                  disabled={deleting}
-                >
-                  <Trash2 size={18} color="#ff3b30" />
-                  <Text style={[s.actionBarLabel, { color: "#ff3b30" }]}>刪除</Text>
-                </Pressable>
-              </View>
-            </Animated.View>
+                    <Row label="被保人" value={expanded.insuredName} theme={expandedTheme} />
+                    <Row
+                      label="保單號碼"
+                      value={expanded.policyNumber ?? UNKNOWN}
+                      theme={expandedTheme}
+                    />
+                    <Row
+                      label="投保日期"
+                      value={formatDate(expanded.startDate)}
+                      theme={expandedTheme}
+                    />
+                    <Row
+                      label="繳費年期"
+                      value={
+                        expanded.paymentTermYears != null
+                          ? `${expanded.paymentTermYears} 年`
+                          : UNKNOWN
+                      }
+                      theme={expandedTheme}
+                    />
+                    <Row
+                      label="保障期間"
+                      value={expanded.coveragePeriod ?? UNKNOWN}
+                      theme={expandedTheme}
+                    />
+                    <Row
+                      label="年繳保費"
+                      value={
+                        expanded.annualPremium != null
+                          ? formatCurrency(expanded.annualPremium)
+                          : UNKNOWN
+                      }
+                      theme={expandedTheme}
+                    />
 
-            <Animated.View style={[s.closeBtnWrap, { opacity: detailOpacity }]}>
-              <Pressable
-                style={[s.closeBtn, { backgroundColor: expandedTheme.closeBg }]}
-                onPress={closeDetail}
-                disabled={deleting}
-                hitSlop={10}
-              >
-                <X size={18} color={expandedTheme.text} />
-              </Pressable>
-            </Animated.View>
+                    {expanded.coverage.length > 0 && (
+                      <>
+                        <View style={[s.dashed, { borderColor: expandedTheme.dashed }]} />
+                        <Text style={[s.coverageTitle, { color: expandedTheme.muted }]}>
+                          保障項目
+                        </Text>
+                        {expanded.coverage.map((c) => (
+                          <Row
+                            key={c.key}
+                            label={c.label}
+                            value={formatCurrency(c.value)}
+                            theme={expandedTheme}
+                          />
+                        ))}
+                      </>
+                    )}
+                  </ScrollView>
+
+                  <View style={s.actionsBar}>
+                    <Pressable
+                      style={[s.actionBarBtn, { backgroundColor: expandedTheme.closeBg }]}
+                      onPress={handleEdit}
+                      disabled={deleting}
+                    >
+                      <Pencil size={18} color={expandedTheme.text} />
+                      <Text style={[s.actionBarLabel, { color: expandedTheme.text }]}>編輯</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        s.actionBarBtn,
+                        { backgroundColor: expandedTheme.closeBg, opacity: deleting ? 0.5 : 1 },
+                      ]}
+                      onPress={handleDelete}
+                      disabled={deleting}
+                    >
+                      <Trash2 size={18} color="#ff3b30" />
+                      <Text style={[s.actionBarLabel, { color: "#ff3b30" }]}>刪除</Text>
+                    </Pressable>
+                  </View>
+                </Animated.View>
+
+                <Animated.View style={[s.closeBtnWrap, { opacity: detailOpacity }]}>
+                  <Pressable
+                    style={[s.closeBtn, { backgroundColor: expandedTheme.closeBg }]}
+                    onPress={closeDetail}
+                    disabled={deleting}
+                    hitSlop={10}
+                  >
+                    <X size={18} color={expandedTheme.text} />
+                  </Pressable>
+                </Animated.View>
+              </>
+            )}
 
             {deleting && (
               <View style={[StyleSheet.absoluteFill, s.deletingOverlay]}>
@@ -616,6 +669,7 @@ const s = StyleSheet.create({
     flexDirection: "column",
   },
   growDetailScroll: { flex: 1 },
+  growEditFill: StyleSheet.absoluteFillObject,
   closeBtnWrap: {
     position: "absolute",
     top: 14,

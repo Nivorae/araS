@@ -1,23 +1,22 @@
-import { useCallback, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useIsFocused } from "@react-navigation/native";
 import * as Sentry from "@sentry/react-native";
 
-// A focus effect is NOT once-per-visit. React Navigation caches each screen's
-// navigation object and rebuilds the whole cache when the navigator's state,
-// emitter or setOptions identity changes; useFocusEffect re-runs its body against
-// the new identity, without the screen ever losing focus. Measured on a real
-// device: two runs in a single visit with no dependency change and no remount.
+// Triggering a refetch on every focus is not enough on its own: React Navigation
+// rebuilds the navigation object identity fairly often (state/emitter/setOptions
+// changes), and naively re-running on each rebuild issues a request without the
+// screen ever losing focus. Screens that treat every run as "issue a request,
+// then setState with the reply" therefore have a feedback path with nothing
+// bounding it — one production session was seen reading at roughly frame rate
+// until React aborted the tree with "Maximum update depth exceeded". This hook
+// is the bound: concurrent reads share one request, a genuine focus transition
+// (tracked via `useIsFocused`, immune to navigation-identity churn — see below)
+// triggers at most one read, and a sustained run trips a breaker that stops
+// refreshing and reports once.
 //
-// Screens that treat every run as "issue a request, then setState with the reply"
-// therefore have a feedback path with nothing bounding it — one production session
-// was seen reading at roughly frame rate until React aborted the tree with
-// "Maximum update depth exceeded". This hook is the bound: concurrent reads share
-// one request, and a sustained run trips a breaker that stops refreshing and
-// reports once.
-//
-// What drove the re-runs that fast is still unidentified — it happened to another
-// user and has not been reproduced — so this bounds the damage rather than
-// assuming a cause.
+// What drove the production re-runs that fast is still unidentified — it
+// happened to another user and has not been reproduced — so the breaker bounds
+// the damage rather than assuming a cause.
 
 /**
  * A pathological run is many reads inside ONE mount with no idle gap. Counting a
@@ -133,13 +132,19 @@ export function useFocusRefresh<T>(
     [context]
   );
 
-  // `refresh` is stable (it reads everything else through refs), so this effect
-  // only ever re-subscribes when React Navigation rebuilds the navigation object.
-  useFocusEffect(
-    useCallback(() => {
-      void refresh();
-    }, [refresh])
-  );
+  // `useIsFocused` (not `expo-router`'s `useFocusEffect`) on purpose: that fork's
+  // internal "did we already fire for this focus" flag lives inside the effect
+  // closure, which gets recreated — and reset to false — every time React
+  // Navigation rebuilds the navigation object identity, even with no real
+  // blur/focus in between. That's the redundant sequential refetch this hook
+  // used to just absorb. `isFocused` is a plain boolean compared by value, and
+  // `refresh` is a stable reference (see above), so this effect only re-runs
+  // when a real focus transition happens — no extra ref needed to detect one.
+  const isFocused = useIsFocused();
+
+  useEffect(() => {
+    if (isFocused) void refresh();
+  }, [isFocused, refresh]);
 
   return { refresh, loading };
 }

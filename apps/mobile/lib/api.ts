@@ -110,7 +110,7 @@ export function useApi(): Api {
   // stay referentially stable across renders — otherwise every useCallback that
   // depends on `api` (directly, or via useFinanceActions) recreates every
   // render, which turns useFocusEffect into an infinite fetch/render loop (see
-  // apps/mobile/app/(app)/insurance/[id].tsx and entry/[id].tsx).
+  // apps/mobile/app/(app)/entry/[id].tsx).
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;

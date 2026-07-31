@@ -15,6 +15,7 @@
     "@expo/metro-runtime": "~6.1.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/slider": "5.0.1",
+    "@react-navigation/native": "7.3.4",
     "@repo/shared": "workspace:*",
     "@sentry/react-native": "^7.2.0",
     "expo": "~54.0.35",
