@@ -20,6 +20,7 @@ import {
   INSURANCE_COVERAGE_OPTIONS,
   MAX_COVERAGE_ITEMS,
   INSURER_LIST,
+  type Insurance,
   type InsuranceType,
   type CoverageItem,
   type CoverageOption,
@@ -76,7 +77,21 @@ export interface InsuranceFormProps {
   insuranceId?: string;
   initial?: InsuranceFormInitial;
   onBack: () => void;
-  onSaved: () => void;
+  /** Receives the created/updated record straight from the API response, so
+   * callers can update their own state without a second fetch. May return a
+   * promise — `handleSubmit` awaits it so the form stays locked (see
+   * `submitting`) through the caller's own post-save work. */
+  onSaved: (insurance: Insurance) => void | Promise<void>;
+  /** True when rendered inside another screen's own card/overlay (e.g. the
+   * insurance overview's expanded card) rather than as a full route — skips
+   * the screen-level SafeAreaView so it doesn't fight the parent's layout. */
+  embedded?: boolean;
+  /** Color for the title and the back/save icons, which sit directly on
+   * whatever's behind them rather than inside one of this form's own white
+   * `card` sections. Standalone screens sit on a fixed light background, so
+   * the dark default reads fine; an embedded caller with a dark card theme
+   * must pass its own contrasting color or these become invisible. */
+  headerColor?: string;
 }
 
 export function InsuranceForm({
@@ -85,6 +100,8 @@ export function InsuranceForm({
   initial,
   onBack,
   onSaved,
+  embedded = false,
+  headerColor = "#1c1c1e",
 }: InsuranceFormProps) {
   const { addInsurance, updateInsurance, fetchAll } = useFinanceActions();
   const { isPremium, loading: premiumLoading } = useIsPremium();
@@ -207,6 +224,7 @@ export function InsuranceForm({
         .filter((c) => c.label.trim().length > 0)
         .map((c) => ({ key: c.key, label: c.label.trim(), value: Number(c.valueStr) || 0 }));
 
+      let saved: Insurance;
       if (isEdit && insuranceId) {
         const payload: UpdateInsurance = {
           insurer: insurer.trim(),
@@ -220,7 +238,7 @@ export function InsuranceForm({
           annualPremium: annualPremium ? parseFloat(annualPremium) : null,
           coverage: trimmedCoverage,
         };
-        await updateInsurance(insuranceId, payload);
+        saved = await updateInsurance(insuranceId, payload);
         await fetchAll();
       } else {
         const payload: CreateInsurance = {
@@ -235,9 +253,13 @@ export function InsuranceForm({
           ...(annualPremium ? { annualPremium: parseFloat(annualPremium) } : {}),
           ...(trimmedCoverage.length > 0 ? { coverage: trimmedCoverage } : {}),
         };
-        await addInsurance(payload);
+        saved = await addInsurance(payload);
       }
-      onSaved();
+      // Awaited so `submitting` (which locks the form, see the ScrollView's
+      // `pointerEvents` below) stays true through the caller's own post-save
+      // work too — otherwise fields would be editable again for however long
+      // an embedded caller takes to act on `saved`, before it switches away.
+      await onSaved(saved);
     } catch (e) {
       if (e instanceof ApiError && e.code === "PREMIUM_REQUIRED") {
         promptPremiumUpgrade();
@@ -249,234 +271,252 @@ export function InsuranceForm({
     }
   };
 
+  const Wrapper = embedded ? View : SafeAreaView;
+
   return (
-    <SafeAreaView style={s.root}>
+    <Wrapper style={embedded ? s.flex : s.root}>
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
           style={s.flex}
           contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={s.navRow}>
+          <View style={[s.navRow, embedded && s.navRowEmbedded]}>
             <TouchableOpacity
               onPress={onBack}
-              style={s.navCircle}
+              disabled={submitting}
+              style={[
+                s.navCircle,
+                embedded && s.navCircleEmbedded,
+                { opacity: submitting ? 0.4 : 1 },
+              ]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <ChevronLeft size={20} color="#1c1c1e" />
+              <ChevronLeft size={20} color={headerColor} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSubmit}
               disabled={submitting}
-              style={[s.navCircle, { opacity: submitting ? 0.4 : 1 }]}
+              style={[
+                s.navCircle,
+                embedded && s.navCircleEmbedded,
+                { opacity: submitting ? 0.4 : 1 },
+              ]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               {submitting ? (
                 <ActivityIndicator size="small" color="#B8865E" />
               ) : (
-                <Check size={20} color="#1c1c1e" strokeWidth={2.5} />
+                <Check size={20} color={headerColor} strokeWidth={2.5} />
               )}
             </TouchableOpacity>
           </View>
 
-          <Text style={s.titleText}>{isEdit ? "編輯保單" : "新增保單"}</Text>
+          {/* Locked while `submitting` — which stays true through the caller's
+              own post-save work (see `onSaved` above) — so nothing here can be
+              changed between tapping save and the screen actually moving on. */}
+          <View pointerEvents={submitting ? "none" : "auto"}>
+            <Text style={[s.titleText, { color: headerColor }]}>
+              {isEdit ? "編輯保單" : "新增保單"}
+            </Text>
 
-          {/* ── Step 1: 險種 ─────────────────────────────────────────── */}
-          <View style={s.card}>
-            <Text style={s.sectionLabel}>險種</Text>
-            <View style={s.chipRow}>
-              {INSURANCE_TYPES.map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  onPress={() => handleSelectType(type)}
-                  style={[s.chip, insuranceType === type && s.chipActive]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.chipText, insuranceType === type && s.chipTextActive]}>
-                    {INSURANCE_TYPE_LABELS[type]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {errors.insuranceType && <Text style={s.err}>{errors.insuranceType}</Text>}
-          </View>
-
-          {/* ── Step 2: 基本資料 ─────────────────────────────────────── */}
-          <View style={s.card}>
-            <View style={s.row}>
-              <Text style={s.rowLabel}>保險公司</Text>
-              {insurerMode === "list" ? (
-                <TouchableOpacity
-                  onPress={() => setShowInsurerPicker(true)}
-                  style={s.rowRight}
-                  activeOpacity={0.7}
-                >
-                  <Text style={insurer ? s.rowValue : s.placeholderText}>
-                    {insurer || "未選擇"}
-                  </Text>
-                  <ChevronRight size={16} color="#c7c7cc" />
-                </TouchableOpacity>
-              ) : (
-                <View style={s.rowRight}>
-                  <TextInput
-                    style={s.inputRight}
-                    value={insurer}
-                    onChangeText={handleInsurerChange}
-                    placeholder="輸入保險公司名稱"
-                    placeholderTextColor="#c7c7cc"
-                  />
-                </View>
-              )}
-            </View>
-            {insurerMode === "other" && (
-              <TouchableOpacity
-                onPress={() => {
-                  setInsurerMode("list");
-                  setInsurer("");
-                }}
-                style={s.switchModeRow}
-              >
-                <Text style={s.switchModeLink}>改用清單選擇</Text>
-              </TouchableOpacity>
-            )}
-            {errors.insurer && <Text style={s.err}>{errors.insurer}</Text>}
-            <View style={s.sep} />
-
-            <View style={s.row}>
-              <Text style={s.rowLabel}>被保人</Text>
-              <TextInput
-                style={s.inputRight}
-                value={insuredName}
-                onChangeText={handleInsuredNameChange}
-                placeholder="本人"
-                placeholderTextColor="#c7c7cc"
-              />
-            </View>
-            {errors.insuredName && <Text style={s.err}>{errors.insuredName}</Text>}
-            <View style={s.sep} />
-
-            <View style={s.row}>
-              <Text style={s.rowLabel}>保單名稱</Text>
-              <TextInput
-                style={s.inputRight}
-                value={policyName}
-                onChangeText={setPolicyName}
-                placeholder="選填"
-                placeholderTextColor="#c7c7cc"
-              />
-            </View>
-            <View style={s.sep} />
-
-            <View style={s.row}>
-              <Text style={s.rowLabel}>保單號碼</Text>
-              <TextInput
-                style={s.inputRight}
-                value={policyNumber}
-                onChangeText={setPolicyNumber}
-                placeholder="選填"
-                placeholderTextColor="#c7c7cc"
-              />
-            </View>
-            <View style={s.sep} />
-
-            <TouchableOpacity
-              style={s.row}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={s.rowLabel}>投保日期</Text>
-              <View style={s.rowRight}>
-                <Text style={startDate ? s.rowValue : s.placeholderText}>
-                  {formatDisplayDate(startDate)}
-                </Text>
-                <Calendar size={16} color="#8e8e93" />
-              </View>
-            </TouchableOpacity>
-            <View style={s.sep} />
-
-            <View style={s.row}>
-              <Text style={s.rowLabel}>繳費年期（年）</Text>
-              <TextInput
-                style={s.inputRight}
-                value={paymentTermYears}
-                onChangeText={setPaymentTermYears}
-                placeholder="選填"
-                placeholderTextColor="#c7c7cc"
-                keyboardType="number-pad"
-              />
-            </View>
-            <View style={s.sep} />
-
-            <View style={s.row}>
-              <Text style={s.rowLabel}>保障期間</Text>
-              <TextInput
-                style={s.inputRight}
-                value={coveragePeriod}
-                onChangeText={setCoveragePeriod}
-                placeholder="終身／定期到 X 歲"
-                placeholderTextColor="#c7c7cc"
-              />
-            </View>
-            <View style={s.sep} />
-
-            <View style={s.row}>
-              <Text style={s.rowLabel}>年繳保費</Text>
-              <TextInput
-                style={s.inputRight}
-                value={annualPremium}
-                onChangeText={setAnnualPremium}
-                placeholder="選填"
-                placeholderTextColor="#c7c7cc"
-                keyboardType="decimal-pad"
-              />
-            </View>
-          </View>
-
-          {/* ── Step 3: 保障細項（B 區） ──────────────────────────────── */}
-          {insuranceType && (
+            {/* ── Step 1: 險種 ─────────────────────────────────────────── */}
             <View style={s.card}>
-              <Text style={s.sectionLabel}>保障項目（最多 {MAX_COVERAGE_ITEMS} 項）</Text>
-              {coverage.map((item) => (
-                <View key={item.key} style={s.coverageRow}>
-                  {insuranceType === "OTHER" ? (
+              <Text style={s.sectionLabel}>險種</Text>
+              <View style={s.chipRow}>
+                {INSURANCE_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => handleSelectType(type)}
+                    style={[s.chip, insuranceType === type && s.chipActive]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.chipText, insuranceType === type && s.chipTextActive]}>
+                      {INSURANCE_TYPE_LABELS[type]}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {errors.insuranceType && <Text style={s.err}>{errors.insuranceType}</Text>}
+            </View>
+
+            {/* ── Step 2: 基本資料 ─────────────────────────────────────── */}
+            <View style={s.card}>
+              <View style={s.row}>
+                <Text style={s.rowLabel}>保險公司</Text>
+                {insurerMode === "list" ? (
+                  <TouchableOpacity
+                    onPress={() => setShowInsurerPicker(true)}
+                    style={s.rowRight}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={insurer ? s.rowValue : s.placeholderText}>
+                      {insurer || "未選擇"}
+                    </Text>
+                    <ChevronRight size={16} color="#c7c7cc" />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={s.rowRight}>
                     <TextInput
-                      style={s.coverageLabelInput}
-                      value={item.label}
-                      onChangeText={(t) => updateCoverageLabel(item.key, t)}
-                      placeholder="保障名稱"
+                      style={s.inputRight}
+                      value={insurer}
+                      onChangeText={handleInsurerChange}
+                      placeholder="輸入保險公司名稱"
                       placeholderTextColor="#c7c7cc"
                     />
-                  ) : (
-                    <Text style={s.coverageLabel} numberOfLines={1}>
-                      {item.label}
-                    </Text>
-                  )}
-                  <TextInput
-                    style={s.coverageValueInput}
-                    value={item.valueStr}
-                    onChangeText={(t) => updateCoverageValue(item.key, t)}
-                    placeholder="0"
-                    placeholderTextColor="#c7c7cc"
-                    keyboardType="decimal-pad"
-                  />
-                  <TouchableOpacity onPress={() => removeCoverage(item.key)} hitSlop={8}>
-                    <X size={16} color="#8e8e93" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {canAddMore && (
+                  </View>
+                )}
+              </View>
+              {insurerMode === "other" && (
                 <TouchableOpacity
-                  onPress={handleAddCoverage}
-                  style={s.addCoverageBtn}
-                  activeOpacity={0.7}
+                  onPress={() => {
+                    setInsurerMode("list");
+                    setInsurer("");
+                  }}
+                  style={s.switchModeRow}
                 >
-                  <Text style={s.addCoverageText}>+ 新增保障</Text>
+                  <Text style={s.switchModeLink}>改用清單選擇</Text>
                 </TouchableOpacity>
               )}
-            </View>
-          )}
+              {errors.insurer && <Text style={s.err}>{errors.insurer}</Text>}
+              <View style={s.sep} />
 
-          {error != null && <Text style={s.errorText}>{error}</Text>}
+              <View style={s.row}>
+                <Text style={s.rowLabel}>被保人</Text>
+                <TextInput
+                  style={s.inputRight}
+                  value={insuredName}
+                  onChangeText={handleInsuredNameChange}
+                  placeholder="本人"
+                  placeholderTextColor="#c7c7cc"
+                />
+              </View>
+              {errors.insuredName && <Text style={s.err}>{errors.insuredName}</Text>}
+              <View style={s.sep} />
+
+              <View style={s.row}>
+                <Text style={s.rowLabel}>保單名稱</Text>
+                <TextInput
+                  style={s.inputRight}
+                  value={policyName}
+                  onChangeText={setPolicyName}
+                  placeholder="選填"
+                  placeholderTextColor="#c7c7cc"
+                />
+              </View>
+              <View style={s.sep} />
+
+              <View style={s.row}>
+                <Text style={s.rowLabel}>保單號碼</Text>
+                <TextInput
+                  style={s.inputRight}
+                  value={policyNumber}
+                  onChangeText={setPolicyNumber}
+                  placeholder="選填"
+                  placeholderTextColor="#c7c7cc"
+                />
+              </View>
+              <View style={s.sep} />
+
+              <TouchableOpacity
+                style={s.row}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.rowLabel}>投保日期</Text>
+                <View style={s.rowRight}>
+                  <Text style={startDate ? s.rowValue : s.placeholderText}>
+                    {formatDisplayDate(startDate)}
+                  </Text>
+                  <Calendar size={16} color="#8e8e93" />
+                </View>
+              </TouchableOpacity>
+              <View style={s.sep} />
+
+              <View style={s.row}>
+                <Text style={s.rowLabel}>繳費年期（年）</Text>
+                <TextInput
+                  style={s.inputRight}
+                  value={paymentTermYears}
+                  onChangeText={setPaymentTermYears}
+                  placeholder="選填"
+                  placeholderTextColor="#c7c7cc"
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={s.sep} />
+
+              <View style={s.row}>
+                <Text style={s.rowLabel}>保障期間</Text>
+                <TextInput
+                  style={s.inputRight}
+                  value={coveragePeriod}
+                  onChangeText={setCoveragePeriod}
+                  placeholder="終身／定期到 X 歲"
+                  placeholderTextColor="#c7c7cc"
+                />
+              </View>
+              <View style={s.sep} />
+
+              <View style={s.row}>
+                <Text style={s.rowLabel}>年繳保費</Text>
+                <TextInput
+                  style={s.inputRight}
+                  value={annualPremium}
+                  onChangeText={setAnnualPremium}
+                  placeholder="選填"
+                  placeholderTextColor="#c7c7cc"
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
+
+            {/* ── Step 3: 保障細項（B 區） ──────────────────────────────── */}
+            {insuranceType && (
+              <View style={s.card}>
+                <Text style={s.sectionLabel}>保障項目（最多 {MAX_COVERAGE_ITEMS} 項）</Text>
+                {coverage.map((item) => (
+                  <View key={item.key} style={s.coverageRow}>
+                    {insuranceType === "OTHER" ? (
+                      <TextInput
+                        style={s.coverageLabelInput}
+                        value={item.label}
+                        onChangeText={(t) => updateCoverageLabel(item.key, t)}
+                        placeholder="保障名稱"
+                        placeholderTextColor="#c7c7cc"
+                      />
+                    ) : (
+                      <Text style={s.coverageLabel} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                    )}
+                    <TextInput
+                      style={s.coverageValueInput}
+                      value={item.valueStr}
+                      onChangeText={(t) => updateCoverageValue(item.key, t)}
+                      placeholder="0"
+                      placeholderTextColor="#c7c7cc"
+                      keyboardType="decimal-pad"
+                    />
+                    <TouchableOpacity onPress={() => removeCoverage(item.key)} hitSlop={8}>
+                      <X size={16} color="#8e8e93" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {canAddMore && (
+                  <TouchableOpacity
+                    onPress={handleAddCoverage}
+                    style={s.addCoverageBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.addCoverageText}>+ 新增保障</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {error != null && <Text style={s.errorText}>{error}</Text>}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -510,7 +550,7 @@ export function InsuranceForm({
         onConfirm={(picked) => setStartDate(toISODate(picked))}
         onClose={() => setShowDatePicker(false)}
       />
-    </SafeAreaView>
+    </Wrapper>
   );
 }
 
@@ -526,6 +566,13 @@ const s = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 16,
   },
+  // The embedded card's rounded top edge sits much closer to its content than
+  // a full screen's SafeAreaView does, and its own field cards should follow
+  // right after the buttons rather than leaving standalone's larger gap.
+  navRowEmbedded: {
+    paddingTop: 20,
+    paddingBottom: 4,
+  },
   navCircle: {
     width: 40,
     height: 40,
@@ -539,8 +586,16 @@ const s = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  // On a themed card background (not the standalone screen's fixed light
+  // grey), the white circular pill can clash with the card's own color —
+  // an icon-only treatment reads better there.
+  navCircleEmbedded: {
+    backgroundColor: "transparent",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
 
-  titleText: { fontSize: 22, fontWeight: "700", color: "#1c1c1e", marginBottom: 16 },
+  titleText: { fontSize: 22, fontWeight: "700", marginBottom: 8 },
 
   card: {
     backgroundColor: "#fff",
