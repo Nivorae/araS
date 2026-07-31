@@ -67,6 +67,9 @@ importers:
       "@react-native-community/slider":
         specifier: 5.0.1
         version: 5.0.1
+      "@react-navigation/native":
+        specifier: 7.3.4
+        version: 7.3.4(react-native@0.81.5(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@6.0.6))(react@19.1.0)
       "@repo/shared":
         specifier: workspace:*
         version: link:../../packages/shared
