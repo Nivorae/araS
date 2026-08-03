@@ -58,6 +58,7 @@ interface FinanceState {
   lastFetchedAt: number | null;
   isGuest: boolean;
   fetchAll: (isSignedIn?: boolean) => Promise<void>;
+  refreshEntries: () => Promise<void>;
   addEntry: (data: CreateEntry) => Promise<void>;
   updateEntry: (id: string, data: UpdateEntry) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
@@ -147,6 +148,17 @@ export const useFinanceStore = create<FinanceState>()(
         } catch (e) {
           set({ loading: false, error: e instanceof Error ? e.message : "Failed to fetch data" });
         }
+      },
+
+      // Unconditional re-fetch of entries, bypassing fetchAll's cache guard.
+      // Needed by mutations that happen outside addEntry/updateEntry/deleteEntry
+      // (e.g. insurance writes, which go through their own /api/insurances
+      // routes and return an Insurance record, not an Entry) so the list
+      // reflects the change immediately instead of only on next sign-in.
+      refreshEntries: async () => {
+        if (get().isGuest) return;
+        const entries = await apiFetch<Entry[]>("/api/entries");
+        set({ entries });
       },
 
       addEntry: async (data) => {

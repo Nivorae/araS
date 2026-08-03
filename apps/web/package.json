@@ -18,7 +18,9 @@
     "db:rollback": "prisma migrate resolve --rolled-back",
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "clerk:preseed": "dotenv -e ../../.env -- tsx scripts/clerk/preseed-prod-users.ts",
-    "clerk:remap": "dotenv -e ../../.env -- tsx scripts/clerk/remap-user-ids.ts"
+    "clerk:remap": "dotenv -e ../../.env -- tsx scripts/clerk/remap-user-ids.ts",
+    "db:check": "dotenv -e ../../.env -- tsx prisma/assert-dev-db.ts",
+    "db:reset": "pnpm db:check && dotenv -e ../../.env -- prisma migrate reset --force --skip-seed && pnpm db:seed"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",

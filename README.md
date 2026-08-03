@@ -18,6 +18,23 @@
 | Monorepo   | Turborepo + pnpm workspaces                                                           |
 | Deploy     | Web/API → Vercel（Root Directory `apps/web`）；Mobile → EAS + App Store               |
 
+## 第三方服務
+
+| 服務                                            | 用途                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------- |
+| **Supabase**                                    | PostgreSQL 資料庫（production / dev 各一個獨立專案）          |
+| **Vercel**                                      | Web/API 部署（含 Turborepo Remote Cache，選用）               |
+| **Clerk**                                       | 認證（Google / LINE OAuth）                                   |
+| **Google Cloud Console**                        | 申請 Google OAuth 用戶端，供 Clerk Google 登入使用            |
+| **LINE Developers Console**                     | 建立 LINE Login channel，供 Clerk LINE 登入使用               |
+| **Cloudflare**                                  | 自訂網域 DNS（arasasset.com）                                 |
+| **Expo Go**                                     | 手機測試 App（掃 QR 開發預覽用，非發布服務）                  |
+| **EAS (Expo Application Services)**             | Mobile build / submit / OTA 更新                              |
+| **Apple Developer Program / App Store Connect** | iOS 上架、App Store Server Notifications webhook              |
+| **RevenueCat**                                  | App 內購／訂閱（IAP）                                         |
+| **Sentry.io**                                   | 錯誤監控（crash reporting）                                   |
+| **GitHub / GitHub Actions**                     | 原始碼託管 + CI（`.github/workflows/ci.yml`，`/fix-ci` 對象） |
+
 ## Project Structure
 
 ```

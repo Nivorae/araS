@@ -14,13 +14,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react-native";
 import * as Sentry from "@sentry/react-native";
 import type { EntryHistory } from "@repo/shared";
 import { BankLogo } from "@/components/BankLogo";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { useApi, ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
@@ -177,7 +178,6 @@ export default function EntryDetailScreen() {
   // the first frame; the focus refetch below then refreshes them in place.
   const history =
     useFinanceStore((state) => (id ? state.historyByEntry[id] : undefined)) ?? NO_HISTORY;
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
 
   // Edit modal state
@@ -194,17 +194,22 @@ export default function EntryDetailScreen() {
   const isStockEntry =
     !!entry && STOCK_PICKER_CATEGORIES.includes(entry.subCategory) && !!entry.stockCode;
 
-  // Wraps the actions-layer fetch with this screen's loading flag. The rows land
-  // in the store, so the selector above picks them up.
-  const fetchHistory = useCallback(async (): Promise<EntryHistory[] | null> => {
-    if (!id) return null;
-    setHistoryLoading(true);
-    try {
-      return await fetchEntryHistory(id);
-    } finally {
-      setHistoryLoading(false);
+  // Rows land in the store, so the selector above picks them up. useFocusRefresh
+  // owns the guarding — see that hook for why an unguarded focus refetch could
+  // turn into a request-per-frame loop.
+  //
+  // `history.length` is read through a ref inside `detail`, never captured as a
+  // dependency: making the fetcher depend on `history` would give it a new
+  // identity on every store write, which is the churn the hook exists to absorb.
+  const historyLenRef = useRef(0);
+  historyLenRef.current = history.length;
+  const { refresh: fetchHistory, loading: historyLoading } = useFocusRefresh(
+    () => (id ? fetchEntryHistory(id) : Promise.resolve(null)),
+    {
+      context: "history.refreshLoop",
+      detail: () => ({ entryId: id, cachedRows: historyLenRef.current }),
     }
-  }, [id, fetchEntryHistory]);
+  );
 
   // After a history edit/delete the backend recomputes the entry's value to the
   // most-recent record's running balance (0 when none remain). Mirror that into
@@ -220,13 +225,6 @@ export default function EntryDetailScreen() {
       }
     },
     [id]
-  );
-
-  // Refetch on focus so a record added via the "+" flow shows up on return.
-  useFocusEffect(
-    useCallback(() => {
-      fetchHistory();
-    }, [fetchHistory])
   );
 
   // Stock price fetch — only re-runs when stockCode changes, not on every render
@@ -282,13 +280,13 @@ export default function EntryDetailScreen() {
         units: editUnits !== "" ? parseFloat(editUnits) : null,
       });
       setEditingHistory(null);
-      const rows = await fetchHistory();
+      const rows = await fetchHistory({ force: true });
       if (rows) syncEntryValueFromHistory(rows);
     } catch (e) {
       if (isNotFoundError(e)) {
         // Record was already deleted elsewhere — close the modal and resync.
         setEditingHistory(null);
-        const rows = await fetchHistory();
+        const rows = await fetchHistory({ force: true });
         if (rows) syncEntryValueFromHistory(rows);
       } else if (isNetworkError(e)) {
         // Interrupted (e.g. app backgrounded mid-save). Keep the modal open so
@@ -308,12 +306,12 @@ export default function EntryDetailScreen() {
     try {
       await apiRef.current.delete(`/api/entries/${id}/history/${editingHistory.id}`);
       setEditingHistory(null);
-      const rows = await fetchHistory();
+      const rows = await fetchHistory({ force: true });
       if (rows) syncEntryValueFromHistory(rows);
     } catch (e) {
       if (isNotFoundError(e)) {
         setEditingHistory(null);
-        const rows = await fetchHistory();
+        const rows = await fetchHistory({ force: true });
         if (rows) syncEntryValueFromHistory(rows);
       } else if (isNetworkError(e)) {
         // Keep the modal open so the user can retry the delete.

@@ -5,6 +5,7 @@ vi.mock("@/lib/prisma", () => ({
     entry: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       deleteMany: vi.fn(),
@@ -26,10 +27,24 @@ vi.mock("@/lib/serialize", () => ({
   dn: (v: unknown) => (v == null ? null : Number(v)),
 }));
 
+vi.mock("@/services/entitlements.service", () => ({
+  entitlementsService: { isPremium: vi.fn() },
+}));
+
 import { prisma } from "@/lib/prisma";
 import { entriesService } from "../../services/entries.service";
+import { entitlementsService } from "../../services/entitlements.service";
+import { EntryLimitError } from "../../services/entries.service";
+import { FREE_ENTRY_LIMIT } from "@repo/shared";
 
 const USER_ID = "user_test123";
+
+const VALID_ENTRY = {
+  name: "台積電",
+  topCategory: "流動資金",
+  subCategory: "現金",
+  value: 1000,
+};
 
 describe("EntriesService.list", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -38,6 +53,50 @@ describe("EntriesService.list", () => {
     await entriesService.list(USER_ID);
     expect(prisma.entry.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: USER_ID } })
+    );
+  });
+
+  it("includes an insurance summary on the listed entries", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      {
+        id: "e1",
+        userId: USER_ID,
+        name: "醫療險",
+        topCategory: "保險",
+        subCategory: "MEDICAL",
+        stockCode: null,
+        bankCode: null,
+        note: null,
+        value: 0,
+        includeInChart: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        loan: null,
+        history: [],
+        insurance: {
+          id: "ins1",
+          insuranceType: "MEDICAL",
+          insurer: "國泰人壽",
+          insuredName: "本人",
+        },
+      },
+    ] as never);
+    const entries = await entriesService.list(USER_ID);
+    const entry = entries[0]!;
+    expect(entry.insurance).toEqual({
+      id: "ins1",
+      insuranceType: "MEDICAL",
+      insurer: "國泰人壽",
+      insuredName: "本人",
+    });
+    expect(prisma.entry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          insurance: {
+            select: { id: true, insuranceType: true, insurer: true, insuredName: true },
+          },
+        }),
+      })
     );
   });
 });
@@ -207,5 +266,113 @@ describe("EntriesService.create — bankCode", () => {
         data: expect.objectContaining({ bankCode: null }),
       })
     );
+  });
+});
+
+describe("EntriesService.create limit guard", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("throws EntryLimitError when a non-premium user is at the limit", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
+    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT);
+    await expect(entriesService.create(VALID_ENTRY, USER_ID)).rejects.toBeInstanceOf(
+      EntryLimitError
+    );
+    expect(prisma.entry.create).not.toHaveBeenCalled();
+  });
+
+  it("allows a non-premium user below the limit", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
+    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT - 1);
+    vi.mocked(prisma.entry.create).mockResolvedValue({ id: "e1", value: 1000 } as never);
+    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    await entriesService.create(VALID_ENTRY, USER_ID);
+    expect(prisma.entry.create).toHaveBeenCalled();
+  });
+
+  it("allows a premium user regardless of count (never even counts)", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(true);
+    vi.mocked(prisma.entry.create).mockResolvedValue({ id: "e1", value: 1000 } as never);
+    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    await entriesService.create(VALID_ENTRY, USER_ID);
+    expect(prisma.entry.count).not.toHaveBeenCalled();
+    expect(prisma.entry.create).toHaveBeenCalled();
+  });
+});
+
+describe("EntriesService.getAssetAllocation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("computes each top category's percentage of total assets", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { topCategory: "投資", value: 600, includeInChart: true },
+      { topCategory: "流動資金", value: 400, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.breakdown).toEqual([
+      { topCategory: "投資", value: 600, percentage: 60 },
+      { topCategory: "流動資金", value: 400, percentage: 40 },
+    ]);
+  });
+
+  it("flags entries at or above 40% of total assets as concentration warnings", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "台積電", topCategory: "投資", value: 500, includeInChart: true },
+      { id: "e2", name: "現金", topCategory: "流動資金", value: 500, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.concentrationWarnings).toEqual([
+      { entryId: "e1", name: "台積電", percentage: 50 },
+      { entryId: "e2", name: "現金", percentage: 50 },
+    ]);
+  });
+
+  it("does not flag entries below the 40% threshold", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "台積電", topCategory: "投資", value: 300, includeInChart: true },
+      { id: "e2", name: "現金", topCategory: "流動資金", value: 700, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.concentrationWarnings).toEqual([{ entryId: "e2", name: "現金", percentage: 70 }]);
+  });
+
+  it("excludes entries with includeInChart=false from the breakdown and totals", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "現金", topCategory: "流動資金", value: 1000, includeInChart: true },
+    ] as never);
+
+    await entriesService.getAssetAllocation(USER_ID);
+
+    expect(prisma.entry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER_ID, includeInChart: true } })
+    );
+  });
+
+  it("excludes liability categories from the breakdown and computes debtToAssetRatio", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      { id: "e1", name: "現金", topCategory: "流動資金", value: 800, includeInChart: true },
+      { id: "e2", name: "信用卡", topCategory: "負債", value: 200, includeInChart: true },
+    ] as never);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.breakdown).toEqual([{ topCategory: "流動資金", value: 800, percentage: 100 }]);
+    expect(result.debtToAssetRatio).toBe(25);
+  });
+
+  it("returns a null debtToAssetRatio and empty breakdown when there are no assets", async () => {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([]);
+
+    const result = await entriesService.getAssetAllocation(USER_ID);
+
+    expect(result.breakdown).toEqual([]);
+    expect(result.concentrationWarnings).toEqual([]);
+    expect(result.debtToAssetRatio).toBeNull();
   });
 });

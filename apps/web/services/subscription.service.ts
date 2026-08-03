@@ -4,7 +4,11 @@ import type {
   ResponseBodyV2DecodedPayload,
 } from "@apple/app-store-server-library";
 import { SubscriptionStatus } from "@prisma/client";
+import { deriveAppleAccountToken } from "@repo/shared";
 import { prisma } from "@/lib/prisma";
+
+const DEV_PRODUCT_ID = "dev_test_premium";
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 function resolveStatus(
   notificationType: NotificationTypeV2 | string | undefined,
@@ -79,6 +83,46 @@ export class SubscriptionService {
         environment,
       },
     });
+  }
+
+  // Dev-only escape hatch: lets a developer flip their OWN Subscription row
+  // without a real Apple purchase, so premium-gated behavior (paywall, the
+  // 20-entry free cap, insurance restrictions) can be exercised end-to-end
+  // from Expo Go, where apps/mobile/lib/purchases.ts no-ops (no real IAP
+  // possible). Callers are responsible for gating this to non-production.
+  //
+  // CAUTION: DATABASE_URL is a single shared Supabase instance (see
+  // CLAUDE.md). Running this against your own account while it holds a real
+  // webhook-written subscription will overwrite it (active=true) or
+  // deleteMany it (active=false). It self-heals on the next real Apple
+  // notification (keyed by originalTransactionId, which the update branch
+  // preserves), but prefer a throwaway account or a separate dev DB.
+  async setDevStatus(userId: string, active: boolean): Promise<void> {
+    const appleAccountToken = deriveAppleAccountToken(userId);
+
+    if (active) {
+      await prisma.subscription.upsert({
+        where: { appleAccountToken },
+        create: {
+          appleAccountToken,
+          productId: DEV_PRODUCT_ID,
+          status: SubscriptionStatus.active,
+          expiresAt: new Date(Date.now() + ONE_YEAR_MS),
+          originalTransactionId: `dev-${userId}`,
+          environment: "Sandbox",
+        },
+        update: {
+          productId: DEV_PRODUCT_ID,
+          status: SubscriptionStatus.active,
+          expiresAt: new Date(Date.now() + ONE_YEAR_MS),
+          environment: "Sandbox",
+        },
+      });
+    } else {
+      // deleteMany (not delete) — no-throw if the row never existed, matching
+      // this codebase's ownership-scoped delete convention (see CLAUDE.md).
+      await prisma.subscription.deleteMany({ where: { appleAccountToken } });
+    }
   }
 }
 
