@@ -4,7 +4,7 @@
     "slug": "sara-asset-app",
     "scheme": "saraasset",
     "platforms": ["ios", "android"],
-    "version": "1.1",
+    "version": "1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -24,7 +24,7 @@
       "buildNumber": "1",
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:ara-s-web.vercel.app"],
+      "associatedDomains": ["applinks:ara-s-web.vercel.app", "applinks:arasasset.com"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
