@@ -204,8 +204,20 @@ function MetricCard({
         <Icon size={13} color={iconColor} />
       </View>
       <View style={s.metricValueRow}>
-        <Text style={[s.metricValue, { color }]}>{value}</Text>
-        {unit && <Text style={[s.metricUnit, { color }]}>{unit}</Text>}
+        <Text
+          style={[s.metricValue, { color }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+          maxFontSizeMultiplier={1.3}
+        >
+          {value}
+        </Text>
+        {unit && (
+          <Text style={[s.metricUnit, { color }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+            {unit}
+          </Text>
+        )}
       </View>
       {sub && <Text style={[s.metricSub, { color: labelColor }]}>{sub}</Text>}
     </Pressable>
@@ -983,9 +995,9 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   metricLabel: { fontSize: 11, fontWeight: "500", letterSpacing: 0.5 },
-  metricValueRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
-  metricValue: { fontSize: 24, fontWeight: "700", lineHeight: 28 },
-  metricUnit: { fontSize: 13, fontWeight: "600" },
+  metricValueRow: { flexDirection: "row", alignItems: "baseline", gap: 4, flexWrap: "nowrap" },
+  metricValue: { fontSize: 24, fontWeight: "700", lineHeight: 28, flexShrink: 1 },
+  metricUnit: { fontSize: 13, fontWeight: "600", flexShrink: 0 },
   metricSub: { fontSize: 11, marginTop: 8 },
 
   collapseCard: {
