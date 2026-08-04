@@ -149,6 +149,65 @@ Then in **App Store Connect** (wait for the uploaded build to finish
 native change works. This is the correct way to test native behavior that Expo Go
 can't show.
 
+### If the backend needs new API routes the release depends on
+
+Check whether `main` (Vercel production) already has every route the new
+mobile build calls, **before** submitting for review — not after approval.
+`git diff origin/main..origin/develop -- apps/web/app/api` tells you fast.
+
+This project holds `main` behind `develop` for long stretches deliberately
+(new backend gates shouldn't go live against an old binary that has no way to
+satisfy them — e.g. a paywall gate against a build with no purchase flow). But
+if the _new_ release's own screens call routes that only exist on `develop`,
+merging **has to happen before submission**, not after: an Apple reviewer
+testing the new build against production would see those screens 404 and
+could never reach the feature being reviewed (a paywall in particular — no
+IAP validation possible if it never renders). Work out a way to neutralize the
+old concern (e.g. temporarily loosen a cap so it can't lock out the currently
+-installed binary) rather than delaying the merge past submission.
+
+### First native build after a native-entitlement change to `app.json`
+
+If `ios.associatedDomains` (or any other Apple-capability field —
+push, HealthKit, iCloud, etc.) changed in `app.json` since the **last
+successful native build**, expect:
+
+```
+Provisioning profile "...AppStore ..." doesn't support the Associated
+Domains capability.
+```
+
+OTA ships can go out for weeks between native builds and will not surface
+this — the entitlement only matters to a provisioning profile, and OTAs don't
+touch profiles. It only breaks on the next `eas build`, which may be a long
+time later and right when you're trying to ship. Compare
+`eas build:list --platform ios --limit 10 --non-interactive --json` against
+`git log -S'associatedDomains' -- apps/mobile/app.json` before a Road B build
+if it's been a while since the last one, so this doesn't surprise you mid
+-release.
+
+**Fix requires a human in a real terminal** — `eas credentials -p ios` is
+interactive-only (no flags beyond `-p`) and cannot run where stdin isn't a
+real TTY (background/agent shells, `!`-prefixed commands in a coding
+assistant, etc.). Walk the user through it:
+
+1. `cd apps/mobile && eas credentials -p ios`
+2. `production` → **Build Credentials**
+3. If a stale provisioning profile already exists for the project, **delete
+   it first** (`Provisioning Profile: Delete one from your project`) — Apple
+   may otherwise report the old one as still "active" and EAS reuses it
+   instead of regenerating.
+4. **All: Set up all the required credentials to build your project** — this
+   re-validates the existing Distribution Certificate (reuses it if still
+   valid, no new cert needed) and syncs `app.json`'s entitlements onto the
+   Apple App ID. Watch for `Synced capabilities: Enabled: <name>` in the
+   output — that line confirms the fix took.
+5. `Generate a new Apple Provisioning Profile? (Y/n)` → **Y**
+
+Only after this does `eas build --profile production --platform ios` pick up
+a profile with the right entitlement. A failed build still consumes EAS
+quota, so budget for one wasted attempt if this wasn't checked beforehand.
+
 ---
 
 ## Versioning
@@ -183,6 +242,86 @@ Only Road B bumps the version. Road A (OTA) keeps the same version.
   over automatically and the old one becomes history. Old versions accumulate in
   the list and are never cleaned up.
 - Consider setting the version's release to **manual** to control go-live timing.
+
+### Submitting a subscription (first time selling anything)
+
+**Before touching RevenueCat or the paywall UI, check ASC → 業務
+(https://appstoreconnect.apple.com/business) → 協議 for 「付費 App 協議」
+status.** If it says **新** (never accepted) rather than **有效**, StoreKit
+returns **zero products** in sandbox and production alike — no RevenueCat
+config, API key, or product/offering setup can work around it. This is easy
+to burn hours on by debugging the wrong layer: an app that's a _free_ app up
+to now (1.0/1.1 here) only ever needed the Free Apps agreement, so the paid
+one is untested territory the first time a release adds IAP.
+
+**A useful triage signal from the app itself**, if `paywall.tsx`-style code
+distinguishes the two failure modes (see `apps/mobile/app/(app)/paywall.tsx`
+`previewMode = !isPurchasesConfigured()`): preview/placeholder plans mean the
+RevenueCat SDK itself failed to configure (client-side problem); an empty
+"not available yet" state with the SDK otherwise configured means the SDK is
+fine and offerings came back empty — a server-side problem (ASC agreement,
+RevenueCat Offering not marked Current, or Product ID mismatch), not
+something fixable in app code.
+
+Once the agreement needs signing, expect this chain (each step gates the
+next; Apple validated banking/tax same-day the one time this was timed, not
+over days as some documentation suggests):
+
+1. **Legal entity** may need updating first (a banner blocks agreement
+   signing until it's current — usually resolves itself, rarely needs manual
+   editing).
+2. **Bank account** — for Taiwan, Apple pays in **TWD via 台灣銀行代碼 +
+   帳戶號碼, there is no SWIFT field on this form.** Register the **TWD**
+   account, not a foreign-currency/USD account, even though the FX account is
+   the one with an English name and SWIFT code sitting right there in online
+   banking. `銀行貨幣` TWD / `版稅貨幣` USD is a valid combination (Apple
+   converts on payout).
+3. **Tax forms** — for a Taiwanese individual: 台灣稅務表格 (TIN = 身分證字號,
+   answer 是 when asked "你是否擁有台灣的稅務 ID?"), U.S. Form W-8BEN (not a
+   US tax resident → 否 on that ASC pre-question; leave Part II/treaty
+   benefits blank — no comprehensive US–Taiwan income tax treaty to claim
+   under, and Part III is signed under penalties of perjury; foreign TIN =
+   身分證字號; DOB is **MM-DD-YYYY**, US order), and Apple's own U.S.
+   Certificate of Foreign Status of Beneficial Owner (Title field: `Owner`
+   for a sole individual). The e-signature name on these forms is your Apple
+   ID display name, which may differ from the legal entity name — Apple
+   prefills it this way by design; that name is **not editable in ASC**
+   (only via appleid.apple.com), so don't chase changing it as a blocker.
+4. **DSA (Digital Services Act) trader declaration** — a separate one-time
+   prompt. Declaring "I am a trader" publishes your registered address and
+   phone number on EU App Store product pages. For an app with no real EU
+   audience, "I am not a trader / do not intend to distribute in the EU" is
+   usually the better default — it just drops EU distribution, no other
+   consequence.
+
+**Then, to actually add a subscription to a version's review submission**,
+three separate "新增以供審查" clicks are needed, not one:
+
+1. On the **subscription group** page (e.g. `araS Premium`) — this alone is
+   _not_ enough, despite looking like the whole thing.
+2. On **each individual subscription product inside the group** (Monthly,
+   Yearly, ...) separately. Each one independently needs:
+   - **供應狀況 (availability/territories)** set — "all territories" is fine;
+     Apple automatically restricts to wherever the app itself is available,
+     so this doesn't need to special-case a DSA-driven EU exclusion.
+   - **A review screenshot** — must be a **native, unmodified device
+     screenshot** (the OS screenshot gesture, saved straight from Photos).
+     Any screenshot that's been through **LINE or a similar chat app's image
+     send** gets silently recompressed to a non-standard pixel size (seen:
+     1024×1024 from a manual crop, then 870×1882 twice in a row from LINE —
+     switching LINE's "photo" send to "file" send did **not** fix it) and
+     ASC rejects it with 「有一張或多張截圖的尺寸錯誤」. Get the file off the
+     phone via email-to-self (choose "actual size", not "small/medium"),
+     cloud photo sync + browser download, or a USB cable import — anything
+     that doesn't route through chat-app compression. A native iPhone
+     screenshot (e.g. 1170×2532 for iPhone 12/13/14) is accepted as-is; no
+     manual resizing needed. The same screenshot can be reused for every
+     subscription product in the group.
+3. On the **App version itself** (e.g. `iOS App 1.2`).
+
+Only once all relevant items — subscription group, each subscription
+product, and the app version — show up together in "已可提交的項目" does
+「提交以供審查」stop being greyed out.
 
 ---
 
@@ -225,6 +364,31 @@ Only Road B bumps the version. Road A (OTA) keeps the same version.
   a Road B build; align any flagged package to the SDK-recommended version.
 - **Lockfile:** run installs with the repo's pinned pnpm (`packageManager` in root
   `package.json`) so the lockfile isn't reformatted wholesale.
+- **CI does not run on PRs into `develop`** — `.github/workflows/ci.yml`
+  triggers only on `pull_request: branches: [main]` and
+  `push: branches: [main, dev]` (`dev` matches no real branch in this repo).
+  `gh pr checks <n>` on a develop-targeted PR shows only the Vercel deploy
+  check, which reads like "CI passed" but isn't. Run `pnpm lint` / `pnpm
+type-check` / `pnpm test` locally (after `pnpm db:generate`) before merging
+  into `develop`; only a PR targeting `main` gets the real GitHub Actions
+  suite.
+- **A local dev environment pointed at the production database can leave
+  fake `Subscription` rows behind.** Before 2026-07-27 this project's local
+  `pnpm dev` connected straight to the prod Supabase project (no separate dev
+  project existed yet), so anyone who used `/api/dev/subscription` (the
+  `NODE_ENV !== "production"` premium-simulation toggle) or manually inserted
+  a test row during that period left a permanent grant sitting in prod —
+  `entitlements.service.isPremium` only checks `status`/`expiresAt`, it
+  doesn't care whether the row came from a real Apple purchase or a dev
+  toggle. Symptom: your own test account reads as already-Premium the moment
+  the real entitlement check goes live, even though you've made no purchase.
+  Real product IDs are always `com.Sara.assetapp.premium.*`; anything else in
+  `SELECT * FROM "Subscription"` (seen: `dev_test_premium`,
+  `manual_test_grant`) is residue —
+  `DELETE FROM "Subscription" WHERE "productId" NOT LIKE 'com.Sara.assetapp.%'`
+  clears it safely (structurally cannot touch a real purchase) and lets a
+  clean sandbox purchase test run against your normal account instead of
+  needing a throwaway one.
 
 ---
 
