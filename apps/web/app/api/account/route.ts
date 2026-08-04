@@ -1,5 +1,6 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { auth } from "@/lib/clerk-auth";
+import { revokeOAuthGrants } from "@/lib/oauth-revoke";
 import { accountService } from "@/services/account.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
@@ -19,6 +20,10 @@ export async function DELETE() {
     // after the data is gone, the account is empty and the call is re-runnable.
     await accountService.deleteAllData(userId);
     const client = await clerkClient();
+    // Strictly before deleteUser: once the Clerk user is gone their OAuth tokens
+    // can no longer be looked up, and a surviving provider-side grant locks the
+    // user out of ever signing in again. See lib/oauth-revoke.ts.
+    await revokeOAuthGrants(client, userId);
     await client.users.deleteUser(userId);
 
     logSecurityEvent({
