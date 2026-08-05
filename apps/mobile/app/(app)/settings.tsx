@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +16,15 @@ import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { ArrowLeft, Check, LogOut, Loader, Trash2, type LucideIcon } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Check,
+  CreditCard,
+  LogOut,
+  Loader,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
 
@@ -127,6 +136,19 @@ export default function SettingsScreen() {
     user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? "—";
   const name = user?.fullName ?? "";
 
+  // Apple's canonical deep link for subscription management. Cancelling is
+  // handled entirely by the App Store — we never see or control it — so this
+  // link is the only route we can offer, and the paywall's required disclosure
+  // ("你可隨時於 App Store 帳戶設定管理或取消訂閱") should be reachable in one
+  // tap rather than only readable as text.
+  async function openSubscriptionManagement() {
+    try {
+      await Linking.openURL("https://apps.apple.com/account/subscriptions");
+    } catch {
+      Alert.alert("無法開啟訂閱設定", "請至 iOS「設定」→ 你的 Apple ID →「訂閱」進行管理。");
+    }
+  }
+
   function confirmDelete() {
     Alert.alert(
       "刪除帳號",
@@ -194,6 +216,18 @@ export default function SettingsScreen() {
               loading={premiumLoading}
               onPress={() => router.push("/paywall")}
             />
+            {/* Only for subscribers — there is nothing to manage otherwise. A
+                user who has cancelled but is still inside the paid period is
+                still premium, so they keep seeing it until the term ends. */}
+            {isPremium ? (
+              <SettingCard
+                icon={CreditCard}
+                label="管理訂閱"
+                color="#C7C7D4"
+                textColor="#1c1c1e"
+                onPress={openSubscriptionManagement}
+              />
+            ) : null}
             {__DEV__ ? (
               <>
                 <SettingCard
