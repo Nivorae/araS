@@ -73,6 +73,7 @@ export default function PaywallScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   // RevenueCat's native module doesn't exist in Expo Go, so no real offerings
   // load there. In that case we show preview plans instead of a dead-end
@@ -140,6 +141,45 @@ export default function PaywallScreen() {
       setPurchasing(false);
     }
   }, [previewMode, packages, selectedId, refresh]);
+
+  // Apple guideline 3.1.1 requires a distinct, user-initiated Restore control
+  // for any restorable IAP — restoring silently on launch is explicitly not
+  // accepted. 1.2 was rejected for its absence.
+  //
+  // In practice a returning user rarely needs it: the backend keys entitlement
+  // off deriveAppleAccountToken(clerkUserId), so signing in on a new device
+  // already reads as premium without restoring anything. It matters when the
+  // App Store has a subscription our own records don't — a missed server
+  // notification, or a purchase made under a different account — which is
+  // exactly what restorePurchases resyncs.
+  const handleRestore = useCallback(async () => {
+    if (previewMode) {
+      Alert.alert(
+        "測試環境無法回復購買",
+        "Expo Go 無法連接 App Store。請於正式版（TestFlight／App Store）操作。"
+      );
+      return;
+    }
+    setRestoring(true);
+    try {
+      await Purchases.restorePurchases();
+      // Entitlement is decided by our backend, never by RevenueCat's
+      // client-side CustomerInfo — so report whatever the re-read says, not
+      // what the restore call returned.
+      const restored = await refresh();
+      Alert.alert(
+        restored ? "已回復購買" : "找不到可回復的購買",
+        restored
+          ? "你的 Premium 權限已恢復。"
+          : "此 Apple ID 沒有可回復的有效訂閱。若你確定已訂閱，請確認登入的是購買時使用的 Apple ID。"
+      );
+    } catch (e) {
+      const err = e as { message?: string };
+      Alert.alert("回復失敗", err.message ?? "請稍後再試");
+    } finally {
+      setRestoring(false);
+    }
+  }, [previewMode, refresh]);
 
   return (
     <View style={s.root}>
@@ -237,6 +277,26 @@ export default function PaywallScreen() {
                 ) : (
                   <Text style={s.ctaText}>取得完整權限</Text>
                 )}
+              </Pressable>
+            ) : null}
+
+            {/* Apple guideline 3.1.1: a distinct, user-initiated Restore
+                control. Deliberately NOT gated on plans.length — if the
+                offering fails to load (as it did while the Paid Apps agreement
+                was unsigned) the buy button disappears, and gating Restore the
+                same way would hide it exactly when a subscriber most needs it,
+                and from the reviewer who checks it is there. */}
+            {!isPremium && !loading ? (
+              <Pressable
+                onPress={handleRestore}
+                disabled={restoring}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  s.restoreBtn,
+                  { opacity: restoring ? 0.6 : pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Text style={s.restoreText}>{restoring ? "回復中…" : "回復購買"}</Text>
               </Pressable>
             ) : null}
 
@@ -403,6 +463,14 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   ctaText: { fontSize: 16, fontWeight: "700", color: "#1c1c1e" },
+
+  restoreBtn: { alignSelf: "center", marginTop: 12, paddingVertical: 6, paddingHorizontal: 12 },
+  restoreText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
+    textDecorationLine: "underline",
+  },
 
   privacyRow: {
     flexDirection: "row",

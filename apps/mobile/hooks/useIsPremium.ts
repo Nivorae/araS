@@ -15,11 +15,15 @@ export interface PremiumState {
   /** True only on the very first fetch, before we have any value to show. */
   loading: boolean;
   /**
-   * Force a re-fetch of entitlement status. Call it at the two moments the
-   * value legitimately changes within a session: after a purchase completes,
-   * and when the dev-only toggle flips the simulated subscription.
+   * Force a re-fetch of entitlement status, resolving to the freshly read
+   * value. Call it at the moments the value legitimately changes within a
+   * session: after a purchase completes, after a restore, and when the
+   * dev-only toggle flips the simulated subscription.
+   *
+   * The returned value is what lets a restore report its own outcome — the
+   * provider's `isPremium` state won't have re-rendered yet at the call site.
    */
-  refresh: () => Promise<void>;
+  refresh: () => Promise<boolean>;
 }
 
 const PremiumContext = createContext<PremiumState | null>(null);
@@ -39,13 +43,16 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     try {
       const data = await api.get<{ isPremium: boolean }>("/api/entitlements");
       setIsPremium(data.isPremium);
+      return data.isPremium;
     } catch {
       // Keep the last known value; fail-closed means the initial false stands
-      // if the very first fetch fails.
+      // if the very first fetch fails. Callers get false for the same reason —
+      // an unconfirmed entitlement is not an entitlement.
+      return false;
     } finally {
       setLoading(false);
     }
