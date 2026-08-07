@@ -229,6 +229,19 @@ Bump rules (semver `major.minor.patch`):
 
 Only Road B bumps the version. Road A (OTA) keeps the same version.
 
+### Resubmitting after a rejection — do NOT bump the version
+
+A rejected version was never released, so it is still strictly higher than the
+live one and the ASC version entry already exists under that number. Bumping it
+would force a new ASC version entry for no reason.
+
+- `app.json` `version`: **unchanged** (1.2 stays 1.2)
+- Build number: EAS increments it by itself (7 → 8)
+- Rebuild, `eas submit`, then in ASC switch **建置版本** to the new build and
+  resubmit.
+
+Fix the code, rebuild, resubmit — that is the whole loop.
+
 ---
 
 ## App Store Connect facts (avoid past confusion)
@@ -323,9 +336,97 @@ Only once all relevant items — subscription group, each subscription
 product, and the app version — show up together in "已可提交的項目" does
 「提交以供審查」stop being greyed out.
 
+### Guideline 3.1 checklist — work it as a list, not from user needs
+
+1.2 was rejected **twice in a row** on this, once per round. Both misses share
+a root cause worth stating plainly: **Apple's requirements are not derived from
+what users need.** They are an independent checklist. Engineering intuition
+reasons from user needs, so it misses this class of item systematically.
+
+| Requirement                                      | Where it lives                                |
+| ------------------------------------------------ | --------------------------------------------- |
+| **3.1.1** distinct **Restore Purchases** control | Code — paywall                                |
+| **3.1.2** EULA / Terms of Use link               | **Both** in-app _and_ ASC metadata            |
+| 3.1.2 auto-renewal disclosure                    | Code — on the paywall, next to the buy action |
+| 3.1.2 price + duration per plan                  | Code — visible before purchase                |
+| Privacy policy link                              | ASC dedicated field + in-app                  |
+| Subscription management link                     | Code — _should_, not _must_                   |
+
+Two traps in that table:
+
+- **The EULA needs to be in ASC metadata too, not just in the app.** Rejected
+  2026-08-05 for exactly this while the in-app link was already fine. Privacy
+  Policy has a **dedicated ASC field** so it can't be forgotten; Terms of Use
+  has **none** — it must be pasted into the **App Description** (a marketing
+  field), or registered under App Information → License Agreement. Writing a
+  custom EULA page and linking it only from the paywall is _not_ enough.
+  Fix: append to the App Description, no rebuild needed.
+
+  ```
+  使用條款 (EULA)：https://arasasset.com/terms
+  隱私權政策：https://arasasset.com/privacy
+  ```
+
+- **Restore is required even when the architecture makes it pointless.**
+  Rejected 2026-08-06 for its absence. Entitlement here is keyed by
+  `deriveAppleAccountToken(clerkUserId)`, so a user on a new device just signs
+  in and is premium again — the problem Restore exists to solve does not exist
+  in this app, which is precisely why nobody built it. Apple's test is purely
+  formal, and the rejection pre-empts the usual defence: _"automatically
+  restoring purchases on launch will not resolve this issue."_ Ship a distinct,
+  user-initiated button.
+
+  Do **not** gate the Restore button on whether offerings loaded. The buy button
+  is gated that way, and offerings really did come back empty once (unsigned
+  Paid Apps agreement) — gating Restore identically hides it exactly when a
+  subscriber needs it and when the reviewer looks for it.
+
+### Rejections come in rounds — passing one says nothing about the next
+
+Reviewers reject on the **first** problem found; they do not test everything and
+report once. Observed on 1.2:
+
+| Round | Kind                                                            | Caught                   |
+| ----- | --------------------------------------------------------------- | ------------------------ |
+| 1     | **Automated** — the message says "This is an automated message" | metadata (missing EULA)  |
+| 2     | **Human** — the message lists Review Devices and a review date  | in-app (missing Restore) |
+
+So round 1 never opened the app at all. Budget for more rounds, and work the
+whole 3.1 checklist above before resubmitting rather than fixing only what was
+quoted.
+
+**"Bug Fix Submissions" offer:** a rejection may say the issue is _eligible to
+be resolved on your next update_ — reply and they will approve this one. Only
+take that for a genuine bug-fix release. Declining it and fixing properly is
+the right call when the missing piece is core to the feature being shipped (a
+subscription release with no Restore will generate refund requests the moment
+someone changes device).
+
+### A compliance fix needs a REBUILD, not an OTA
+
+Even when the fix is pure JS over an already-shipped native module (Restore is
+— `react-native-purchases` is already in the binary), **never ship it as an OTA
+for a resubmission.** The reviewer opens the App Store binary and the OTA
+downloads in the background, so the first launch — the one where they check for
+the thing they rejected — can still be running the embedded bundle.
+
 ---
 
 ## Project-specific gotchas (from real incidents)
+
+- **Every `eas` command must run from `apps/mobile`.** `eas.json` lives there,
+  not at the repo root, and from the root you get
+  `eas.json could not be found at .../araS/eas.json`.
+- **`Redundant Binary Upload` (409) means the submit already worked.** Apple
+  rejecting _"You've already uploaded a build with build number 'N'"_ is a
+  duplicate `eas submit`, not a failure — the binary is in App Store Connect.
+  Check TestFlight before rebuilding anything; nothing needs redoing and the
+  build number does not need incrementing.
+- **`restorePurchases()` cannot run in Expo Go** (no native store), same as
+  `Purchases.configure()`. Any Restore work is therefore unexercised until it
+  reaches TestFlight — test both outcomes there (no purchase → "not found";
+  active sandbox subscription → restored + paywall flips) before resubmitting
+  for review.
 
 - **`eas update` ignores `eas.json`'s `env` blocks** — those apply to `eas build`
   only. It bundles at `NODE_ENV=production` and inlines whatever `EXPO_PUBLIC_*`
