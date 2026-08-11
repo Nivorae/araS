@@ -20,20 +20,45 @@
 
 ## 第三方服務
 
-| 服務                                            | 用途                                                          |
-| ----------------------------------------------- | ------------------------------------------------------------- |
-| **Supabase**                                    | PostgreSQL 資料庫（production / dev 各一個獨立專案）          |
-| **Vercel**                                      | Web/API 部署（含 Turborepo Remote Cache，選用）               |
-| **Clerk**                                       | 認證（Google / LINE OAuth）                                   |
-| **Google Cloud Console**                        | 申請 Google OAuth 用戶端，供 Clerk Google 登入使用            |
-| **LINE Developers Console**                     | 建立 LINE Login channel，供 Clerk LINE 登入使用               |
-| **Cloudflare**                                  | 自訂網域 DNS（arasasset.com）                                 |
-| **Expo Go**                                     | 手機測試 App（掃 QR 開發預覽用，非發布服務）                  |
-| **EAS (Expo Application Services)**             | Mobile build / submit / OTA 更新                              |
-| **Apple Developer Program / App Store Connect** | iOS 上架、App Store Server Notifications webhook              |
-| **RevenueCat**                                  | App 內購／訂閱（IAP）                                         |
-| **Sentry.io**                                   | 錯誤監控（crash reporting）                                   |
-| **GitHub / GitHub Actions**                     | 原始碼託管 + CI（`.github/workflows/ci.yml`，`/fix-ci` 對象） |
+| 服務                                            | 用途                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| **Supabase**                                    | PostgreSQL 資料庫（production / dev 各一個獨立專案，登入帳號不同） |
+| **Vercel**                                      | Web/API 部署（含 Turborepo Remote Cache，選用）                    |
+| **Clerk**                                       | 認證（Google / LINE OAuth）                                        |
+| **Google Cloud Console**                        | 申請 Google OAuth 用戶端，供 Clerk Google 登入使用                 |
+| **LINE Developers Console**                     | 建立 LINE Login channel，供 Clerk LINE 登入使用                    |
+| **Cloudflare**                                  | 自訂網域 DNS（arasasset.com）                                      |
+| **Expo Go**                                     | 手機測試 App（掃 QR 開發預覽用，非發布服務）                       |
+| **EAS (Expo Application Services)**             | Mobile build / submit / OTA 更新                                   |
+| **Apple Developer Program / App Store Connect** | iOS 上架、App Store Server Notifications webhook                   |
+| **RevenueCat**                                  | App 內購／訂閱（IAP）                                              |
+| **Sentry.io**                                   | 錯誤監控（crash reporting）                                        |
+| **GitHub / GitHub Actions**                     | 原始碼託管 + CI（`.github/workflows/ci.yml`，`/fix-ci` 對象）      |
+
+> 各服務的登入帳號記在 `docs/ACCOUNTS.local.md`。**這個 repo 是公開的**，所以那個檔案
+> 被 `.gitignore` 排除、只存在本機 —— 帳號、密碼、金鑰一律不進版控。
+
+### Supabase dev 專案會自動暫停
+
+dev 專案在免費方案上，**閒置約 7 天就會被自動暫停**，之後所有連線都會失敗：
+
+```
+FATAL: (ENOTFOUND) tenant/user postgres.<project-ref> not found
+```
+
+這則訊息看起來像帳密或主機名稱錯誤，其實兩者都不是 —— 專案本身不在了。
+到 Supabase dashboard 按 **Restore project**，復原後**重新複製一次連線字串**貼回
+`.env`（pooler 主機可能從 `aws-0-` 換成 `aws-1-`），再跑 `pnpm db:migrate:deploy`
+與 `pnpm db:seed`。
+
+在手機上這會表現成「儲存資產一直轉圈圈」，因為 `apps/mobile/lib/api.ts` 的
+`request()` 沒有 timeout，連不上後端時會轉到 iOS 自己逾時（約 75 秒）為止。
+由外而內的排查順序：
+
+1. `Get-NetTCPConnection -LocalPort 3000` —— dev server 到底有沒有開？
+2. `curl http://<LAN_IP>:3000/api/health` —— 回 500 代表程式活著、DB 掛了。
+3. 用 `.env` 裡**另一組**專案憑證做唯讀探測，隔離網路／Prisma／憑證等變因：
+   `echo "SELECT 1;" | npx prisma db execute --url "$U" --stdin`
 
 ## Project Structure
 
