@@ -353,9 +353,14 @@ const s = StyleSheet.create({
   },
 
   // Bottom sheet — holds everything else; enlarged so content fits unscrolled.
+  // Near-opaque on purpose: at 0.55 the decorative background cards showed
+  // through the sheet and their labels collided with the plan rows, which on an
+  // iPad-sized screen reads as a rendering fault (an App Review screenshot
+  // caught exactly that). Keep it high enough that no background text is
+  // legible behind the plans.
   bottom: {
     flex: 0.74,
-    backgroundColor: "rgba(20,22,34,0.55)",
+    backgroundColor: "rgba(20,22,34,0.94)",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: "hidden",
@@ -364,7 +369,18 @@ const s = StyleSheet.create({
   // sheet — its content (feature list, CTA button) overflows past what
   // `bottom`'s overflow:hidden shows, instead of scrolling into view.
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32, gap: 14 },
+  // maxWidth keeps the plan rows and CTA at phone proportions on an iPad —
+  // stretched edge to edge across an 11" screen a single radio row is absurdly
+  // wide, and reviewers do test on iPad.
+  content: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+    gap: 14,
+  },
 
   hero: { alignItems: "center", gap: 6 },
   title: { fontSize: 24, fontWeight: "800", color: "#ffffff", textAlign: "center" },
