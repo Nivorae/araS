@@ -110,8 +110,18 @@ eas update --branch production --clear-cache --message "…"
 - **Dry-run what the OTA would ship before publishing** (catches wrong env vars):
   ```bash
   cd apps/mobile && NODE_ENV=production npx expo export --platform ios
-  grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # want 0
+  grep -ac "192.168" dist/_expo/static/js/ios/*.hbc   # want 0
+  grep -ac "19\.2\.4" dist/_expo/static/js/ios/*.hbc  # want 0 — web's React
   ```
+  **Hermes stores non-ASCII string constants as UTF-16LE**, so grepping the
+  `.hbc` for a Chinese string always returns 0 even when the string is present —
+  that is the encoding, not a missing string. Verify with ASCII markers (keys,
+  URLs, version numbers), or decode explicitly:
+  ```bash
+  python -c "print(open('dist/_expo/static/js/ios/entry.hbc','rb').read().count('回復購買'.encode('utf-16-le')))"
+  ```
+  Also pass `grep -a`: without it, grep treats the bundle as binary and prints
+  "Binary file matches" instead of counting.
 
 ---
 
@@ -390,10 +400,36 @@ report once. Observed on 1.2:
 | ----- | --------------------------------------------------------------- | ------------------------ |
 | 1     | **Automated** — the message says "This is an automated message" | metadata (missing EULA)  |
 | 2     | **Human** — the message lists Review Devices and a review date  | in-app (missing Restore) |
+| 3     | **Human**, screenshot only, no prose                            | the SAME missing Restore |
 
 So round 1 never opened the app at all. Budget for more rounds, and work the
 whole 3.1 checklist above before resubmitting rather than fixing only what was
 quoted.
+
+### Uploading a build does NOT attach it — round 3 was the old binary
+
+Round 3 rejected an issue already fixed: the reviewer was still testing **build
+7** while the fix sat in build 8. `eas submit` uploads a build to App Store
+Connect; it does **not** point the version's 建置版本 field at it. **After every
+`eas submit`, open the version in ASC and confirm 建置版本 shows the new build
+number before resubmitting.**
+
+Two techniques for proving which binary a reviewer actually ran, when the
+rejection is just a screenshot:
+
+- **Render logic.** If the disputed control's condition is a strict subset of
+  something visible in the screenshot, that screenshot cannot come from the
+  fixed build. (Restore renders on `!isPremium && !loading`; the buy button adds
+  `&& plans.length > 0` — so a screenshot showing the buy button but no Restore
+  is impossible on the fixed build.)
+- **A value that differs between builds acts as a fingerprint.** `FREE_ENTRY_LIMIT`
+  is interpolated into the paywall copy and differed (20 vs 100_000) across the
+  two builds, which identified the binary outright.
+
+And to settle "is the fix even in that binary": `eas build:list --json` carries
+each build's `gitCommitHash`, so `git merge-base --is-ancestor <fix> <buildhash>`
+answers it in one command. `eas update:list --branch production` rules out an OTA
+having replaced the bundle — updates only reach a matching runtime version.
 
 **"Bug Fix Submissions" offer:** a rejection may say the issue is _eligible to
 be resolved on your next update_ — reply and they will approve this one. Only
