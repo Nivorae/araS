@@ -265,6 +265,56 @@ Fix the code, rebuild, resubmit — that is the whole loop.
   over automatically and the old one becomes history. Old versions accumulate in
   the list and are never cleaned up.
 - Consider setting the version's release to **manual** to control go-live timing.
+- **年齡分級 (Age Rating) is App-level metadata, not tied to any version** — it
+  can be edited any time, including right after a release, with no rebuild and
+  no resubmission. If Apple adds new questionnaire fields (e.g. the 2026 social
+  media / UGC questions) they surface as a **banner with a deep link** — "前往
+  「App 資訊」頁面" — on both the version page and the App Info page. If the
+  年齡分級 section's normal 編輯 button doesn't respond, use that banner link
+  first; it routes to the questionnaire directly. Also try an incognito window
+  (extensions can silently break ASC's edit buttons) before assuming the
+  feature hasn't rolled out to the account yet. Sub-questions are gated on
+  their parent answer — a greyed-out child question is normal until the parent
+  is answered, not a bug.
+
+### After release: verify the purchase chain end-to-end, don't trust config alone
+
+Getting every ASC field right does not prove the money path works — five
+components (RevenueCat SDK → Apple transaction → Apple's server notification →
+your webhook's signature verification → the DB write your `isPremium` check
+reads) can each be individually correct in config and still never have executed
+together in production. **The only real proof is one real purchase**, then
+confirming the account actually flips to premium in the app.
+
+Two things worth checking _before_ that purchase, because both fail silently
+(HTTP 200, no error, entitlement just never arrives):
+
+- **App Store Server Notifications URL must be Version 2**, matching whatever
+  signature-verification library the webhook uses (`SignedDataVerifier` here
+  only parses V2 JWS). If ASC's edit dialog for the URL shows no version
+  selector at all, that means the account no longer offers V1 — nothing to do.
+  Point Production **and** Sandbox at your own webhook URL, not RevenueCat's —
+  RevenueCat only reads purchases via its own SDK config; entitlement here is
+  decided by your own DB, which only your webhook writes.
+- **A verifying-certificate env var (e.g. `APPLE_ROOT_CA_CERTS_BASE64`) missing
+  in production makes the webhook silently no-op.** If the handler's shape is
+  "return 200 without processing when the cert config is absent" (so Apple
+  doesn't retry forever once the URL is registered), you cannot tell "not
+  configured" and "configured but nothing has hit it yet" apart from the
+  outside — until you send something. Probe cheaply with an empty POST:
+  ```bash
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Content-Type: application/json" -d '{}' <webhook-url>
+  ```
+  `400 missing signedPayload` means the handler got past the cert-config check
+  (good — infra is live). `200` with no processing means the env var is
+  missing in that environment. This distinguishes the two failure modes without
+  needing a real transaction.
+
+Also remember **the subscription _product_ is approved separately from the
+app** — an approved app version with a still-pending subscription product shows
+an empty plan list to real users, indistinguishable from the unsigned Paid Apps
+Agreement failure mode. Check 營利 → 訂閱 shows 已核准 before treating "App is
+Ready for Sale" as done.
 
 ### Submitting a subscription (first time selling anything)
 
@@ -526,6 +576,32 @@ type-check` / `pnpm test` locally (after `pnpm db:generate`) before merging
   clears it safely (structurally cannot touch a real purchase) and lets a
   clean sandbox purchase test run against your normal account instead of
   needing a throwaway one.
+
+  **Caution before running that DELETE:** it assumes the exact product-id
+  prefix. Verify the real prefix against the actual ASC subscription product
+  ids (or just `SELECT` and eyeball every row) before running it — a wrong
+  guess at the prefix can delete a real purchase instead of test residue. Safer
+  first move either way: `SELECT` everything and read it, never delete blind.
+
+- **`isPremium` does not check `environment` — a Sandbox purchase grants real
+  Premium indistinguishably from a Production one.** `entitlements.service.ts`
+  reads only `status` and `expiresAt`. This is deliberate, not a bug: filtering
+  to Production would make TestFlight purchase testing impossible, and
+  TestFlight is the _only_ place `restorePurchases()` and the buy flow can ever
+  be exercised (`Purchases.configure()` throws in Expo Go). So every
+  `environment: Sandbox` row in `Subscription` is a real, permanent grant of
+  premium until it expires or is deleted by hand — clean it up after each round
+  of TestFlight purchase testing rather than leaving it to expire on its own.
+
+- **A `@repo/shared` constant can be both a backend gate and on-screen App
+  copy at the same time.** `FREE_ENTRY_LIMIT` feeds both
+  `entries.service.ts`'s create-limit check and `paywall.tsx`'s first selling
+  point (`` `免費版上限 ${FREE_ENTRY_LIMIT} 筆` ``) — changing it for
+  backend-compatibility reasons silently rewrites a user-facing screen too. A
+  1.2 build shipped saying "免費版上限 100000 筆" for this reason, visible to
+  App Review. Before changing any shared constant, `grep` its usages across
+  both `apps/web` and `apps/mobile` — if mobile interpolates it into copy, the
+  fix needs an OTA alongside the web deploy, not just a Vercel redeploy.
 
 ---
 
