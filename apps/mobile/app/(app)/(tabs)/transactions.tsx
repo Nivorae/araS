@@ -1,24 +1,33 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import type { NetWorthRange } from "@repo/shared";
 import { useFinanceStore } from "@/store/financeStore";
 
 const SCREEN_H = Dimensions.get("window").height;
 import { BalanceScale } from "@/components/BalanceScale";
-import { InvestmentChart } from "@/components/InvestmentChart";
+import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationView } from "@/components/AssetAllocationView";
-import { aggregateSnapshots, getRangeDisplayLabel } from "@/lib/chartAggregation";
 import { formatCurrency } from "@/lib/format";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { useIsPremium } from "@/hooks/useIsPremium";
+import { useFinanceActions } from "@/hooks/useFinanceActions";
+
+const RANGES: { key: NetWorthRange; label: string }[] = [
+  { key: "6m", label: "6M" },
+  { key: "1y", label: "1Y" },
+  { key: "all", label: "全部" },
+];
 
 export default function TransactionsScreen() {
   const router = useRouter();
   const { isPremium } = useIsPremium();
+  const { fetchNetWorthHistory } = useFinanceActions();
   const [view, setView] = useState<"trend" | "allocation">("trend");
+  const [range, setRange] = useState<NetWorthRange>("6m");
   const entries = useFinanceStore((s) => s.entries);
-  const valueSnapshots = useFinanceStore((s) => s.valueSnapshots);
+  const netWorthHistory = useFinanceStore((s) => s.netWorthHistory);
 
   const totalAssets = useMemo(
     () => entries.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0),
@@ -29,8 +38,19 @@ export default function TransactionsScreen() {
     [entries]
   );
 
-  const investmentData = useMemo(() => aggregateSnapshots(valueSnapshots, "5m"), [valueSnapshots]);
-  const periodLabel = useMemo(() => getRangeDisplayLabel("5m"), []);
+  // Only the selected range is fetched, and only once — the store caches it and
+  // clears the cache whenever an entry changes.
+  useEffect(() => {
+    void fetchNetWorthHistory(range);
+  }, [fetchNetWorthHistory, range]);
+
+  const points = useMemo(() => netWorthHistory[range] ?? [], [netWorthHistory, range]);
+  const periodLabel = useMemo(() => {
+    if (points.length === 0) return "";
+    const first = points[0]!.period;
+    const last = points[points.length - 1]!.period;
+    return first === last ? first : `${first} – ${last}`;
+  }, [points]);
 
   return (
     <SafeAreaView style={s.root} edges={["top"]}>
@@ -84,7 +104,24 @@ export default function TransactionsScreen() {
 
       {/* Chart zone — fills remaining height */}
       <View style={s.chartZone}>
-        {view === "trend" ? <InvestmentChart data={investmentData} /> : <AssetAllocationView />}
+        {view === "trend" ? (
+          <>
+            <View style={s.rangeRow}>
+              {RANGES.map((r) => (
+                <Pressable
+                  key={r.key}
+                  style={[s.rangeBtn, range === r.key && s.rangeBtnActive]}
+                  onPress={() => setRange(r.key)}
+                >
+                  <Text style={[s.rangeText, range === r.key && s.rangeTextActive]}>{r.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <NetWorthChart data={points} />
+          </>
+        ) : (
+          <AssetAllocationView />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -124,4 +161,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 30,
     paddingBottom: 36,
   },
+  rangeRow: {
+    flexDirection: "row",
+    alignSelf: "flex-end",
+    gap: 4,
+    marginBottom: 8,
+  },
+  rangeBtn: { paddingVertical: 4, paddingHorizontal: 12, borderRadius: 12 },
+  rangeBtnActive: { backgroundColor: "#e5e5ea" },
+  rangeText: { fontSize: 11, fontWeight: "600", color: "#c7c7cc" },
+  rangeTextActive: { color: "#1c1c1e" },
 });

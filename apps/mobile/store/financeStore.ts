@@ -5,7 +5,8 @@ import type {
   Transaction,
   PortfolioItem,
   Recurrence,
-  ValueSnapshot,
+  NetWorthPoint,
+  NetWorthRange,
 } from "@repo/shared";
 
 export interface FinanceState {
@@ -13,7 +14,10 @@ export interface FinanceState {
   transactions: Transaction[];
   portfolio: PortfolioItem[];
   recurrences: Recurrence[];
-  valueSnapshots: ValueSnapshot[];
+  // Net-worth history keyed by range, filled on demand by fetchNetWorthHistory.
+  // Each range is fetched once per session — the server rebuilds these points
+  // from EntryHistory, so they don't change between range switches.
+  netWorthHistory: Partial<Record<NetWorthRange, NetWorthPoint[]>>;
   // Per-entry history, keyed by entry id. Cached so re-opening an entry renders
   // its records immediately while a refetch runs in the background, instead of
   // dropping back to a loading state on every focus.
@@ -23,17 +27,13 @@ export interface FinanceState {
   lastFetchedAt: number | null;
 
   setData: (
-    data: Partial<
-      Pick<
-        FinanceState,
-        "entries" | "transactions" | "portfolio" | "recurrences" | "valueSnapshots"
-      >
-    >
+    data: Partial<Pick<FinanceState, "entries" | "transactions" | "portfolio" | "recurrences">>
   ) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 
   setEntryHistory: (entryId: string, rows: EntryHistory[]) => void;
+  setNetWorthHistory: (range: NetWorthRange, points: NetWorthPoint[]) => void;
 
   addEntryLocal: (entry: Entry) => void;
   updateEntryLocal: (id: string, entry: Entry) => void;
@@ -51,30 +51,12 @@ export interface FinanceState {
   deleteRecurrenceLocal: (id: string) => void;
 }
 
-export function makeSnapshot(entries: Entry[]): ValueSnapshot {
-  // Entries with 納入圖表 off (includeInChart === false) are excluded from the
-  // net-worth chart. Undefined counts as included (legacy/default true).
-  const charted = entries.filter((e) => e.includeInChart !== false);
-  const totalAssets = charted
-    .filter((e) => e.topCategory !== "負債")
-    .reduce((s, e) => s + e.value, 0);
-  const totalLiabilities = charted
-    .filter((e) => e.topCategory === "負債")
-    .reduce((s, e) => s + e.value, 0);
-  return {
-    id: Math.random().toString(36).slice(2),
-    date: new Date().toISOString(),
-    totalAssets,
-    totalLiabilities,
-  };
-}
-
 export const useFinanceStore = create<FinanceState>()((set) => ({
   entries: [],
   transactions: [],
   portfolio: [],
   recurrences: [],
-  valueSnapshots: [],
+  netWorthHistory: {},
   historyByEntry: {},
   loading: false,
   error: null,
@@ -87,33 +69,32 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   setEntryHistory: (entryId, rows) =>
     set((s) => ({ historyByEntry: { ...s.historyByEntry, [entryId]: rows } })),
 
+  setNetWorthHistory: (range, points) =>
+    set((s) => ({ netWorthHistory: { ...s.netWorthHistory, [range]: points } })),
+
+  // Every entry mutation writes an EntryHistory row server-side, so the cached
+  // chart points for every range are stale the moment one lands. Dropping the
+  // whole cache makes the next chart view refetch rather than show old numbers.
   addEntryLocal: (entry) =>
-    set((s) => {
-      const newEntries = [entry, ...s.entries.filter((e) => e.id !== entry.id)];
-      return {
-        entries: newEntries,
-        valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-      };
-    }),
+    set((s) => ({
+      entries: [entry, ...s.entries.filter((e) => e.id !== entry.id)],
+      netWorthHistory: {},
+    })),
 
   updateEntryLocal: (id, entry) =>
-    set((s) => {
-      const newEntries = s.entries.map((e) => (e.id === id ? entry : e));
-      return {
-        entries: newEntries,
-        valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-      };
-    }),
+    set((s) => ({
+      entries: s.entries.map((e) => (e.id === id ? entry : e)),
+      netWorthHistory: {},
+    })),
 
   deleteEntryLocal: (id) =>
     set((s) => {
-      const newEntries = s.entries.filter((e) => e.id !== id);
       const historyByEntry = { ...s.historyByEntry };
       delete historyByEntry[id];
       return {
-        entries: newEntries,
+        entries: s.entries.filter((e) => e.id !== id),
         historyByEntry,
-        valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+        netWorthHistory: {},
       };
     }),
 

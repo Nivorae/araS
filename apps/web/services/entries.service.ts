@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { d, dn } from "@/lib/serialize";
-import type { CreateEntry, UpdateEntry, UpdateEntryHistory } from "@repo/shared";
+import type {
+  CreateEntry,
+  UpdateEntry,
+  UpdateEntryHistory,
+  NetWorthRange,
+  NetWorthHistory,
+} from "@repo/shared";
 import { entitlementsService } from "@/services/entitlements.service";
 import { FREE_ENTRY_LIMIT, LIABILITY_TOP_CATEGORIES } from "@repo/shared";
 
@@ -37,6 +43,65 @@ function serializeLoan(loan: {
     totalAmount: d(loan.totalAmount),
     annualInterestRate: d(loan.annualInterestRate),
   };
+}
+
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+// Past this many months the "all" range switches to yearly buckets, so a long
+// history stays readable on a phone-width chart instead of turning into noise.
+const MAX_MONTHLY_BUCKETS = 24;
+
+// A bucket's exclusive upper bound, never past now: the newest bucket covers
+// only the elapsed part of the current period, so its point is dated today
+// rather than at a future period boundary.
+function bucketEnd(boundary: number, nowMs: number): Date {
+  return new Date(Math.min(boundary, nowMs));
+}
+
+// All bucket maths is UTC so the boundaries don't shift with the server's
+// timezone. Date.UTC normalises out-of-range months, which is what lets the
+// offset below walk backwards across a year boundary.
+function monthlyBuckets(count: number, endYear: number, endMonth: number, nowMs: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const offset = endMonth - (count - 1 - i);
+    return {
+      period: MONTH_LABELS[((offset % 12) + 12) % 12]!,
+      end: bucketEnd(Date.UTC(endYear, offset + 1, 1), nowMs),
+    };
+  });
+}
+
+function buildBuckets(range: NetWorthRange, earliest: Date) {
+  const nowMs = Date.now();
+  const now = new Date(nowMs);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+
+  if (range !== "all") return monthlyBuckets(range === "1y" ? 12 : 6, year, month, nowMs);
+
+  const spanMonths = (year - earliest.getUTCFullYear()) * 12 + (month - earliest.getUTCMonth());
+  if (spanMonths <= MAX_MONTHLY_BUCKETS) {
+    return monthlyBuckets(spanMonths + 1, year, month, nowMs);
+  }
+
+  const firstYear = earliest.getUTCFullYear();
+  return Array.from({ length: year - firstYear + 1 }, (_, i) => ({
+    period: `${firstYear + i}`,
+    end: bucketEnd(Date.UTC(firstYear + i + 1, 0, 1), nowMs),
+  }));
 }
 
 // Thrown by create() when a non-premium user is already at FREE_ENTRY_LIMIT.
@@ -299,6 +364,72 @@ export class EntriesService {
       .filter((w) => w.percentage >= 40);
 
     return { breakdown, concentrationWarnings, debtToAssetRatio };
+  }
+
+  // Real net-worth history, reconstructed from the EntryHistory balances that
+  // create() and update() already write. The mobile store used to approximate
+  // this client-side from the entries currently on screen, which could only ever
+  // produce a single "today" point — this is the only source with real history.
+  async getNetWorthHistory(userId: string, range: NetWorthRange): Promise<NetWorthHistory> {
+    const entries = await prisma.entry.findMany({
+      where: { userId, includeInChart: true },
+      select: { id: true, topCategory: true },
+    });
+    if (entries.length === 0) return { range, points: [] };
+
+    const rows = await prisma.entryHistory.findMany({
+      where: { entryId: { in: entries.map((e) => e.id) } },
+      select: { entryId: true, balance: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (rows.length === 0) return { range, points: [] };
+
+    const buckets = buildBuckets(range, rows[0]!.createdAt);
+    const byEntry = new Map<string, { createdAt: Date; balance: number }[]>();
+    for (const r of rows) {
+      const list = byEntry.get(r.entryId);
+      const point = { createdAt: r.createdAt, balance: d(r.balance) };
+      if (list) list.push(point);
+      else byEntry.set(r.entryId, [point]);
+    }
+
+    // Buckets are ascending, so each entry's rows are consumed with a cursor
+    // that only moves forward — one pass over the history, not one per bucket.
+    const cursors = new Map<string, number>();
+    const balances = new Map<string, number>();
+
+    const points = buckets.map((bucket) => {
+      let totalAssets = 0;
+      let totalLiabilities = 0;
+
+      for (const entry of entries) {
+        const list = byEntry.get(entry.id);
+        if (!list) continue;
+        let i = cursors.get(entry.id) ?? 0;
+        while (i < list.length && list[i]!.createdAt < bucket.end) {
+          balances.set(entry.id, list[i]!.balance);
+          i++;
+        }
+        cursors.set(entry.id, i);
+
+        // Absent means the entry had not been created yet at this point in
+        // time, which is not the same as a balance of zero.
+        const balance = balances.get(entry.id);
+        if (balance === undefined) continue;
+        if (LIABILITY_SET.has(entry.topCategory)) totalLiabilities += balance;
+        else totalAssets += balance;
+      }
+
+      return {
+        period: bucket.period,
+        date: bucket.end.toISOString(),
+        totalAssets,
+        totalLiabilities,
+        netWorth: totalAssets - totalLiabilities,
+      };
+    });
+
+    return { range, points };
   }
 
   async verifyHistoryOwnership(historyId: string, userId: string): Promise<boolean> {

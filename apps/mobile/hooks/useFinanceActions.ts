@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { ApiError, useApi } from "@/lib/api";
-import { useFinanceStore, makeSnapshot } from "@/store/financeStore";
+import { useFinanceStore } from "@/store/financeStore";
 import type {
   Entry,
   EntryHistory,
@@ -17,6 +17,9 @@ import type {
   UpdateRecurrence,
   CreateInsurance,
   UpdateInsurance,
+  NetWorthRange,
+  NetWorthPoint,
+  NetWorthHistory,
 } from "@repo/shared";
 
 export function useFinanceActions() {
@@ -61,13 +64,7 @@ export function useFinanceActions() {
         api.get<PortfolioItem[]>("/api/portfolio"),
         readRecurrenceSlices(),
       ]);
-      setData({
-        entries,
-        portfolio,
-        recurrences,
-        transactions,
-        valueSnapshots: entries.length > 0 ? [makeSnapshot(entries)] : [],
-      });
+      setData({ entries, portfolio, recurrences, transactions });
       void processRecurrencesInBackground();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load data");
@@ -87,6 +84,28 @@ export function useFinanceActions() {
         return rows;
       } catch {
         // Cached rows stay on screen; the caller decides whether to surface this.
+        return null;
+      }
+    },
+    [api]
+  );
+
+  // Net-worth history for one range. Skips the request when that range is
+  // already cached, so flicking between 6M/1Y/全部 only ever costs one fetch
+  // each; entry mutations clear the cache and make the next view refetch.
+  const fetchNetWorthHistory = useCallback(
+    async (range: NetWorthRange): Promise<NetWorthPoint[] | null> => {
+      const cached = useFinanceStore.getState().netWorthHistory[range];
+      if (cached) return cached;
+      try {
+        const result = await api.get<NetWorthHistory>(
+          `/api/entries/net-worth-history?range=${range}`
+        );
+        useFinanceStore.getState().setNetWorthHistory(range, result.points);
+        return result.points;
+      } catch {
+        // The chart falls back to its empty state; a failed chart read must not
+        // take over the screen the way a failed initial load does.
         return null;
       }
     },
@@ -239,6 +258,7 @@ export function useFinanceActions() {
   return {
     fetchAll,
     fetchEntryHistory,
+    fetchNetWorthHistory,
     addEntry,
     updateEntry,
     deleteEntry,

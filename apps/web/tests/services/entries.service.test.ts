@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -374,5 +374,145 @@ describe("EntriesService.getAssetAllocation", () => {
     expect(result.breakdown).toEqual([]);
     expect(result.concentrationWarnings).toEqual([]);
     expect(result.debtToAssetRatio).toBeNull();
+  });
+});
+
+describe("EntriesService.getNetWorthHistory", () => {
+  // Buckets are derived from "now", so the clock has to be pinned for the
+  // period labels and boundaries to be assertable at all.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-11T00:00:00.000Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function mockEntries(entries: { id: string; topCategory: string }[]) {
+    vi.mocked(prisma.entry.findMany).mockResolvedValue(entries as never);
+  }
+  function mockHistory(rows: { entryId: string; balance: number; createdAt: string }[]) {
+    vi.mocked(prisma.entryHistory.findMany).mockResolvedValue(
+      rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt) })) as never
+    );
+  }
+
+  it("only reads entries that are included in the chart", async () => {
+    mockEntries([]);
+
+    await entriesService.getNetWorthHistory(USER_ID, "6m");
+
+    expect(prisma.entry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER_ID, includeInChart: true } })
+    );
+  });
+
+  it("carries the last known balance of each period forward", async () => {
+    mockEntries([{ id: "e1", topCategory: "流動資金" }]);
+    mockHistory([
+      { entryId: "e1", balance: 100, createdAt: "2026-06-05T00:00:00.000Z" },
+      { entryId: "e1", balance: 150, createdAt: "2026-06-20T00:00:00.000Z" },
+      { entryId: "e1", balance: 300, createdAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    const { points } = await entriesService.getNetWorthHistory(USER_ID, "6m");
+
+    expect(points).toHaveLength(6);
+    expect(points.map((p) => p.netWorth)).toEqual([0, 0, 0, 150, 150, 300]);
+    expect(points.map((p) => p.period)).toEqual(["Mar", "Apr", "May", "Jun", "Jul", "Aug"]);
+  });
+
+  it("leaves an entry out of periods that predate its first history row", async () => {
+    mockEntries([
+      { id: "e1", topCategory: "流動資金" },
+      { id: "e2", topCategory: "流動資金" },
+    ]);
+    mockHistory([
+      { entryId: "e1", balance: 100, createdAt: "2026-03-01T00:00:00.000Z" },
+      { entryId: "e2", balance: 500, createdAt: "2026-07-01T00:00:00.000Z" },
+    ]);
+
+    const { points } = await entriesService.getNetWorthHistory(USER_ID, "6m");
+
+    expect(points.map((p) => p.totalAssets)).toEqual([100, 100, 100, 100, 600, 600]);
+  });
+
+  it("subtracts liability categories from net worth", async () => {
+    mockEntries([
+      { id: "e1", topCategory: "流動資金" },
+      { id: "e2", topCategory: "負債" },
+    ]);
+    mockHistory([
+      { entryId: "e1", balance: 1000, createdAt: "2026-03-01T00:00:00.000Z" },
+      { entryId: "e2", balance: 400, createdAt: "2026-03-01T00:00:00.000Z" },
+    ]);
+
+    const { points } = await entriesService.getNetWorthHistory(USER_ID, "6m");
+    const latest = points[points.length - 1]!;
+
+    expect(latest.totalAssets).toBe(1000);
+    expect(latest.totalLiabilities).toBe(400);
+    expect(latest.netWorth).toBe(600);
+  });
+
+  it("returns no points when the user has no history at all", async () => {
+    mockEntries([{ id: "e1", topCategory: "流動資金" }]);
+    mockHistory([]);
+
+    const result = await entriesService.getNetWorthHistory(USER_ID, "6m");
+
+    expect(result).toEqual({ range: "6m", points: [] });
+    expect(prisma.entryHistory.findMany).toHaveBeenCalled();
+  });
+
+  it("returns no points, and never queries history, when no entry is charted", async () => {
+    mockEntries([]);
+
+    const result = await entriesService.getNetWorthHistory(USER_ID, "6m");
+
+    expect(result).toEqual({ range: "6m", points: [] });
+    expect(prisma.entryHistory.findMany).not.toHaveBeenCalled();
+  });
+
+  it("spans twelve months for the 1y range", async () => {
+    mockEntries([{ id: "e1", topCategory: "流動資金" }]);
+    mockHistory([{ entryId: "e1", balance: 100, createdAt: "2025-01-01T00:00:00.000Z" }]);
+
+    const { points } = await entriesService.getNetWorthHistory(USER_ID, "1y");
+
+    expect(points).toHaveLength(12);
+    expect(points[0]!.period).toBe("Sep");
+    expect(points[11]!.period).toBe("Aug");
+  });
+
+  it("starts the all range at the first history row, by month", async () => {
+    mockEntries([{ id: "e1", topCategory: "流動資金" }]);
+    mockHistory([{ entryId: "e1", balance: 100, createdAt: "2026-05-09T00:00:00.000Z" }]);
+
+    const { points } = await entriesService.getNetWorthHistory(USER_ID, "all");
+
+    expect(points.map((p) => p.period)).toEqual(["May", "Jun", "Jul", "Aug"]);
+  });
+
+  it("switches the all range to yearly buckets once it spans over two years", async () => {
+    mockEntries([{ id: "e1", topCategory: "流動資金" }]);
+    mockHistory([
+      { entryId: "e1", balance: 100, createdAt: "2023-05-09T00:00:00.000Z" },
+      { entryId: "e1", balance: 250, createdAt: "2025-02-01T00:00:00.000Z" },
+    ]);
+
+    const { points } = await entriesService.getNetWorthHistory(USER_ID, "all");
+
+    expect(points.map((p) => p.period)).toEqual(["2023", "2024", "2025", "2026"]);
+    expect(points.map((p) => p.netWorth)).toEqual([100, 100, 250, 250]);
+  });
+
+  it("clamps the last point's date to now rather than the end of the period", async () => {
+    mockEntries([{ id: "e1", topCategory: "流動資金" }]);
+    mockHistory([{ entryId: "e1", balance: 100, createdAt: "2026-03-01T00:00:00.000Z" }]);
+
+    const { points } = await entriesService.getNetWorthHistory(USER_ID, "6m");
+
+    expect(points[points.length - 1]!.date).toBe("2026-08-11T00:00:00.000Z");
+    expect(points[0]!.date).toBe("2026-04-01T00:00:00.000Z");
   });
 });
