@@ -8,12 +8,12 @@
 
 ## 進行中
 
-### 1. `feature/net-worth-growth-chart`（目前分支）
+### 1. PR #90 — 淨值走勢圖 + 文件清理
 
-- [x] 淨值走勢圖改用真實歷史資料（`422937f`）
-- [x] 走勢圖抓取資料時顯示 loading UI（`ActivityIndicator`），且 loading 期間
-      1Y/全部等 range 按鈕會 disable — **尚未 commit**
-- [ ] 開 PR 進 develop
+`feature/net-worth-growth-chart` → develop，狀態 OPEN，待審查/合併。內容：
+淨值走勢圖改用真實歷史資料 + loading UI、清掉已完成功能的 specs/plans/Roadmap、
+新增這份 `docs/TODO.md`、`mobile-release` skill 補發版教訓、`CLAUDE.md` 補
+WON'T FIX 清單。
 
 ### 2. PR #89 — 移除 Clerk dual-auth shim
 
