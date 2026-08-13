@@ -123,6 +123,12 @@ Personal-finance models in `apps/web/prisma/schema.prisma`, all scoped by Clerk 
 
 Root `.env` is the single source of truth. `apps/web` loads it via `next dev --env-file ../../.env`. See `.env.example`. Key vars: `DATABASE_URL`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
+## Current progress
+
+Before starting any task, check `docs/TODO.md` for what's currently in
+progress or open — it's the single source of truth for task state (not
+memory). Keep it updated as work completes or new tasks surface.
+
 ## Known won't-fix / deliberate decisions
 
 Don't re-propose these — each was raised and rejected on purpose:
