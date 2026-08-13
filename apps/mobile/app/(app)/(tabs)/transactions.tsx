@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import type { NetWorthRange } from "@repo/shared";
@@ -26,6 +26,7 @@ export default function TransactionsScreen() {
   const { fetchNetWorthHistory } = useFinanceActions();
   const [view, setView] = useState<"trend" | "allocation">("trend");
   const [range, setRange] = useState<NetWorthRange>("6m");
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const entries = useFinanceStore((s) => s.entries);
   const netWorthHistory = useFinanceStore((s) => s.netWorthHistory);
 
@@ -39,10 +40,19 @@ export default function TransactionsScreen() {
   );
 
   // Only the selected range is fetched, and only once — the store caches it and
-  // clears the cache whenever an entry changes.
+  // clears the cache whenever an entry changes. Loading only shows for an
+  // uncached range so switching back to an already-fetched range is instant.
   useEffect(() => {
-    void fetchNetWorthHistory(range);
-  }, [fetchNetWorthHistory, range]);
+    if (netWorthHistory[range]) return;
+    let cancelled = false;
+    setIsHistoryLoading(true);
+    void fetchNetWorthHistory(range).finally(() => {
+      if (!cancelled) setIsHistoryLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchNetWorthHistory, range, netWorthHistory]);
 
   const points = useMemo(() => netWorthHistory[range] ?? [], [netWorthHistory, range]);
   const periodLabel = useMemo(() => {
@@ -56,7 +66,7 @@ export default function TransactionsScreen() {
     <SafeAreaView style={s.root} edges={["top"]}>
       {/* Header: balance scale — same height as retirement header */}
       <View style={[s.headerZone, { height: SCREEN_H * 0.44 }]}>
-        <Text style={s.title}>投資損益</Text>
+        <Text style={s.title}>資產損益</Text>
         <BalanceScale assets={totalAssets} liabilities={totalLiabilities} />
 
         {/* Asset / Liability values aligned below the pans */}
@@ -110,14 +120,25 @@ export default function TransactionsScreen() {
               {RANGES.map((r) => (
                 <Pressable
                   key={r.key}
-                  style={[s.rangeBtn, range === r.key && s.rangeBtnActive]}
+                  disabled={isHistoryLoading}
+                  style={[
+                    s.rangeBtn,
+                    range === r.key && s.rangeBtnActive,
+                    isHistoryLoading && s.rangeBtnDisabled,
+                  ]}
                   onPress={() => setRange(r.key)}
                 >
                   <Text style={[s.rangeText, range === r.key && s.rangeTextActive]}>{r.label}</Text>
                 </Pressable>
               ))}
             </View>
-            <NetWorthChart data={points} />
+            {isHistoryLoading ? (
+              <View style={s.chartLoading}>
+                <ActivityIndicator size="small" color="#8e8e93" />
+              </View>
+            ) : (
+              <NetWorthChart data={points} />
+            )}
           </>
         ) : (
           <AssetAllocationView />
@@ -169,6 +190,8 @@ const s = StyleSheet.create({
   },
   rangeBtn: { paddingVertical: 4, paddingHorizontal: 12, borderRadius: 12 },
   rangeBtnActive: { backgroundColor: "#e5e5ea" },
+  rangeBtnDisabled: { opacity: 0.4 },
   rangeText: { fontSize: 11, fontWeight: "600", color: "#c7c7cc" },
   rangeTextActive: { color: "#1c1c1e" },
+  chartLoading: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

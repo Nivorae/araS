@@ -323,6 +323,57 @@ Only once all relevant items — subscription group, each subscription
 product, and the app version — show up together in "已可提交的項目" does
 「提交以供審查」stop being greyed out.
 
+### Guideline 3.1 checklist (a subscription launch gets rejected on these)
+
+The first paid release (1.2) was rejected three times, twice for items that
+have nothing to do with whether the app works — Apple's 3.1 rules are an
+independent checklist, not derived from user need. Confirm all of these
+**before** submitting a release that touches subscriptions:
+
+- [ ] **3.1.2 EULA in-app** — a visible Terms of Use / EULA link on the
+      paywall itself.
+- [ ] **3.1.2 EULA in ASC metadata too** — this is the one that's easy to
+      miss because, unlike Privacy Policy, **Terms of Use has no dedicated
+      ASC field.** Paste the link into the App Description, or register a
+      custom EULA under App Information → License Agreement. An automated
+      scanner checks this on the _first_ review pass and never opens the app.
+- [ ] **3.1.2 auto-renewal terms + price/duration** shown on the paywall next
+      to the buy action, before purchase.
+- [ ] **3.1.1 a distinct "Restore Purchases" control** — required even if the
+      app's entitlement model makes it functionally unnecessary (e.g. here,
+      entitlement is keyed by `deriveAppleAccountToken(clerkUserId)`, so
+      signing in on a new device already restores premium — Apple's test is
+      still purely formal: button present or not). Must **not** be gated
+      identically to the buy button (if offerings fail to load, the buy
+      button may legitimately hide, but Restore must still render — a
+      reviewer checking specifically for this button must always find it).
+- [ ] **Privacy policy link** — dedicated ASC field (can't be missed the way
+      EULA can) + paywall footer.
+
+**After `eas submit`, confirm ASC's 建置版本 actually points at the new
+build before resubmitting** — uploading does not attach it. Round 3 of this
+project's rejections was the reviewer re-testing the _old_ build because
+建置版本 was never switched. Two ways to prove which build a reviewer
+screenshot came from without guessing:
+
+1. **Render logic as a fingerprint** — if a fixed's control's condition is a
+   strict subset of another visible control's condition (e.g. Restore shows
+   whenever `!isPremium && !loading`, buy button needs that _plus_
+   `plans.length > 0`), a screenshot showing the buy button without Restore
+   is logically impossible on the fixed build — proof the reviewer is on an
+   older one.
+2. **A copy constant as a build fingerprint** — if a value like
+   `FREE_ENTRY_LIMIT` is interpolated into paywall copy, differs between the
+   old and new build, and appears in the reviewer's screenshot text, it
+   pinpoints the exact build being reviewed.
+3. `eas build:list --json` gives each build's `gitCommitHash`, so
+   `git merge-base --is-ancestor <fix-commit> <build-hash>` settles "is the
+   fix in that binary" in one command.
+
+**Never press 送出審查 before reading Resolution Center in full** — a round
+was avoidable by reading the actual rejection reason instead of resubmitting
+on a bare screenshot.
+
 ---
 
 ## Project-specific gotchas (from real incidents)
@@ -389,6 +440,24 @@ type-check` / `pnpm test` locally (after `pnpm db:generate`) before merging
   clears it safely (structurally cannot touch a real purchase) and lets a
   clean sandbox purchase test run against your normal account instead of
   needing a throwaway one.
+- **A `--clear-cache` OTA can pull the web app's React into the mobile
+  bundle**, even with no source change. `@react-native-community/slider`
+  declares no `react` dependency, so under pnpm's isolated `node_modules`
+  Metro's upward walk can resolve `react` from the **web** app instead of
+  `apps/mobile` — both end up in the bundle and the second has no active
+  dispatcher, crashing on first hook use (seen: retirement screen,
+  `Cannot read property 'useState' of null`). Fixed in
+  `apps/mobile/metro.config.js` via a `resolver.resolveRequest` that pins
+  `react`/`react-dom`/`react-native` to `apps/mobile` regardless of
+  importer. Before any OTA that touches dependencies, add this to the
+  dry-run export check:
+  ```bash
+  grep -c "19.2.4" dist/_expo/static/js/ios/*.hbc   # web's React — must be 0
+  grep -c "19.1.0" dist/_expo/static/js/ios/*.hbc   # mobile's React — must be > 0
+  ```
+  (Update the version numbers if either app's React version changes.)
+  Hermes bytecode keeps ASCII string constants in the clear, so this grep
+  works for version strings/URLs/keys but not Chinese text.
 
 ---
 
