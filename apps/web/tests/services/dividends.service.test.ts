@@ -140,13 +140,20 @@ describe("DividendsService.create", () => {
   });
 
   it("rejects a stock entry owned by someone else", async () => {
-    txMock.entry.findFirst.mockResolvedValue(null);
+    const OTHER_USER_ID = "user_other456";
+    txMock.entry.findFirst.mockImplementation(
+      async ({ where }: { where: { id: string; userId: string } }) =>
+        where.id === STOCK.id && where.userId === USER_ID ? STOCK : null
+    );
     await expect(
       dividendsService.create(
-        { entryId: "someone-else", payDate: "2026-08-13", amount: 1200, recordIncome: true },
-        USER_ID
+        { entryId: STOCK.id, payDate: "2026-08-13", amount: 1200, recordIncome: true },
+        OTHER_USER_ID
       )
     ).rejects.toThrow();
+    expect(txMock.entry.findFirst).toHaveBeenCalledWith({
+      where: { id: STOCK.id, userId: OTHER_USER_ID },
+    });
   });
 
   it("rejects a bank entry that is not 流動資金", async () => {
