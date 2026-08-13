@@ -101,6 +101,61 @@ async function requireCashEntry(tx: Tx, entryId: string, userId: string) {
   return entry;
 }
 
+/**
+ * 刪掉一筆 EntryHistory 並把帳修回去。規則完全照 entries.service.ts 的
+ * deleteHistory：後續 history 的 running balance 一起位移，Entry.value 由
+ * 剩下的最後一筆 balance 回推（一筆都不剩時歸 0）。
+ */
+async function reverseHistory(tx: Tx, historyId: string): Promise<void> {
+  const existing = await tx.entryHistory.findFirst({ where: { id: historyId } });
+  if (!existing) return;
+  const delta = Number(existing.delta);
+
+  await tx.entryHistory.delete({ where: { id: historyId } });
+
+  await tx.entryHistory.updateMany({
+    where: { entryId: existing.entryId, createdAt: { gt: existing.createdAt } },
+    data: { balance: { increment: -delta } },
+  });
+
+  const last = await tx.entryHistory.findFirst({
+    where: { entryId: existing.entryId },
+    orderBy: { createdAt: "desc" },
+  });
+  await tx.entry.update({
+    where: { id: existing.entryId },
+    data: { value: last ? Number(last.balance) : 0 },
+  });
+}
+
+/**
+ * 把一筆 dividend 造成的所有帳面影響沖掉（history 與收入 transaction），但不刪
+ * dividend 本身 —— delete 會刪掉它，update 會接著重放。
+ *
+ * 沖銷順序是「後寫的先沖」：再投資的兩筆晚於入帳那筆，先沖它們才能讓
+ * reverseHistory 的 balance 位移落在正確的區間上。
+ */
+async function unwind(
+  tx: Tx,
+  dividend: {
+    id: string;
+    userId: string;
+    bankHistoryId: string | null;
+    transactionId: string | null;
+    reinvestHistoryId: string | null;
+    reinvestBankHistoryId: string | null;
+  }
+): Promise<void> {
+  if (dividend.reinvestHistoryId) await reverseHistory(tx, dividend.reinvestHistoryId);
+  if (dividend.reinvestBankHistoryId) await reverseHistory(tx, dividend.reinvestBankHistoryId);
+  if (dividend.bankHistoryId) await reverseHistory(tx, dividend.bankHistoryId);
+  if (dividend.transactionId) {
+    await tx.transaction.deleteMany({
+      where: { id: dividend.transactionId, userId: dividend.userId },
+    });
+  }
+}
+
 export class DividendsService {
   async create(data: CreateDividend, userId: string) {
     if (!(await entitlementsService.isPremium(userId))) throw new PremiumRequiredError();
@@ -154,6 +209,15 @@ export class DividendsService {
       orderBy: { payDate: "desc" },
     });
     return rows.map(serializeDividend);
+  }
+
+  async delete(id: string, userId: string) {
+    await prisma.$transaction(async (tx) => {
+      const dividend = await tx.dividend.findFirst({ where: { id, userId } });
+      if (!dividend) throw new NotFoundError("股利紀錄不存在");
+      await unwind(tx, dividend);
+      await tx.dividend.delete({ where: { id } });
+    });
   }
 }
 
