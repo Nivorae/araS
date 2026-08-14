@@ -26,6 +26,7 @@ import {
   type StackCategory,
 } from "@/components/CategoryCardStack";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
+import { useResponsive } from "@/hooks/useResponsive";
 
 // Deck order, bottom card → top card. In CategoryCardStack the LAST name renders
 // at the very top of the stack, so 保險 is forced to the end to sit above 應收款.
@@ -33,6 +34,7 @@ const CARD_ORDER = [...CATEGORIES.map((c) => c.name).filter((n) => n !== "保險
 
 export default function AssetsScreen() {
   const router = useRouter();
+  const { isTablet, contentWidth } = useResponsive();
   const { entries, loading } = useFinanceStore();
   const { fetchAll } = useFinanceActions();
   const [hideBalance, setHideBalance] = useState(false);
@@ -170,7 +172,7 @@ export default function AssetsScreen() {
                 </TouchableOpacity>
               </View>
               {hideBalance ? (
-                <Text style={s.netValue}>araS</Text>
+                <Text style={[s.netValue, isTablet && s.netValueTablet]}>araS</Text>
               ) : marketLoading ? (
                 // Investments still being priced — hold the total behind a spinner
                 // so it doesn't flash the cost-basis figure first.
@@ -178,7 +180,9 @@ export default function AssetsScreen() {
                   <ActivityIndicator size="small" color="#8e8e93" />
                 </View>
               ) : (
-                <Text style={s.netValue}>{formatCurrency(netWorth).replace("NT", "")}</Text>
+                <Text style={[s.netValue, isTablet && s.netValueTablet]}>
+                  {formatCurrency(netWorth).replace("NT", "")}
+                </Text>
               )}
             </Pressable>
           </ScrollView>
@@ -188,7 +192,7 @@ export default function AssetsScreen() {
             scrub gesture only peeks cards without shifting the whole stack.
             Tapping empty space here collapses an expanded card. */}
         <Pressable
-          style={s.bottomZone}
+          style={[s.bottomZone, isTablet && { width: contentWidth, alignSelf: "center" }]}
           onPress={() => {
             if (isCardExpanded) cardStackRef.current?.collapse();
           }}
@@ -219,7 +223,7 @@ export default function AssetsScreen() {
           ) : (
             <View style={s.emptyWrap}>
               <TouchableOpacity
-                style={s.emptyCard}
+                style={[s.emptyCard, isTablet && { maxWidth: contentWidth }]}
                 onPress={() => router.push("/entry/new")}
                 activeOpacity={0.7}
               >
@@ -246,6 +250,7 @@ const s = StyleSheet.create({
   netLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   netLabel: { fontSize: 12, fontWeight: "600", color: "#8e8e93" },
   netValue: { fontSize: 40, fontWeight: "700", letterSpacing: -1, color: "#1c1c1e" },
+  netValueTablet: { fontSize: 54 },
   netLoading: { height: 48, alignItems: "center", justifyContent: "center" },
 
   bottomZone: { flex: 1 },

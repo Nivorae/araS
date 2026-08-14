@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 
 // ─── Pure-JS date picker (no native module → OTA-safe) ───────────────────────
 // Replaces @react-native-community/datetimepicker. Year range spans all past
@@ -26,6 +27,7 @@ export function DatePickerModal({
   onConfirm: (d: Date) => void;
   onClose: () => void;
 }) {
+  const { isTablet } = useResponsive();
   const [y, setY] = useState(date.getFullYear());
   const [m, setM] = useState(date.getMonth() + 1);
   const [d, setD] = useState(date.getDate());
@@ -56,7 +58,7 @@ export function DatePickerModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={dpS.backdrop} onPress={onClose} />
-      <View style={dpS.sheet}>
+      <View style={[dpS.sheet, isTablet && dpS.sheetTablet]}>
         <View style={dpS.header}>
           <TouchableOpacity onPress={onClose}>
             <Text style={dpS.cancel}>取消</Text>
@@ -122,6 +124,9 @@ export function DatePickerModal({
 }
 
 const dpS = StyleSheet.create({
+  // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
+  // and centring it keeps it sheet-shaped.
+  sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: {
     backgroundColor: "#ffffff",

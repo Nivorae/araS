@@ -17,6 +17,7 @@ import { FREE_ENTRY_LIMIT } from "@repo/shared";
 import { isPurchasesConfigured } from "@/lib/purchases";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const PREMIUM_FEATURES = [
   `資產／負債無限新增（免費版上限 ${FREE_ENTRY_LIMIT} 筆）`,
@@ -67,6 +68,7 @@ const RENEWAL_DISCLOSURE =
   "訂閱會自動續訂，除非在當期結束前至少 24 小時關閉自動續訂。續訂費用將於當期結束前 24 小時內向你的 Apple ID 收取。你可隨時於 App Store 帳戶設定管理或取消訂閱。";
 
 export default function PaywallScreen() {
+  const { isTablet, contentWidth } = useResponsive();
   const router = useRouter();
   const { isPremium, refresh } = useIsPremium();
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
@@ -202,7 +204,10 @@ export default function PaywallScreen() {
         <View style={s.bottom}>
           <ScrollView
             style={s.scroll}
-            contentContainerStyle={s.content}
+            contentContainerStyle={[
+              s.content,
+              isTablet && { width: contentWidth, alignSelf: "center" },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {/* Always visible — what upgrading gets you, regardless of premium/
