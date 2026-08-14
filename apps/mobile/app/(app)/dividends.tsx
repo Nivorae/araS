@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
 import type { DividendSummary } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 
 export default function DividendsScreen() {
   const router = useRouter();
@@ -11,17 +12,36 @@ export default function DividendsScreen() {
   const [summary, setSummary] = useState<DividendSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      setSummary(await fetchDividendSummary());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "讀取失敗");
-    }
-  }, [fetchDividendSummary]);
+  // Refetch on focus so a dividend recorded on the entry detail screen (the
+  // primary flow: 設定 → 股息總覽 → tap a holding → record → back) is
+  // reflected here instead of showing the pre-record totals. Guarded by
+  // useFocusRefresh — see that hook for why a plain useEffect isn't enough.
+  const { refresh, loading } = useFocusRefresh(
+    async () => {
+      try {
+        const data = await fetchDividendSummary();
+        setSummary(data);
+        setError(null);
+        return data;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "讀取失敗");
+        return null;
+      }
+    },
+    { context: "dividends.overview.refreshLoop" }
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Three distinct states, deliberately not collapsed into one another:
+  //  - first load in flight: summary and error are both still their initial
+  //    null, since neither branch of the fetcher above has run yet.
+  //  - load failed with nothing to show yet: error is set, summary is still
+  //    null — must not render as "NT$ 0 / 還沒有股利紀錄", which would read
+  //    as a confident (and wrong) answer on a financial screen.
+  //  - summary !== null: a load has succeeded at least once. Render it even
+  //    if a later background refresh failed (error may be non-null here too)
+  //    — stale data beats blanking a screen the user was already reading.
+  const firstLoadPending = summary === null && error === null;
+  const failedWithNoData = summary === null && error !== null;
 
   return (
     <View style={s.root}>
@@ -34,47 +54,74 @@ export default function DividendsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.body}>
-        {error && <Text style={s.error}>{error}</Text>}
-
-        <View style={s.totals}>
-          <View style={s.totalBox}>
-            <Text style={s.totalLabel}>本年度股利</Text>
-            <Text style={s.totalValue}>NT$ {(summary?.totalThisYear ?? 0).toLocaleString()}</Text>
+        {firstLoadPending ? (
+          <View style={s.centerState}>
+            <ActivityIndicator size="large" color="#8e8e93" />
           </View>
-          <View style={s.totalBox}>
-            <Text style={s.totalLabel}>全期累計</Text>
-            <Text style={s.totalValue}>NT$ {(summary?.totalAllTime ?? 0).toLocaleString()}</Text>
+        ) : failedWithNoData ? (
+          <View style={s.centerState}>
+            <Text style={s.errorTitle}>無法載入股息資料</Text>
+            <Text style={s.errorDetail}>{error}</Text>
+            <Pressable
+              style={s.retryBtn}
+              onPress={() => void refresh({ force: true })}
+              disabled={loading}
+            >
+              <Text style={s.retryText}>{loading ? "重試中…" : "重試"}</Text>
+            </Pressable>
           </View>
-        </View>
+        ) : (
+          <>
+            {/* summary is non-null here — a later background refresh may have
+                failed, but the previously-loaded data stays on screen and this
+                banner surfaces the failure without blanking it. */}
+            {error && <Text style={s.error}>更新失敗，目前顯示上次讀取的資料（{error}）</Text>}
 
-        <Text style={s.sectionTitle}>各檔明細</Text>
-        <View style={s.card}>
-          {!summary || summary.byEntry.length === 0 ? (
-            <Text style={s.empty}>還沒有股利紀錄</Text>
-          ) : (
-            summary.byEntry.map((row, i) => (
-              <View key={row.entryId}>
-                {i > 0 && <View style={s.separator} />}
-                <Pressable style={s.row} onPress={() => router.push(`/entry/${row.entryId}`)}>
-                  <View>
-                    <Text style={s.rowName}>{row.name}</Text>
-                    <Text style={s.rowMeta}>
-                      {row.stockCode ?? "—"} · {row.subCategory}
-                    </Text>
-                  </View>
-                  <View style={s.rowRight}>
-                    <Text style={s.rowAmount}>NT$ {row.totalAllTime.toLocaleString()}</Text>
-                    <Text style={s.rowMeta}>
-                      {row.yieldOnCost != null
-                        ? `殖利率 ${(row.yieldOnCost * 100).toFixed(2)}%`
-                        : "殖利率 —"}
-                    </Text>
-                  </View>
-                </Pressable>
+            <View style={s.totals}>
+              <View style={s.totalBox}>
+                <Text style={s.totalLabel}>本年度股利</Text>
+                <Text style={s.totalValue}>
+                  NT$ {(summary?.totalThisYear ?? 0).toLocaleString()}
+                </Text>
               </View>
-            ))
-          )}
-        </View>
+              <View style={s.totalBox}>
+                <Text style={s.totalLabel}>全期累計</Text>
+                <Text style={s.totalValue}>
+                  NT$ {(summary?.totalAllTime ?? 0).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={s.sectionTitle}>各檔明細</Text>
+            <View style={s.card}>
+              {!summary || summary.byEntry.length === 0 ? (
+                <Text style={s.empty}>還沒有股利紀錄</Text>
+              ) : (
+                summary.byEntry.map((row, i) => (
+                  <View key={row.entryId}>
+                    {i > 0 && <View style={s.separator} />}
+                    <Pressable style={s.row} onPress={() => router.push(`/entry/${row.entryId}`)}>
+                      <View>
+                        <Text style={s.rowName}>{row.name}</Text>
+                        <Text style={s.rowMeta}>
+                          {row.stockCode ?? "—"} · {row.subCategory}
+                        </Text>
+                      </View>
+                      <View style={s.rowRight}>
+                        <Text style={s.rowAmount}>NT$ {row.totalAllTime.toLocaleString()}</Text>
+                        <Text style={s.rowMeta}>
+                          {row.yieldOnCost != null
+                            ? `殖利率 ${(row.yieldOnCost * 100).toFixed(2)}%`
+                            : "殖利率 —"}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                ))
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -92,6 +139,17 @@ const s = StyleSheet.create({
   },
   headerTitle: { fontSize: 16, fontWeight: "600", color: "#1c1c1e" },
   body: { paddingHorizontal: 20, paddingBottom: 40 },
+  centerState: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 12 },
+  errorTitle: { fontSize: 15, fontWeight: "600", color: "#1c1c1e" },
+  errorDetail: { fontSize: 13, color: "#8e8e93", textAlign: "center" },
+  retryBtn: {
+    marginTop: 8,
+    backgroundColor: "#1c1c1e",
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  retryText: { fontSize: 14, fontWeight: "600", color: "#fff" },
   totals: { flexDirection: "row", gap: 12 },
   totalBox: { flex: 1, backgroundColor: "#fff", borderRadius: 14, padding: 16 },
   totalLabel: { fontSize: 12, color: "#8e8e93" },
