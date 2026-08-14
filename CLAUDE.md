@@ -48,7 +48,6 @@ pnpm lint
 pnpm type-check
 pnpm test
 pnpm test:coverage        # With 80% threshold enforcement
-pnpm test:e2e             # Playwright
 
 # Run a single test file
 pnpm --filter @repo/web exec vitest run tests/services/entries.service.test.ts
@@ -61,7 +60,6 @@ pnpm db:migrate:deploy    # Apply existing migrations without resetting
 pnpm db:seed              # Load test data (21 entries: one over the free cap)
 pnpm db:reset             # check -> drop -> migrate -> seed. Destructive
 pnpm db:studio            # Prisma Studio UI
-pnpm docker:up            # Local PostgreSQL on 5434 (unused; dev runs on Supabase)
 ```
 
 `db:seed` and `db:reset` write to one shared test account,
