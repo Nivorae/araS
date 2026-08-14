@@ -160,8 +160,8 @@ export default function ReinvestSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet} onPress={() => {}}>
           <View style={s.handle} />
           <Text style={s.title}>再投資 · {entryName}</Text>
 
@@ -231,8 +231,8 @@ export default function ReinvestSheet({
               </Text>
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

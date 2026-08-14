@@ -458,11 +458,6 @@ export default function EntryDetailScreen() {
           <View style={s.historySectionHeader}>
             <View style={s.historyTitleRow}>
               <Text style={s.historySectionTitle}>交易記錄</Text>
-              {/* Refresh indicator — shows while a background refetch runs even
-                  when cached rows are already on screen (e.g. after adding a record). */}
-              {historyLoading && history.length > 0 && (
-                <ActivityIndicator size="small" color="#8e8e93" />
-              )}
             </View>
             <Text style={s.historySectionSub}>變動</Text>
           </View>

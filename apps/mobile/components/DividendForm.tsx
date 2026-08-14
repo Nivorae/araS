@@ -94,7 +94,7 @@ export default function DividendForm({
   const entries = useFinanceStore((s) => s.entries);
   const cashEntries = useMemo(() => entries.filter((e) => e.topCategory === "流動資金"), [entries]);
 
-  const [mode, setMode] = useState<"perShare" | "amount">("perShare");
+  const [mode, setMode] = useState<"perShare" | "amount">("amount");
   const [payDate, setPayDate] = useState(todayISO());
   const [perShareStr, setPerShareStr] = useState("");
   const [sharesStr, setSharesStr] = useState(currentShares != null ? String(currentShares) : "");
@@ -128,7 +128,7 @@ export default function DividendForm({
   // despite both being declared with `visible` in their deps.
   useEffect(() => {
     if (!visible) return;
-    setMode("perShare");
+    setMode("amount");
     setPayDate(todayISO());
     setPerShareStr("");
     setSharesStr(currentShares != null ? String(currentShares) : "");
@@ -297,16 +297,16 @@ export default function DividendForm({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet} onPress={() => {}}>
           <View style={s.handle} />
           <Text style={s.title}>新增股利 · {entryName}</Text>
 
           <ScrollView style={s.body}>
             <View style={s.segment}>
               {[
-                { m: "perShare" as const, label: "依每股股利" },
                 { m: "amount" as const, label: "依總金額" },
+                { m: "perShare" as const, label: "依每股股利" },
               ].map(({ m, label }) => (
                 <Pressable
                   key={m}
@@ -443,8 +443,8 @@ export default function DividendForm({
               </Text>
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
 
       <DatePickerModal
         visible={showDatePicker}
