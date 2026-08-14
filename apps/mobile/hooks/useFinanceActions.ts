@@ -17,6 +17,11 @@ import type {
   UpdateRecurrence,
   CreateInsurance,
   UpdateInsurance,
+  Dividend,
+  CreateDividend,
+  UpdateDividend,
+  ReinvestDividend,
+  DividendSummary,
 } from "@repo/shared";
 
 export function useFinanceActions() {
@@ -236,6 +241,46 @@ export function useFinanceActions() {
     [api]
   );
 
+  // 股利紀錄刻意不進 financeStore：跟保險模組一樣 on-demand 抓取。它會改動
+  // Entry.value（入帳與再投資都寫 EntryHistory），所以呼叫端在變更後要自己跑一次
+  // fetchAll() 讓 entry 值同步 —— 再多一份 store slice 只會多一處會走味的狀態。
+  const fetchDividends = useCallback(
+    async (entryId?: string): Promise<Dividend[]> =>
+      api.get<Dividend[]>(
+        `/api/dividends${entryId ? `?entryId=${encodeURIComponent(entryId)}` : ""}`
+      ),
+    [api]
+  );
+
+  const addDividend = useCallback(
+    async (data: CreateDividend): Promise<Dividend> => api.post<Dividend>("/api/dividends", data),
+    [api]
+  );
+
+  const updateDividend = useCallback(
+    async (id: string, data: UpdateDividend): Promise<Dividend> =>
+      api.patch<Dividend>(`/api/dividends/${id}`, data),
+    [api]
+  );
+
+  const deleteDividend = useCallback(
+    async (id: string): Promise<void> => {
+      await api.delete(`/api/dividends/${id}`);
+    },
+    [api]
+  );
+
+  const reinvestDividend = useCallback(
+    async (id: string, data: ReinvestDividend): Promise<Dividend> =>
+      api.post<Dividend>(`/api/dividends/${id}/reinvest`, data),
+    [api]
+  );
+
+  const fetchDividendSummary = useCallback(
+    async (): Promise<DividendSummary> => api.get<DividendSummary>("/api/dividends/summary"),
+    [api]
+  );
+
   return {
     fetchAll,
     fetchEntryHistory,
@@ -255,5 +300,11 @@ export function useFinanceActions() {
     deleteInsurance,
     fetchInsurance,
     fetchInsurances,
+    fetchDividends,
+    addDividend,
+    updateDividend,
+    deleteDividend,
+    reinvestDividend,
+    fetchDividendSummary,
   };
 }
