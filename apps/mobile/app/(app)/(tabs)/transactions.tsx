@@ -18,6 +18,13 @@ export default function TransactionsScreen() {
   const router = useRouter();
   const { isPremium } = useIsPremium();
   const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
+  // Mounted-once-then-kept-alive: switching `view` only toggles which pane is
+  // visible below (see `display: none` in chartZone), so a tab's component
+  // never unmounts once visited and doesn't reset/refetch on every switch
+  // back to it. Trend is visible from the start so it needs no flag; the
+  // other two mount lazily on first visit.
+  const [everVisitedAllocation, setEverVisitedAllocation] = useState(false);
+  const [everVisitedDividends, setEverVisitedDividends] = useState(false);
   const entries = useFinanceStore((s) => s.entries);
   const valueSnapshots = useFinanceStore((s) => s.valueSnapshots);
 
@@ -77,6 +84,7 @@ export default function TransactionsScreen() {
                 router.push("/paywall");
                 return;
               }
+              setEverVisitedAllocation(true);
               setView("allocation");
             }}
           >
@@ -89,6 +97,7 @@ export default function TransactionsScreen() {
                 router.push("/paywall");
                 return;
               }
+              setEverVisitedDividends(true);
               setView("dividends");
             }}
           >
@@ -97,14 +106,22 @@ export default function TransactionsScreen() {
         </View>
       </View>
 
-      {/* Chart zone — fills remaining height */}
+      {/* Chart zone — fills remaining height. All visited panes stay mounted;
+          `display: none` removes the hidden ones from layout without
+          unmounting them, so switching tabs never re-triggers their fetch. */}
       <View style={s.chartZone}>
-        {view === "trend" ? (
+        <View style={[s.tabPane, view !== "trend" && s.hiddenPane]}>
           <InvestmentChart data={investmentData} />
-        ) : view === "allocation" ? (
-          <AssetAllocationView />
-        ) : (
-          <DividendOverview />
+        </View>
+        {everVisitedAllocation && (
+          <View style={[s.tabPane, view !== "allocation" && s.hiddenPane]}>
+            <AssetAllocationView />
+          </View>
+        )}
+        {everVisitedDividends && (
+          <View style={[s.tabPane, view !== "dividends" && s.hiddenPane]}>
+            <DividendOverview />
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -145,4 +162,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 30,
     paddingBottom: 36,
   },
+  tabPane: { flex: 1 },
+  hiddenPane: { display: "none" },
 });
