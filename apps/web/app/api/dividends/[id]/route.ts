@@ -32,7 +32,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     }
     const { id } = await params;
     await dividendsService.delete(id, userId);
-    return ok({ id });
+    return ok({ deleted: true });
   } catch (e) {
     return mapDividendError(e);
   }

@@ -28,6 +28,7 @@ import {
   NotFoundError,
 } from "../../services/dividends.service";
 import { GET, POST } from "../../app/api/dividends/route";
+import { GET as summaryGET } from "../../app/api/dividends/summary/route";
 import { POST as reinvestPOST } from "../../app/api/dividends/[id]/reinvest/route";
 import { DELETE, PATCH } from "../../app/api/dividends/[id]/route";
 
@@ -138,5 +139,28 @@ describe("/api/dividends/[id]", () => {
       params
     );
     expect(res.status).toBe(401);
+  });
+});
+
+describe("/api/dividends/summary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const res = await summaryGET();
+    expect(res.status).toBe(401);
+    expect(dividendsService.summary).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 with the summary payload", async () => {
+    const payload = { totalAllTime: 1500, totalThisYear: 1000, byEntry: [] };
+    vi.mocked(dividendsService.summary).mockResolvedValue(payload as never);
+    const res = await summaryGET();
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual(payload);
+    expect(dividendsService.summary).toHaveBeenCalledWith(USER_ID);
   });
 });
