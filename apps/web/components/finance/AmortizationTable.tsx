@@ -39,7 +39,7 @@ export function AmortizationTable({ rows, color }: Props) {
       )}
 
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 grid grid-cols-7 gap-1 rounded-xl bg-[#f2f2f7] px-2 py-2 text-[10px] font-semibold text-[#8e8e93]">
+      <div className="sticky top-0 z-10 grid grid-cols-7 gap-1 rounded-xl bg-[#f2f2f7] px-2 py-2 text-[10px] font-semibold text-[#8e8e93] md:gap-2 md:px-3 md:text-[12px]">
         <span className="text-center">期</span>
         <span className="col-span-2">繳款日</span>
         <span className="text-right">期初餘額</span>
@@ -56,7 +56,7 @@ export function AmortizationTable({ rows, color }: Props) {
           return (
             <div
               key={row.month}
-              className="grid grid-cols-7 gap-1 rounded-lg px-2 py-2 text-[11px]"
+              className="grid grid-cols-7 gap-1 rounded-lg px-2 py-2 text-[11px] md:gap-2 md:px-3 md:text-[13px]"
               style={{
                 backgroundColor: row.isPast ? "transparent" : "white",
                 color: row.isPast ? "#8e8e93" : "#1c1c1e",

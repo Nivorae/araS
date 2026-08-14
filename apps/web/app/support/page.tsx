@@ -11,7 +11,7 @@ const CONTACT_EMAIL = "milk88084@gmail.com";
 
 export default function SupportPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e]">
+    <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e] md:px-10 md:py-16">
       <h1 className="text-3xl font-bold tracking-tight">支援與聯絡</h1>
       <p className="mt-2 text-neutral-600">
         感謝你使用 araS。若你在使用上遇到問題、有功能建議，或需要協助，歡迎透過以下方式與我們聯繫。

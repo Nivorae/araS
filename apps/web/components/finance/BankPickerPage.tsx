@@ -47,7 +47,7 @@ export function BankPickerPage({ open, onClose, onSelect, selectedCode }: Props)
         open ? "translate-x-0" : "pointer-events-none translate-x-full"
       }`}
     >
-      <div className="mx-auto max-w-md px-4 pt-14">
+      <div className="mx-auto max-w-md px-4 pt-14 md:max-w-xl lg:max-w-2xl">
         <div className="mb-6 flex items-center">
           <button
             onClick={onClose}
@@ -59,7 +59,7 @@ export function BankPickerPage({ open, onClose, onSelect, selectedCode }: Props)
         </div>
 
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-          <div className="grid grid-cols-4 gap-3 p-4">
+          <div className="grid grid-cols-4 gap-3 p-4 md:grid-cols-6">
             {BANKS.map((bank) => (
               <button
                 key={bank.code}

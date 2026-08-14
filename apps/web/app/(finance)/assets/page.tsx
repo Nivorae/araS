@@ -210,7 +210,7 @@ export default function AssetsPage() {
             )}
           </button>
         </div>
-        <p className="text-[40px] font-bold tracking-tight text-[#1c1c1e]">
+        <p className="text-[40px] font-bold tracking-tight text-[#1c1c1e] md:text-[52px]">
           {hideBalance ? "araS" : formatCurrency(netWorth)}
         </p>
       </motion.div>

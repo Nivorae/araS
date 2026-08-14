@@ -12,7 +12,7 @@ const CONTACT_EMAIL = "milk88084@gmail.com";
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e]">
+    <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e] md:px-10 md:py-16">
       <h1 className="text-3xl font-bold tracking-tight">使用條款</h1>
       <p className="mt-2 text-sm text-neutral-500">最後更新日期：{LAST_UPDATED}</p>
 

@@ -174,23 +174,31 @@ export default function TransactionsPage() {
         style={{ height: "calc((100dvh - 64px) * 0.5)" }}
       >
         <div className="text-center">
-          <h1 className="text-[22px] font-bold text-[#1c1c1e]">投資損益</h1>
+          <h1 className="text-[22px] font-bold text-[#1c1c1e] md:text-[26px]">投資損益</h1>
         </div>
-        <BalanceScale assets={totalAssets} liabilities={totalLiabilities} />
 
-        {/* Asset / Liability values aligned below the pans */}
-        <div className="flex w-[220px] items-start justify-between px-2">
-          <div className="text-center">
-            <p className="text-[15px] font-bold" style={{ color: "#374254" }}>
-              {formatCurrency(totalAssets)}
-            </p>
-            <p className="text-[11px] text-[#8e8e93]">資產</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[15px] font-bold" style={{ color: "#C7C7D4" }}>
-              {formatCurrency(totalLiabilities)}
-            </p>
-            <p className="text-[11px] text-[#8e8e93]">負債</p>
+        {/*
+          The scale is a fixed 220px composition and the values below line up
+          with its pans, so the two are scaled together as one unit on iPad —
+          scaling them separately would pull the numbers off the pans.
+        */}
+        <div className="flex flex-col items-center gap-4 md:scale-125">
+          <BalanceScale assets={totalAssets} liabilities={totalLiabilities} />
+
+          {/* Asset / Liability values aligned below the pans */}
+          <div className="flex w-[220px] items-start justify-between px-2">
+            <div className="text-center">
+              <p className="text-[15px] font-bold" style={{ color: "#374254" }}>
+                {formatCurrency(totalAssets)}
+              </p>
+              <p className="text-[11px] text-[#8e8e93]">資產</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[15px] font-bold" style={{ color: "#C7C7D4" }}>
+                {formatCurrency(totalLiabilities)}
+              </p>
+              <p className="text-[11px] text-[#8e8e93]">負債</p>
+            </div>
           </div>
         </div>
 

@@ -10,7 +10,13 @@ interface CardConfig {
   depth: "near" | "mid" | "far";
   blur: string;
   opacity: number;
-  top: number;
+  /**
+   * Vertical position as a share of the stage height rather than a pixel
+   * offset. The composition was laid out against a ~844pt phone; on an iPad
+   * the same percentages keep the cards spread over the whole screen instead
+   * of bunching into the top two-thirds.
+   */
+  topPct: number;
   left?: number;
   right?: number;
   duration: string;
@@ -28,7 +34,7 @@ const CARDS: CardConfig[] = [
     depth: "near",
     blur: "0px",
     opacity: 1,
-    top: 65,
+    topPct: 7.7,
     right: -30,
     duration: "3.8s",
     delay: "0s",
@@ -42,7 +48,7 @@ const CARDS: CardConfig[] = [
     depth: "far",
     blur: "7px",
     opacity: 0.55,
-    top: 115,
+    topPct: 13.6,
     left: 32,
     duration: "5.2s",
     delay: "-1.3s",
@@ -56,7 +62,7 @@ const CARDS: CardConfig[] = [
     depth: "mid",
     blur: "0px",
     opacity: 0.78,
-    top: 315,
+    topPct: 37.3,
     left: -28,
     duration: "4.5s",
     delay: "-2.1s",
@@ -70,7 +76,7 @@ const CARDS: CardConfig[] = [
     depth: "far",
     blur: "7px",
     opacity: 0.55,
-    top: 368,
+    topPct: 43.6,
     right: 8,
     duration: "6.1s",
     delay: "-0.8s",
@@ -84,7 +90,7 @@ const CARDS: CardConfig[] = [
     depth: "near",
     blur: "7px",
     opacity: 1,
-    top: 562,
+    topPct: 66.6,
     left: 38,
     duration: "4.2s",
     delay: "-3.0s",
@@ -109,69 +115,63 @@ const entryClasses = [
 export default function RootPage() {
   return (
     <main className="relative overflow-hidden" style={{ height: "100dvh", background: "#f7f7fa" }}>
-      {/* Background depth cards */}
-      {CARDS.map((card, i) => (
-        <div
-          key={card.name}
-          className={entryClasses[i]}
-          style={{
-            position: "absolute",
-            width: 136,
-            height: 136,
-            top: card.top,
-            ...(card.left !== undefined ? { left: card.left } : {}),
-            ...(card.right !== undefined ? { right: card.right } : {}),
-          }}
-        >
+      {/*
+        Background depth cards. The stage keeps the composition at phone
+        proportions and centres it, so on an iPad the cards frame the logo
+        instead of splaying out to the far edges of a 768–1366pt screen.
+        Card size scales with the stage via --card-size.
+      */}
+      <div className="relative mx-auto h-full w-full max-w-[430px] [--card-size:136px] md:max-w-[600px] md:[--card-size:172px]">
+        {CARDS.map((card, i) => (
           <div
-            className={depthClass[card.depth]}
-            style={
-              {
-                width: 136,
-                height: 136,
-                borderRadius: 22,
-                background: card.color,
-                boxShadow: card.boxShadow,
-                filter: `blur(${card.blur})`,
-                opacity: card.opacity,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                padding: 12,
-                "--dur": card.duration,
-                "--delay": card.delay,
-              } as React.CSSProperties
-            }
+            key={card.name}
+            className={`absolute h-[var(--card-size)] w-[var(--card-size)] ${entryClasses[i]}`}
+            style={{
+              top: `${card.topPct}%`,
+              ...(card.left !== undefined ? { left: card.left } : {}),
+              ...(card.right !== undefined ? { right: card.right } : {}),
+            }}
           >
-            <span
-              style={{
-                fontSize: 18,
-                fontWeight: 600,
-                letterSpacing: "0.3px",
-                color: card.textColor,
-                width: "100%",
-                textAlign: "center",
-              }}
+            <div
+              className={`flex h-full w-full flex-col items-center justify-center ${depthClass[card.depth]}`}
+              style={
+                {
+                  borderRadius: 22,
+                  background: card.color,
+                  boxShadow: card.boxShadow,
+                  filter: `blur(${card.blur})`,
+                  opacity: card.opacity,
+                  gap: 6,
+                  padding: 12,
+                  "--dur": card.duration,
+                  "--delay": card.delay,
+                } as React.CSSProperties
+              }
             >
-              {card.name}
-            </span>
-            <span
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                lineHeight: 1.1,
-                color: card.textColor,
-                width: "100%",
-                textAlign: "center",
-              }}
-            >
-              {card.value}
-            </span>
+              <span
+                className="w-full text-center text-[18px] md:text-[22px]"
+                style={{
+                  fontWeight: 600,
+                  letterSpacing: "0.3px",
+                  color: card.textColor,
+                }}
+              >
+                {card.name}
+              </span>
+              <span
+                className="w-full text-center text-[18px] md:text-[22px]"
+                style={{
+                  fontWeight: 700,
+                  lineHeight: 1.1,
+                  color: card.textColor,
+                }}
+              >
+                {card.value}
+              </span>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
       {/* Center: icon + subtitle */}
       <div
@@ -184,15 +184,16 @@ export default function RootPage() {
           width={96}
           height={96}
           priority
+          className="md:h-[124px] md:w-[124px]"
           style={{
             borderRadius: 22,
             boxShadow: "0 8px 28px rgba(55,66,84,0.28)",
           }}
         />
-        <p className="mt-2 w-full text-center text-2xl font-bold whitespace-nowrap text-gray-600 italic">
+        <p className="mt-2 w-full text-center text-2xl font-bold whitespace-nowrap text-gray-600 italic md:text-3xl">
           araS
         </p>
-        <p className="text-1xl w-full text-center font-bold whitespace-nowrap text-gray-600 italic">
+        <p className="text-1xl w-full text-center font-bold whitespace-nowrap text-gray-600 italic md:text-xl">
           個人資產管理工具
         </p>
       </div>

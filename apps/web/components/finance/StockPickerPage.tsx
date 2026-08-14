@@ -233,7 +233,7 @@ export function StockPickerPage({ open, onClose, onSelect, market, color, holdin
         open ? "translate-x-0" : "pointer-events-none translate-x-full"
       }`}
     >
-      <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-14 pb-3">
+      <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-14 pb-3 md:max-w-xl lg:max-w-2xl">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
@@ -246,7 +246,7 @@ export function StockPickerPage({ open, onClose, onSelect, market, color, holdin
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-md px-4">
+        <div className="mx-auto max-w-md px-4 md:max-w-xl lg:max-w-2xl">
           {loading ? (
             <div className="py-24 text-center text-[14px] text-[#8e8e93]">載入中...</div>
           ) : error ? (
@@ -297,7 +297,7 @@ export function StockPickerPage({ open, onClose, onSelect, market, color, holdin
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-3 pb-10">
+      <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-3 pb-10 md:max-w-xl lg:max-w-2xl">
         <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow-sm">
           <Search size={16} className="shrink-0 text-[#8e8e93]" />
           <input
