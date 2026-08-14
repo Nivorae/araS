@@ -29,6 +29,7 @@ import {
   dividendsService,
   PremiumRequiredError,
   NotFoundError,
+  ConflictError,
 } from "../../services/dividends.service";
 
 const USER_ID = "user_test123";
@@ -342,5 +343,74 @@ describe("DividendsService.delete", () => {
       where: { id: BANK.id },
       data: { value: 0 },
     });
+  });
+});
+
+describe("DividendsService.reinvest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(true);
+    txMock.entry.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === STOCK.id ? STOCK : where.id === BANK.id ? BANK : null
+    );
+    txMock.entryHistory.create.mockResolvedValue({ id: "hist-new" });
+    txMock.dividend.update.mockResolvedValue(
+      dividendRow({
+        reinvestedAt: new Date("2026-08-14"),
+        reinvestAmount: 1200,
+        reinvestPrice: 600,
+        reinvestUnits: 2,
+      })
+    );
+  });
+
+  it("debits the bank and credits the stock with derived units", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(
+      dividendRow({ bankEntryId: BANK.id, bankHistoryId: "hist-1" })
+    );
+
+    await dividendsService.reinvest("div-1", { amount: 1200, price: 600 }, USER_ID);
+
+    expect(txMock.entryHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entryId: BANK.id, delta: -1200, balance: 48800 }),
+    });
+    expect(txMock.entryHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entryId: STOCK.id, delta: 1200, units: 2, balance: 101200 }),
+    });
+  });
+
+  it("skips the bank leg when the dividend has no bank account", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(dividendRow());
+
+    await dividendsService.reinvest("div-1", { amount: 1200, price: 600 }, USER_ID);
+
+    const entryIds = txMock.entryHistory.create.mock.calls.map((c) => c[0].data.entryId);
+    expect(entryIds).toEqual([STOCK.id]);
+  });
+
+  it("rejects reinvesting the same dividend twice", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(
+      dividendRow({ reinvestedAt: new Date("2026-08-14") })
+    );
+
+    await expect(
+      dividendsService.reinvest("div-1", { amount: 1200, price: 600 }, USER_ID)
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(txMock.entryHistory.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an amount larger than the dividend", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(dividendRow());
+
+    await expect(
+      dividendsService.reinvest("div-1", { amount: 5000, price: 600 }, USER_ID)
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("rejects a non-premium user", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
+    await expect(
+      dividendsService.reinvest("div-1", { amount: 1200, price: 600 }, USER_ID)
+    ).rejects.toBeInstanceOf(PremiumRequiredError);
   });
 });

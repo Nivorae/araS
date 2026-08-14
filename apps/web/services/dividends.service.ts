@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { CreateDividend } from "@repo/shared";
+import type { CreateDividend, ReinvestDividend } from "@repo/shared";
 import { prisma } from "@/lib/prisma";
 import { d, dn } from "@/lib/serialize";
 import { entitlementsService } from "@/services/entitlements.service";
@@ -211,6 +211,51 @@ export class DividendsService {
       orderBy: { payDate: "desc" },
     });
     return rows.map(serializeDividend);
+  }
+
+  async reinvest(id: string, data: ReinvestDividend, userId: string) {
+    if (!(await entitlementsService.isPremium(userId))) throw new PremiumRequiredError();
+
+    return prisma.$transaction(async (tx) => {
+      const dividend = await tx.dividend.findFirst({ where: { id, userId } });
+      if (!dividend) throw new NotFoundError("股利紀錄不存在");
+      if (dividend.reinvestedAt) throw new ConflictError("這筆股利已經再投資過了");
+      if (data.amount > Number(dividend.amount)) {
+        throw new ConflictError("再投資金額不可超過股利金額");
+      }
+
+      const stock = await requireStockEntry(tx, dividend.entryId, userId);
+      const units = data.amount / data.price;
+
+      // 銀行端先扣：錢要先離開帳戶才進股票，兩筆 history 的時序才讀得懂。
+      // 沒有入帳帳戶的股利代表這筆錢從未進入帳面，自然無從扣除。
+      let reinvestBankHistoryId: string | null = null;
+      if (dividend.bankEntryId) {
+        const bank = await requireCashEntry(tx, dividend.bankEntryId, userId);
+        reinvestBankHistoryId = await postHistory(
+          tx,
+          bank,
+          -data.amount,
+          null,
+          `${stock.name} 股利再投資`
+        );
+      }
+
+      const reinvestHistoryId = await postHistory(tx, stock, data.amount, units, "股利再投資");
+
+      const row = await tx.dividend.update({
+        where: { id },
+        data: {
+          reinvestedAt: new Date(),
+          reinvestAmount: data.amount,
+          reinvestPrice: data.price,
+          reinvestUnits: units,
+          reinvestHistoryId,
+          reinvestBankHistoryId,
+        },
+      });
+      return serializeDividend(row);
+    });
   }
 
   async delete(id: string, userId: string) {
