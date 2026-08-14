@@ -371,10 +371,10 @@ describe("DividendsService.reinvest", () => {
 
     await dividendsService.reinvest("div-1", { amount: 1200, price: 600 }, USER_ID);
 
-    expect(txMock.entryHistory.create).toHaveBeenCalledWith({
+    expect(txMock.entryHistory.create).toHaveBeenNthCalledWith(1, {
       data: expect.objectContaining({ entryId: BANK.id, delta: -1200, balance: 48800 }),
     });
-    expect(txMock.entryHistory.create).toHaveBeenCalledWith({
+    expect(txMock.entryHistory.create).toHaveBeenNthCalledWith(2, {
       data: expect.objectContaining({ entryId: STOCK.id, delta: 1200, units: 2, balance: 101200 }),
     });
   });
@@ -405,6 +405,7 @@ describe("DividendsService.reinvest", () => {
     await expect(
       dividendsService.reinvest("div-1", { amount: 5000, price: 600 }, USER_ID)
     ).rejects.toBeInstanceOf(ConflictError);
+    expect(txMock.entryHistory.create).not.toHaveBeenCalled();
   });
 
   it("rejects a non-premium user", async () => {
