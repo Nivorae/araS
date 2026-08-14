@@ -229,6 +229,51 @@ describe("DividendsService.delete", () => {
   });
 
   it("reverses both legs of a reinvested dividend", async () => {
+    // Leg-aware mock: each historyId maps to the entry + delta it actually
+    // wrote, in real write order (bank credit, then bank debit, then stock
+    // credit), so this test can tell the three legs apart instead of treating
+    // them as interchangeable bank rows.
+    const bankCreditLeg = {
+      entryId: BANK.id,
+      delta: 1200,
+      createdAt: new Date("2026-08-13T00:00:00Z"),
+    };
+    const bankDebitLeg = {
+      entryId: BANK.id,
+      delta: -1200,
+      createdAt: new Date("2026-08-14T00:00:00Z"),
+    };
+    const stockCreditLeg = {
+      entryId: STOCK.id,
+      delta: 1200,
+      createdAt: new Date("2026-08-14T00:00:01Z"),
+    };
+    const LEGS: Record<string, { entryId: string; delta: number; createdAt: Date }> = {
+      "hist-1": bankCreditLeg,
+      "hist-bank-debit": bankDebitLeg,
+      "hist-stock": stockCreditLeg,
+    };
+    txMock.entryHistory.findFirst.mockImplementation(
+      async ({
+        where,
+        orderBy,
+      }: {
+        where: { id?: string; entryId?: string };
+        orderBy?: unknown;
+      }) => {
+        if (where.id) return { id: where.id, ...LEGS[where.id] };
+        if (orderBy)
+          return {
+            id: "hist-prev",
+            entryId: where.entryId,
+            delta: 0,
+            balance: where.entryId === BANK.id ? 50000 : 100000,
+            createdAt: new Date("2026-08-01"),
+          };
+        return null;
+      }
+    );
+
     txMock.dividend.findFirst.mockResolvedValue(
       dividendRow({
         bankEntryId: BANK.id,
@@ -241,8 +286,36 @@ describe("DividendsService.delete", () => {
 
     await dividendsService.delete("div-1", USER_ID);
 
+    // Ordering is real, not order-insensitive: unwind reverses the two
+    // reinvest legs before the original credit leg (reverse write order).
     const deletedIds = txMock.entryHistory.delete.mock.calls.map((c) => c[0].where.id);
-    expect(deletedIds).toEqual(expect.arrayContaining(["hist-1", "hist-stock", "hist-bank-debit"]));
+    expect(deletedIds).toEqual(["hist-stock", "hist-bank-debit", "hist-1"]);
+
+    // Stock credit leg (delta +1200) reversed.
+    expect(txMock.entryHistory.updateMany).toHaveBeenCalledWith({
+      where: { entryId: STOCK.id, createdAt: { gt: stockCreditLeg.createdAt } },
+      data: { balance: { increment: -1200 } },
+    });
+    // Bank debit leg (delta -1200) reversed — increment is positive.
+    expect(txMock.entryHistory.updateMany).toHaveBeenCalledWith({
+      where: { entryId: BANK.id, createdAt: { gt: bankDebitLeg.createdAt } },
+      data: { balance: { increment: 1200 } },
+    });
+    // Bank credit leg (delta +1200) reversed.
+    expect(txMock.entryHistory.updateMany).toHaveBeenCalledWith({
+      where: { entryId: BANK.id, createdAt: { gt: bankCreditLeg.createdAt } },
+      data: { balance: { increment: -1200 } },
+    });
+
+    // Entry.value recomputed for both affected entries, not only the bank.
+    expect(txMock.entry.update).toHaveBeenCalledWith({
+      where: { id: BANK.id },
+      data: { value: 50000 },
+    });
+    expect(txMock.entry.update).toHaveBeenCalledWith({
+      where: { id: STOCK.id },
+      data: { value: 100000 },
+    });
   });
 
   it("throws NotFoundError for another user's dividend", async () => {

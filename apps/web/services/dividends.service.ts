@@ -132,8 +132,10 @@ async function reverseHistory(tx: Tx, historyId: string): Promise<void> {
  * 把一筆 dividend 造成的所有帳面影響沖掉（history 與收入 transaction），但不刪
  * dividend 本身 —— delete 會刪掉它，update 會接著重放。
  *
- * 沖銷順序是「後寫的先沖」：再投資的兩筆晚於入帳那筆，先沖它們才能讓
- * reverseHistory 的 balance 位移落在正確的區間上。
+ * 沖銷順序是「後寫的先沖」：再投資的兩筆晚於入帳那筆，所以照寫入順序反過來刪。
+ * 這不是為了讓算式跑得出正確答案 —— updateMany 只動 balance 不動 delta，且
+ * Entry.value 是等所有列都刪完後才由 reverseHistory 用剩下最新一筆回推，兩種
+ * 順序最終算出來的帳都一樣。反著刪純粹是遵循「後進先出」的慣例，讀起來直覺。
  */
 async function unwind(
   tx: Tx,
