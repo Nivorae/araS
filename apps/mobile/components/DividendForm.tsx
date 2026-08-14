@@ -11,11 +11,13 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Calendar } from "lucide-react-native";
 import { useApi } from "@/lib/api";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { useFinanceStore } from "@/store/financeStore";
 import { buildYfSymbol } from "@/lib/stockConstants";
+import { DatePickerModal } from "./DatePickerModal";
 
 interface DividendFormProps {
   visible: boolean;
@@ -37,6 +39,34 @@ function todayISO() {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${now.getFullYear()}-${month}-${day}`;
+}
+
+// FIX FOR FINDING 5 — deliberately NOT InsuranceForm's `toISODate` (its lines
+// 41-43), which does `d.toISOString().split("T")[0]`: that converts the
+// picker's LOCAL midnight to UTC and stores the PREVIOUS day for a Taiwan
+// user. That is a pre-existing bug in the insurance feature the controller
+// has left out of scope — not copied here. Build the string from local date
+// parts instead, same approach as `todayISO()` above.
+function dateToISO(d: Date): string {
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+// Parse "YYYY-MM-DD" back into a Date for the picker's `date` prop by reading
+// the parts explicitly. `new Date(string)` would parse it as UTC midnight,
+// which then displays as the PREVIOUS day once rendered in local time for a
+// Taiwan user — the same class of bug this file avoids above.
+function parseISOToLocalDate(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+}
+
+function formatDisplayDate(s: string): string {
+  if (!s) return "選擇日期";
+  const d = parseISOToLocalDate(s);
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export default function DividendForm({
@@ -73,10 +103,41 @@ export default function DividendForm({
   const [recordIncome, setRecordIncome] = useState(true);
   const [note, setNote] = useState("");
   const [fxRate, setFxRate] = useState(1);
+  const [fxLoading, setFxLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const isTWD = subCategory === "台股";
+
+  // FIX FOR FINDINGS 1 & 2 — the sheet is never unmounted, only `<Modal
+  // visible>` toggles the native overlay, so every `useState` initialiser
+  // above runs exactly once for the component's whole lifetime and nothing
+  // resets on close. Without this, reopening for a DIFFERENT stock leaks the
+  // previous stock's perShareStr/note/bankEntryId/amountStr/mode/error, and
+  // the stale non-empty perShareStr then blocks the prefill effect below from
+  // ever fetching the new stock's real rate. Separately, `sharesStr`'s
+  // `useState(currentShares...)` initialiser only ever runs once, so a
+  // `currentShares` that arrives later (Task 13 derives it from fetched
+  // history, `null` on first render) can never land in the field without an
+  // effect that re-applies it.
+  //
+  // This reset clears `perShareStr` to `""`, which is exactly the state the
+  // prefill effect's `if (perShareStr !== "") return` guard needs in order to
+  // fetch — see the note at that effect for why the two run in a safe order
+  // despite both being declared with `visible` in their deps.
+  useEffect(() => {
+    if (!visible) return;
+    setMode("perShare");
+    setPayDate(todayISO());
+    setPerShareStr("");
+    setSharesStr(currentShares != null ? String(currentShares) : "");
+    setAmountStr("");
+    setBankEntryId(null);
+    setRecordIncome(true);
+    setNote("");
+    setError(null);
+  }, [visible, entryId, currentShares]);
 
   // 非台股的 perShare 以報價幣別輸入，換算成 TWD 才送出（設計文件「幣別處理」）。
   //
@@ -90,12 +151,24 @@ export default function DividendForm({
   //     depend on that endpoint at all, take the rate the way
   //     useInvestmentMarketValues:72-90 does: read the stock's own quote for its
   //     `currency`, then quote `<currency>TWD=X` for the rate.
+  //
+  // FIX FOR FINDING 3 — `fxLoading` gates submission below. Without it,
+  // `fxRate` defaults to 1 and a user who fills perShare/shares and taps 儲存
+  // before this async fetch resolves submits `perShare * shares * 1` — for a
+  // non-TWD entry that's understated by roughly the USD/TWD (or other
+  // currency) rate, silently, with no error. 台股 short-circuits above with
+  // fxRate 1 and never sets fxLoading true, so it is unaffected. On fetch
+  // failure fxRate stays 1 but fxLoading still clears in `finally`, so
+  // submission isn't blocked forever — the existing UI hint below tells the
+  // user to switch to 依總金額 and enter TWD directly in that case.
   useEffect(() => {
     if (!visible || isTWD) {
       setFxRate(1);
+      setFxLoading(false);
       return;
     }
     let active = true;
+    setFxLoading(true);
     (async () => {
       try {
         const symbol = buildYfSymbol(subCategory, stockCode);
@@ -114,6 +187,8 @@ export default function DividendForm({
         if (active && typeof fx?.price === "number" && fx.price > 0) setFxRate(fx.price);
       } catch {
         // 抓不到匯率就維持 1，並在畫面上提示使用者改用「依總金額」輸入 TWD。
+      } finally {
+        if (active) setFxLoading(false);
       }
     })();
     return () => {
@@ -122,6 +197,18 @@ export default function DividendForm({
   }, [visible, isTWD, subCategory, stockCode, api]);
 
   // 每股股利預填。抓不到就留空，絕不阻擋輸入。
+  //
+  // Ordering note for FINDINGS 1/2's reset effect above: both effects list
+  // `visible` in their deps and both run on the render where the sheet opens.
+  // React runs a component's effects in declaration order within a commit, so
+  // the reset effect's `setPerShareStr("")` is scheduled first — but effects
+  // in the SAME commit still close over that render's state, so THIS effect's
+  // `perShareStr` reference in that first pass is whatever it was before the
+  // reset (possibly non-empty from the previous stock), and it may skip. The
+  // reset's setState schedules a re-render; on that next pass `perShareStr` is
+  // now `""`, the guard passes, and the fetch for the new stock actually
+  // fires. Net effect: one extra render, but the new stock's real rate is
+  // always fetched — never the stale one.
   useEffect(() => {
     if (!visible || perShareStr !== "") return;
     let active = true;
@@ -158,7 +245,19 @@ export default function DividendForm({
   };
 
   const handleSubmit = async () => {
-    if (amountTWD <= 0) {
+    // FIX FOR FINDING 3 — block submission while the FX quote is still in
+    // flight for a non-TWD entry, instead of silently sending `amountTWD`
+    // computed against the placeholder fxRate of 1.
+    if (fxLoading) {
+      setError("匯率讀取中，請稍候");
+      return;
+    }
+    // FIX FOR FINDING 4 — guard the ROUNDED value, the same value that gets
+    // sent. Guarding the raw float let a tiny positive amount (e.g. 0.004)
+    // pass this check and then round to 0, which the backend's
+    // `z.number().positive()` rejects with an opaque generic error.
+    const roundedAmount = Math.round(amountTWD * 100) / 100;
+    if (roundedAmount <= 0) {
       setError("請輸入大於 0 的股利金額");
       return;
     }
@@ -174,7 +273,7 @@ export default function DividendForm({
       await addDividend({
         entryId,
         payDate,
-        amount: Math.round(amountTWD * 100) / 100,
+        amount: roundedAmount,
         ...(mode === "perShare" && parseFloat(perShareStr) > 0
           ? { perShare: parseFloat(perShareStr) }
           : {}),
@@ -211,7 +310,10 @@ export default function DividendForm({
               ].map(({ m, label }) => (
                 <Pressable
                   key={m}
-                  onPress={() => setMode(m)}
+                  onPress={() => {
+                    setMode(m);
+                    setError(null);
+                  }}
                   style={[s.segmentBtn, mode === m && s.segmentBtnActive]}
                 >
                   <Text style={[s.segmentText, mode === m && s.segmentTextActive]}>{label}</Text>
@@ -220,13 +322,15 @@ export default function DividendForm({
             </View>
 
             <Text style={s.label}>發放日</Text>
-            <TextInput
-              style={s.input}
-              value={payDate}
-              onChangeText={setPayDate}
-              placeholder="YYYY-MM-DD"
-              autoCorrect={false}
-            />
+            {/* FIX FOR FINDING 5 — a bare TextInput accepted any free-text
+                format (`2026/08/13`, `13-08-2026`, ...). Route through the
+                same DatePickerModal InsuranceForm/EntryForm already use for
+                every other date field in the app; `payDate` stays a
+                YYYY-MM-DD string in state. */}
+            <Pressable style={s.dateRow} onPress={() => setShowDatePicker(true)}>
+              <Text style={s.dateRowText}>{formatDisplayDate(payDate)}</Text>
+              <Calendar size={16} color="#8e8e93" />
+            </Pressable>
 
             {mode === "perShare" ? (
               <>
@@ -234,7 +338,10 @@ export default function DividendForm({
                 <TextInput
                   style={s.input}
                   value={perShareStr}
-                  onChangeText={setPerShareStr}
+                  onChangeText={(v) => {
+                    setPerShareStr(v);
+                    setError(null);
+                  }}
                   keyboardType="decimal-pad"
                   placeholder="例如 4.5"
                 />
@@ -242,7 +349,10 @@ export default function DividendForm({
                 <TextInput
                   style={s.input}
                   value={sharesStr}
-                  onChangeText={setSharesStr}
+                  onChangeText={(v) => {
+                    setSharesStr(v);
+                    setError(null);
+                  }}
                   keyboardType="decimal-pad"
                   placeholder="持股數"
                 />
@@ -253,7 +363,10 @@ export default function DividendForm({
                 <TextInput
                   style={s.input}
                   value={amountStr}
-                  onChangeText={setAmountStr}
+                  onChangeText={(v) => {
+                    setAmountStr(v);
+                    setError(null);
+                  }}
                   keyboardType="decimal-pad"
                   placeholder="實收總額"
                 />
@@ -261,11 +374,18 @@ export default function DividendForm({
             )}
 
             <Text style={s.computed}>換算後入帳：NT$ {amountTWD.toLocaleString()}</Text>
+            {/* FIX FOR FINDING 3 — surface the in-flight FX fetch so the user
+                knows why 儲存 is disabled, instead of it silently sending an
+                understated amount. */}
+            {!isTWD && fxLoading && <Text style={s.fxHint}>正在讀取匯率…</Text>}
 
             <Text style={s.label}>入帳帳戶</Text>
             <View style={s.bankList}>
               <Pressable
-                onPress={() => setBankEntryId(null)}
+                onPress={() => {
+                  setBankEntryId(null);
+                  setError(null);
+                }}
                 style={[s.bankChip, bankEntryId === null && s.bankChipActive]}
               >
                 <Text style={s.bankChipText}>不記錄</Text>
@@ -273,7 +393,10 @@ export default function DividendForm({
               {cashEntries.map((e) => (
                 <Pressable
                   key={e.id}
-                  onPress={() => setBankEntryId(e.id)}
+                  onPress={() => {
+                    setBankEntryId(e.id);
+                    setError(null);
+                  }}
                   style={[s.bankChip, bankEntryId === e.id && s.bankChipActive]}
                 >
                   <Text style={s.bankChipText}>{e.name}</Text>
@@ -283,11 +406,25 @@ export default function DividendForm({
 
             <View style={s.switchRow}>
               <Text style={s.label}>同步記為收入</Text>
-              <Switch value={recordIncome} onValueChange={setRecordIncome} />
+              <Switch
+                value={recordIncome}
+                onValueChange={(v) => {
+                  setRecordIncome(v);
+                  setError(null);
+                }}
+              />
             </View>
 
             <Text style={s.label}>備註</Text>
-            <TextInput style={s.input} value={note} onChangeText={setNote} placeholder="選填" />
+            <TextInput
+              style={s.input}
+              value={note}
+              onChangeText={(v) => {
+                setNote(v);
+                setError(null);
+              }}
+              placeholder="選填"
+            />
 
             {error && <Text style={s.error}>{error}</Text>}
           </ScrollView>
@@ -298,14 +435,26 @@ export default function DividendForm({
             </Pressable>
             <Pressable
               onPress={handleSubmit}
-              disabled={submitting}
-              style={[s.btn, s.btnPrimary, submitting && s.btnDisabled]}
+              disabled={submitting || fxLoading}
+              style={[s.btn, s.btnPrimary, (submitting || fxLoading) && s.btnDisabled]}
             >
-              <Text style={s.btnPrimaryText}>{submitting ? "儲存中…" : "儲存"}</Text>
+              <Text style={s.btnPrimaryText}>
+                {submitting ? "儲存中…" : fxLoading ? "匯率讀取中…" : "儲存"}
+              </Text>
             </Pressable>
           </View>
         </View>
       </View>
+
+      <DatePickerModal
+        visible={showDatePicker}
+        date={parseISOToLocalDate(payDate)}
+        onConfirm={(picked) => {
+          setPayDate(dateToISO(picked));
+          setError(null);
+        }}
+        onClose={() => setShowDatePicker(false)}
+      />
     </Modal>
   );
 }
@@ -356,6 +505,18 @@ const s = StyleSheet.create({
     color: "#1c1c1e",
   },
   computed: { fontSize: 14, fontWeight: "600", color: "#66788E", marginTop: 14 },
+  fxHint: { fontSize: 12, color: "#8e8e93", marginTop: 4 },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#e5e5ea",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dateRowText: { fontSize: 15, color: "#1c1c1e" },
   bankList: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   bankChip: {
     paddingHorizontal: 12,
