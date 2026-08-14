@@ -415,3 +415,79 @@ describe("DividendsService.reinvest", () => {
     ).rejects.toBeInstanceOf(PremiumRequiredError);
   });
 });
+
+describe("DividendsService.update", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(true);
+    txMock.entry.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === STOCK.id ? STOCK : where.id === BANK.id ? BANK : null
+    );
+    txMock.entryHistory.create.mockResolvedValue({ id: "hist-new" });
+    txMock.entryHistory.findFirst.mockImplementation(
+      async ({ where, orderBy }: { where: { id?: string }; orderBy?: unknown }) => {
+        if (where.id)
+          return { id: where.id, entryId: BANK.id, delta: 1200, createdAt: new Date("2026-08-13") };
+        if (orderBy)
+          return {
+            id: "hist-prev",
+            entryId: BANK.id,
+            delta: 0,
+            balance: 50000,
+            createdAt: new Date("2026-08-01"),
+          };
+        return null;
+      }
+    );
+    txMock.dividend.update.mockResolvedValue(dividendRow({ amount: 2000 }));
+  });
+
+  it("unwinds the old posting and replays the new amount", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(
+      dividendRow({ bankEntryId: BANK.id, bankHistoryId: "hist-1", transactionId: "tx-1" })
+    );
+
+    await dividendsService.update("div-1", { amount: 2000 }, USER_ID);
+
+    expect(txMock.entryHistory.delete).toHaveBeenCalledWith({ where: { id: "hist-1" } });
+    expect(txMock.transaction.deleteMany).toHaveBeenCalledWith({
+      where: { id: "tx-1", userId: USER_ID },
+    });
+    expect(txMock.entryHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entryId: BANK.id, delta: 2000 }),
+    });
+  });
+
+  it("refuses to change the amount of a reinvested dividend", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(
+      dividendRow({ reinvestedAt: new Date("2026-08-14") })
+    );
+
+    await expect(
+      dividendsService.update("div-1", { amount: 2000 }, USER_ID)
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("clears the bank posting when bankEntryId is set to null", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(
+      dividendRow({ bankEntryId: BANK.id, bankHistoryId: "hist-1" })
+    );
+
+    await dividendsService.update("div-1", { bankEntryId: null }, USER_ID);
+
+    expect(txMock.entryHistory.delete).toHaveBeenCalledWith({ where: { id: "hist-1" } });
+    expect(txMock.entryHistory.create).not.toHaveBeenCalled();
+    expect(txMock.dividend.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ bankEntryId: null, bankHistoryId: null }),
+      })
+    );
+  });
+
+  it("throws NotFoundError for another user's dividend", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(null);
+    await expect(dividendsService.update("div-1", { amount: 1 }, USER_ID)).rejects.toBeInstanceOf(
+      NotFoundError
+    );
+  });
+});

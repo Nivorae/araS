@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { CreateDividend, ReinvestDividend } from "@repo/shared";
+import type { CreateDividend, ReinvestDividend, UpdateDividend } from "@repo/shared";
 import { prisma } from "@/lib/prisma";
 import { d, dn } from "@/lib/serialize";
 import { entitlementsService } from "@/services/entitlements.service";
@@ -252,6 +252,76 @@ export class DividendsService {
           reinvestUnits: units,
           reinvestHistoryId,
           reinvestBankHistoryId,
+        },
+      });
+      return serializeDividend(row);
+    });
+  }
+
+  /**
+   * 先完整沖銷再重放，而不是就地調整差額。就地調整在「換了入帳帳戶」時會把
+   * 差額記到錯的帳上；沖銷重放只有一套規則，也就只有一處會錯。
+   *
+   * 已再投資的股利不能改金額 —— 再投資是另一筆既成事實，改了會讓兩者對不上。
+   * 要改就整筆刪掉重建。
+   */
+  async update(id: string, data: UpdateDividend, userId: string) {
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.dividend.findFirst({ where: { id, userId } });
+      if (!existing) throw new NotFoundError("股利紀錄不存在");
+      if (existing.reinvestedAt && data.amount !== undefined) {
+        throw new ConflictError("已再投資的股利不可修改金額，請刪除後重新建立");
+      }
+
+      const stock = await requireStockEntry(tx, existing.entryId, userId);
+
+      const amount = data.amount ?? Number(existing.amount);
+      const payDate = data.payDate ? new Date(data.payDate) : existing.payDate;
+      const note = data.note === undefined ? existing.note : data.note;
+      const bankEntryId = data.bankEntryId === undefined ? existing.bankEntryId : data.bankEntryId;
+      const hadIncome = existing.transactionId !== null;
+
+      await unwind(tx, existing);
+
+      let bankHistoryId: string | null = null;
+      if (bankEntryId) {
+        const bank = await requireCashEntry(tx, bankEntryId, userId);
+        bankHistoryId = await postHistory(tx, bank, amount, null, `${stock.name} 股利`);
+      }
+
+      let transactionId: string | null = null;
+      if (hadIncome) {
+        const txRow = await tx.transaction.create({
+          data: {
+            userId,
+            type: "income",
+            amount,
+            category: "股利",
+            source: stock.name,
+            date: payDate,
+            note: note ?? null,
+          },
+        });
+        transactionId = txRow.id;
+      }
+
+      // 沖銷把再投資那兩筆也刪掉了，所以 reinvest* 一併歸零 —— 使用者要重新
+      // 按一次再投資。這是刻意的：金額或帳戶變了，舊的再投資已不成立。
+      const row = await tx.dividend.update({
+        where: { id },
+        data: {
+          payDate,
+          amount,
+          note: note ?? null,
+          bankEntryId,
+          bankHistoryId,
+          transactionId,
+          reinvestedAt: null,
+          reinvestAmount: null,
+          reinvestPrice: null,
+          reinvestUnits: null,
+          reinvestHistoryId: null,
+          reinvestBankHistoryId: null,
         },
       });
       return serializeDividend(row);
