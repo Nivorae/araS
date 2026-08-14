@@ -328,6 +328,68 @@ export class DividendsService {
     });
   }
 
+  /**
+   * yieldOnCost 用「本年度股利 ÷ 累計成本」。costBasis 是該 entry 所有
+   * EntryHistory.delta 之和，因此包含再投資產生的成本 —— 再投資確實增加了成本
+   * 基礎，殖利率隨之略降是正確的，不是 bug。
+   */
+  async summary(userId: string) {
+    const currentYear = new Date().getFullYear();
+
+    const [dividends, entries] = await Promise.all([
+      prisma.dividend.findMany({
+        where: { userId },
+        select: { entryId: true, amount: true, payDate: true },
+      }),
+      prisma.entry.findMany({
+        where: { userId, subCategory: { in: STOCK_CATS } },
+        select: {
+          id: true,
+          name: true,
+          stockCode: true,
+          subCategory: true,
+          history: { select: { delta: true } },
+        },
+      }),
+    ]);
+
+    const perEntry = new Map<string, { allTime: number; thisYear: number }>();
+    let totalAllTime = 0;
+    let totalThisYear = 0;
+
+    for (const row of dividends) {
+      const amount = Number(row.amount);
+      const isThisYear = row.payDate.getFullYear() === currentYear;
+      totalAllTime += amount;
+      if (isThisYear) totalThisYear += amount;
+
+      const acc = perEntry.get(row.entryId) ?? { allTime: 0, thisYear: 0 };
+      acc.allTime += amount;
+      if (isThisYear) acc.thisYear += amount;
+      perEntry.set(row.entryId, acc);
+    }
+
+    const byEntry = entries
+      .filter((e) => perEntry.has(e.id))
+      .map((e) => {
+        const acc = perEntry.get(e.id)!;
+        const costBasis = e.history.reduce((s, h) => s + Number(h.delta), 0);
+        return {
+          entryId: e.id,
+          name: e.name,
+          stockCode: e.stockCode,
+          subCategory: e.subCategory,
+          totalAllTime: acc.allTime,
+          totalThisYear: acc.thisYear,
+          costBasis,
+          yieldOnCost: costBasis > 0 ? acc.thisYear / costBasis : null,
+        };
+      })
+      .sort((a, b) => b.totalAllTime - a.totalAllTime);
+
+    return { totalAllTime, totalThisYear, byEntry };
+  }
+
   async delete(id: string, userId: string) {
     await prisma.$transaction(async (tx) => {
       const dividend = await tx.dividend.findFirst({ where: { id, userId } });

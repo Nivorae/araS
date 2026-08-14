@@ -24,6 +24,7 @@ const txMock = {
   transaction: { create: vi.fn(), deleteMany: vi.fn() },
 };
 
+import { prisma } from "@/lib/prisma";
 import { entitlementsService } from "../../services/entitlements.service";
 import {
   dividendsService,
@@ -509,5 +510,70 @@ describe("DividendsService.update", () => {
     await expect(dividendsService.update("div-1", { amount: 1 }, USER_ID)).rejects.toBeInstanceOf(
       NotFoundError
     );
+  });
+});
+
+describe("DividendsService.summary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("totals all-time and this-year dividends per entry with yield on cost", async () => {
+    const thisYear = new Date().getFullYear();
+    vi.mocked(prisma.dividend.findMany).mockResolvedValue([
+      { entryId: STOCK.id, amount: 1000, payDate: new Date(`${thisYear}-03-01`) },
+      { entryId: STOCK.id, amount: 500, payDate: new Date(`${thisYear - 2}-03-01`) },
+    ] as never);
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      {
+        id: STOCK.id,
+        name: "台積電",
+        stockCode: "2330",
+        subCategory: "台股",
+        history: [{ delta: 100000 }],
+      },
+    ] as never);
+
+    const result = await dividendsService.summary(USER_ID);
+
+    expect(result.totalAllTime).toBe(1500);
+    expect(result.totalThisYear).toBe(1000);
+    expect(result.byEntry).toHaveLength(1);
+    expect(result.byEntry[0]).toMatchObject({
+      entryId: STOCK.id,
+      name: "台積電",
+      totalAllTime: 1500,
+      totalThisYear: 1000,
+      costBasis: 100000,
+      yieldOnCost: 0.01,
+    });
+  });
+
+  it("returns null yield when cost basis is zero", async () => {
+    vi.mocked(prisma.dividend.findMany).mockResolvedValue([
+      { entryId: STOCK.id, amount: 100, payDate: new Date() },
+    ] as never);
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      {
+        id: STOCK.id,
+        name: "台積電",
+        stockCode: "2330",
+        subCategory: "台股",
+        history: [{ delta: 0 }],
+      },
+    ] as never);
+
+    const result = await dividendsService.summary(USER_ID);
+
+    expect(result.byEntry[0].yieldOnCost).toBeNull();
+  });
+
+  it("returns zeroes when the user has no dividends", async () => {
+    vi.mocked(prisma.dividend.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([] as never);
+
+    const result = await dividendsService.summary(USER_ID);
+
+    expect(result).toEqual({ totalAllTime: 0, totalThisYear: 0, byEntry: [] });
   });
 });
