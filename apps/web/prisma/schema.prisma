@@ -25,6 +25,8 @@ model Entry {
   loan        Loan?
   insurance   Insurance?
   recurrences Recurrence[]
+  dividends     Dividend[] @relation("EntryDividends")
+  bankDividends Dividend[] @relation("BankDividends")
 
   @@index([topCategory])
   @@index([userId])
@@ -204,4 +206,35 @@ model UserIdMigration {
   createdAt    DateTime @default(now())
 
   @@index([userId])
+}
+
+model Dividend {
+  id      String @id @default(cuid())
+  userId  String
+  entryId String
+  entry   Entry  @relation("EntryDividends", fields: [entryId], references: [id], onDelete: Cascade)
+
+  payDate  DateTime
+  amount   Decimal
+  perShare Decimal?
+  shares   Decimal?
+  note     String?
+
+  bankEntryId   String?
+  bankEntry     Entry?  @relation("BankDividends", fields: [bankEntryId], references: [id], onDelete: SetNull)
+  bankHistoryId String?
+  transactionId String?
+
+  reinvestedAt          DateTime?
+  reinvestAmount        Decimal?
+  reinvestPrice         Decimal?
+  reinvestUnits         Decimal?
+  reinvestHistoryId     String?
+  reinvestBankHistoryId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, payDate])
+  @@index([entryId])
 }
