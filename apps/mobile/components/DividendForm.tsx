@@ -240,7 +240,16 @@ export default function DividendForm({
   const promptPremiumUpgrade = () => {
     Alert.alert("股息紀錄是 Premium 功能", "升級 Premium 即可記錄股利並一鍵再投資。", [
       { text: "稍後再決定", style: "cancel" },
-      { text: "解鎖 Premium", onPress: () => router.push("/paywall") },
+      {
+        text: "解鎖 Premium",
+        onPress: () => {
+          // This sheet is a native <Modal>, which renders above the navigator —
+          // pushing /paywall on top of it would leave this sheet still visible
+          // in front of the paywall screen. Close it first.
+          onClose();
+          router.push("/paywall");
+        },
+      },
     ]);
   };
 
@@ -388,7 +397,9 @@ export default function DividendForm({
                 }}
                 style={[s.bankChip, bankEntryId === null && s.bankChipActive]}
               >
-                <Text style={s.bankChipText}>不記錄</Text>
+                <Text style={[s.bankChipText, bankEntryId === null && s.bankChipTextActive]}>
+                  不記錄
+                </Text>
               </Pressable>
               {cashEntries.map((e) => (
                 <Pressable
@@ -399,7 +410,9 @@ export default function DividendForm({
                   }}
                   style={[s.bankChip, bankEntryId === e.id && s.bankChipActive]}
                 >
-                  <Text style={s.bankChipText}>{e.name}</Text>
+                  <Text style={[s.bankChipText, bankEntryId === e.id && s.bankChipTextActive]}>
+                    {e.name}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -526,6 +539,7 @@ const s = StyleSheet.create({
   },
   bankChipActive: { backgroundColor: "#66788E" },
   bankChipText: { fontSize: 13, color: "#1c1c1e" },
+  bankChipTextActive: { color: "#fff" },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",

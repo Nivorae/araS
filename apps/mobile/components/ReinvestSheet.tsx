@@ -139,7 +139,16 @@ export default function ReinvestSheet({
     if (!premiumLoading && !isPremium) {
       Alert.alert("股息紀錄是 Premium 功能", "升級 Premium 即可一鍵再投資。", [
         { text: "稍後再決定", style: "cancel" },
-        { text: "解鎖 Premium", onPress: () => router.push("/paywall") },
+        {
+          text: "解鎖 Premium",
+          onPress: () => {
+            // Same fix as DividendForm.tsx — this sheet is a native <Modal>
+            // rendered above the navigator, so it must close before pushing
+            // /paywall or it stays visible in front of that screen.
+            onClose();
+            router.push("/paywall");
+          },
+        },
       ]);
       return;
     }
@@ -210,7 +219,7 @@ export default function ReinvestSheet({
               </Text>
               <Text style={s.summaryLine}>
                 增加{"　"}
-                {units > 0 ? units.toFixed(4) : "—"} 股
+                {units > 0 ? units.toFixed(2) : "—"} 股
               </Text>
             </View>
 

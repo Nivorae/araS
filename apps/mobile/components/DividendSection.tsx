@@ -135,7 +135,7 @@ export default function DividendSection({
                   <Text style={s.rowAmount}>+NT$ {d.amount.toLocaleString()}</Text>
                   {d.reinvestedAt ? (
                     <Text style={s.reinvested}>
-                      已再投資 {d.reinvestUnits != null ? `${d.reinvestUnits.toFixed(4)} 股` : ""}
+                      已再投資 {d.reinvestUnits != null ? `${d.reinvestUnits.toFixed(2)} 股` : ""}
                     </Text>
                   ) : (
                     <Pressable onPress={() => setReinvestTarget(d)} hitSlop={6}>
