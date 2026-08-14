@@ -324,3 +324,68 @@ export const InsuranceSchema = z.object({
   updatedAt: z.string(),
 });
 export type Insurance = z.infer<typeof InsuranceSchema>;
+
+// Dividend — 股票股息紀錄（Premium）。amount 一律 TWD，見設計文件「幣別處理」。
+export const CreateDividendSchema = z.object({
+  entryId: z.string().min(1),
+  payDate: z.string().min(1),
+  amount: z.number().positive(),
+  perShare: z.number().positive().optional(),
+  shares: z.number().positive().optional(),
+  note: z.string().max(200).optional(),
+  // 未指定即不記錄現金流：不會對任何流動資金 Entry 產生 history。
+  bankEntryId: z.string().min(1).optional(),
+  // 預設同步一筆收入 Transaction，使用者可在表單上關掉。
+  recordIncome: z.boolean().default(true),
+});
+export type CreateDividend = z.infer<typeof CreateDividendSchema>;
+
+export const UpdateDividendSchema = z.object({
+  payDate: z.string().min(1).optional(),
+  amount: z.number().positive().optional(),
+  note: z.string().max(200).nullable().optional(),
+  // null 表示「清掉入帳帳戶」，undefined 表示「不動」。
+  bankEntryId: z.string().min(1).nullable().optional(),
+});
+export type UpdateDividend = z.infer<typeof UpdateDividendSchema>;
+
+export const ReinvestDividendSchema = z.object({
+  amount: z.number().positive(),
+  price: z.number().positive(),
+});
+export type ReinvestDividend = z.infer<typeof ReinvestDividendSchema>;
+
+export const DividendSchema = z.object({
+  id: z.string(),
+  entryId: z.string(),
+  payDate: z.string(),
+  amount: z.number(),
+  perShare: z.number().nullable(),
+  shares: z.number().nullable(),
+  note: z.string().nullable(),
+  bankEntryId: z.string().nullable(),
+  reinvestedAt: z.string().nullable(),
+  reinvestAmount: z.number().nullable(),
+  reinvestPrice: z.number().nullable(),
+  reinvestUnits: z.number().nullable(),
+  createdAt: z.string(),
+});
+export type Dividend = z.infer<typeof DividendSchema>;
+
+export const DividendSummarySchema = z.object({
+  totalAllTime: z.number(),
+  totalThisYear: z.number(),
+  byEntry: z.array(
+    z.object({
+      entryId: z.string(),
+      name: z.string(),
+      stockCode: z.string().nullable(),
+      subCategory: z.string(),
+      totalAllTime: z.number(),
+      totalThisYear: z.number(),
+      costBasis: z.number(),
+      yieldOnCost: z.number().nullable(),
+    })
+  ),
+});
+export type DividendSummary = z.infer<typeof DividendSummarySchema>;
