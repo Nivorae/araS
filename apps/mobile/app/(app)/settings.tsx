@@ -20,7 +20,6 @@ import {
   ArrowLeft,
   Check,
   CreditCard,
-  HandCoins,
   LogOut,
   Loader,
   Trash2,
@@ -251,13 +250,6 @@ export default function SettingsScreen() {
                 />
               </>
             ) : null}
-            <SettingCard
-              icon={HandCoins}
-              label="股息總覽"
-              color="#C7C7D4"
-              textColor="#1c1c1e"
-              onPress={() => router.push("/dividends")}
-            />
             <SettingCard
               icon={LogOut}
               label="登出"

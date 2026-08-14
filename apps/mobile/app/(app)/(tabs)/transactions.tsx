@@ -8,6 +8,7 @@ const SCREEN_H = Dimensions.get("window").height;
 import { BalanceScale } from "@/components/BalanceScale";
 import { InvestmentChart } from "@/components/InvestmentChart";
 import { AssetAllocationView } from "@/components/AssetAllocationView";
+import { DividendOverview } from "@/components/DividendOverview";
 import { aggregateSnapshots, getRangeDisplayLabel } from "@/lib/chartAggregation";
 import { formatCurrency } from "@/lib/format";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
@@ -16,7 +17,7 @@ import { useIsPremium } from "@/hooks/useIsPremium";
 export default function TransactionsScreen() {
   const router = useRouter();
   const { isPremium } = useIsPremium();
-  const [view, setView] = useState<"trend" | "allocation">("trend");
+  const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
   const entries = useFinanceStore((s) => s.entries);
   const valueSnapshots = useFinanceStore((s) => s.valueSnapshots);
 
@@ -55,11 +56,13 @@ export default function TransactionsScreen() {
 
         <Text style={s.periodLabel}>{periodLabel}</Text>
 
-        {/* Trend / allocation toggle. Free users tapping 配置 go straight to
-            the paywall (decision five of the asset-allocation-analysis spec)
-            instead of switching — the free/premium check must also happen
-            server-side (GET /api/entries/allocation returns 403), this is
-            just the fast UX path. */}
+        {/* Trend / allocation / dividends toggle. Free users tapping 配置 or
+            股息 go straight to the paywall (decision five of the
+            asset-allocation-analysis spec, applied identically to dividends
+            since that module is also Premium-only) instead of switching —
+            the free/premium check must also happen server-side (GET
+            /api/entries/allocation and the dividend write endpoints both
+            return 403), this is just the fast UX path. */}
         <View style={s.toggleRow}>
           <Pressable
             style={[s.toggleBtn, view === "trend" && s.toggleBtnActive]}
@@ -79,12 +82,30 @@ export default function TransactionsScreen() {
           >
             <Text style={[s.toggleText, view === "allocation" && s.toggleTextActive]}>配置</Text>
           </Pressable>
+          <Pressable
+            style={[s.toggleBtn, view === "dividends" && s.toggleBtnActive]}
+            onPress={() => {
+              if (!isPremium) {
+                router.push("/paywall");
+                return;
+              }
+              setView("dividends");
+            }}
+          >
+            <Text style={[s.toggleText, view === "dividends" && s.toggleTextActive]}>股息</Text>
+          </Pressable>
         </View>
       </View>
 
       {/* Chart zone — fills remaining height */}
       <View style={s.chartZone}>
-        {view === "trend" ? <InvestmentChart data={investmentData} /> : <AssetAllocationView />}
+        {view === "trend" ? (
+          <InvestmentChart data={investmentData} />
+        ) : view === "allocation" ? (
+          <AssetAllocationView />
+        ) : (
+          <DividendOverview />
+        )}
       </View>
     </SafeAreaView>
   );
