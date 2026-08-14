@@ -417,11 +417,27 @@ describe("DividendsService.reinvest", () => {
 });
 
 describe("DividendsService.update", () => {
+  // Stateful bank fixture representing the post-original-credit state (BANK
+  // was 50000 before the original 1200 credit; update() is called with the
+  // account already sitting at 51200). Mutable so entry.findFirst/entry.update
+  // behave like the real DB: entry.update writes the value back, so a call
+  // that reads AFTER unwind sees what reverseHistory just wrote (50000), while
+  // a call that reads BEFORE unwind would still see the stale 51200. This is
+  // what makes the ordering of requireCashEntry vs unwind observable.
+  let bankValue = 51200;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    bankValue = 51200;
     vi.mocked(entitlementsService.isPremium).mockResolvedValue(true);
     txMock.entry.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) =>
-      where.id === STOCK.id ? STOCK : where.id === BANK.id ? BANK : null
+      where.id === STOCK.id ? STOCK : where.id === BANK.id ? { ...BANK, value: bankValue } : null
+    );
+    txMock.entry.update.mockImplementation(
+      async ({ data }: { where: { id: string }; data: { value: number } }) => {
+        bankValue = data.value;
+        return { id: BANK.id, value: bankValue };
+      }
     );
     txMock.entryHistory.create.mockResolvedValue({ id: "hist-new" });
     txMock.entryHistory.findFirst.mockImplementation(
@@ -453,8 +469,12 @@ describe("DividendsService.update", () => {
     expect(txMock.transaction.deleteMany).toHaveBeenCalledWith({
       where: { id: "tx-1", userId: USER_ID },
     });
+    // The bank was at 51200 when update() was called, but unwind() reverses
+    // the old 1200 credit first (entry.update writes it back to 50000), so
+    // the replay must post against 50000, not the stale pre-unwind 51200.
+    // If requireCashEntry ever ran before unwind, this would be 53200.
     expect(txMock.entryHistory.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ entryId: BANK.id, delta: 2000 }),
+      data: expect.objectContaining({ entryId: BANK.id, delta: 2000, balance: 52000 }),
     });
   });
 
