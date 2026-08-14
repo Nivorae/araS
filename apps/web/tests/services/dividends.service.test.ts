@@ -565,7 +565,7 @@ describe("DividendsService.summary", () => {
 
     const result = await dividendsService.summary(USER_ID);
 
-    expect(result.byEntry[0].yieldOnCost).toBeNull();
+    expect(result.byEntry[0]!.yieldOnCost).toBeNull();
   });
 
   it("returns zeroes when the user has no dividends", async () => {
@@ -575,5 +575,49 @@ describe("DividendsService.summary", () => {
     const result = await dividendsService.summary(USER_ID);
 
     expect(result).toEqual({ totalAllTime: 0, totalThisYear: 0, byEntry: [] });
+  });
+
+  it("omits an entry that has no dividend rows, and queries entries by the dividend-derived id set", async () => {
+    vi.mocked(prisma.dividend.findMany).mockResolvedValue([
+      { entryId: STOCK.id, amount: 100, payDate: new Date() },
+    ] as never);
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      {
+        id: STOCK.id,
+        name: "台積電",
+        stockCode: "2330",
+        subCategory: "台股",
+        history: [{ delta: 10000 }],
+      },
+    ] as never);
+
+    const result = await dividendsService.summary(USER_ID);
+
+    expect(result.byEntry).toHaveLength(1);
+    expect(result.byEntry[0]!.entryId).toBe(STOCK.id);
+    expect(prisma.entry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: USER_ID, id: { in: [STOCK.id] } }),
+      })
+    );
+  });
+
+  it("returns null yield when cost basis is negative", async () => {
+    vi.mocked(prisma.dividend.findMany).mockResolvedValue([
+      { entryId: STOCK.id, amount: 100, payDate: new Date() },
+    ] as never);
+    vi.mocked(prisma.entry.findMany).mockResolvedValue([
+      {
+        id: STOCK.id,
+        name: "台積電",
+        stockCode: "2330",
+        subCategory: "台股",
+        history: [{ delta: -500 }],
+      },
+    ] as never);
+
+    const result = await dividendsService.summary(USER_ID);
+
+    expect(result.byEntry[0]!.yieldOnCost).toBeNull();
   });
 });

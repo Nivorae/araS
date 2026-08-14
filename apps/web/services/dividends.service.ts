@@ -336,22 +336,18 @@ export class DividendsService {
   async summary(userId: string) {
     const currentYear = new Date().getFullYear();
 
-    const [dividends, entries] = await Promise.all([
-      prisma.dividend.findMany({
-        where: { userId },
-        select: { entryId: true, amount: true, payDate: true },
-      }),
-      prisma.entry.findMany({
-        where: { userId, subCategory: { in: STOCK_CATS } },
-        select: {
-          id: true,
-          name: true,
-          stockCode: true,
-          subCategory: true,
-          history: { select: { delta: true } },
-        },
-      }),
-    ]);
+    // Dividend rows can only exist against an entry that passed
+    // requireStockEntry at creation time — so build the id set from the
+    // dividends themselves rather than re-filtering entries by subCategory.
+    // subCategory is a mutable free string; filtering entries by it here
+    // would let a later category edit silently drop an entry out of byEntry
+    // while its amounts stayed in the totals, breaking sum(byEntry) ===
+    // totalAllTime. This also means the entry read now depends on the
+    // dividend read, so it can no longer run inside the same Promise.all.
+    const dividends = await prisma.dividend.findMany({
+      where: { userId },
+      select: { entryId: true, amount: true, payDate: true },
+    });
 
     const perEntry = new Map<string, { allTime: number; thisYear: number }>();
     let totalAllTime = 0;
@@ -359,7 +355,7 @@ export class DividendsService {
 
     for (const row of dividends) {
       const amount = Number(row.amount);
-      const isThisYear = row.payDate.getFullYear() === currentYear;
+      const isThisYear = row.payDate.getUTCFullYear() === currentYear;
       totalAllTime += amount;
       if (isThisYear) totalThisYear += amount;
 
@@ -369,8 +365,18 @@ export class DividendsService {
       perEntry.set(row.entryId, acc);
     }
 
+    const entries = await prisma.entry.findMany({
+      where: { userId, id: { in: [...perEntry.keys()] } },
+      select: {
+        id: true,
+        name: true,
+        stockCode: true,
+        subCategory: true,
+        history: { select: { delta: true } },
+      },
+    });
+
     const byEntry = entries
-      .filter((e) => perEntry.has(e.id))
       .map((e) => {
         const acc = perEntry.get(e.id)!;
         const costBasis = e.history.reduce((s, h) => s + Number(h.delta), 0);
