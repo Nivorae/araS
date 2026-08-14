@@ -269,8 +269,17 @@ export class DividendsService {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.dividend.findFirst({ where: { id, userId } });
       if (!existing) throw new NotFoundError("股利紀錄不存在");
-      if (existing.reinvestedAt && data.amount !== undefined) {
-        throw new ConflictError("已再投資的股利不可修改金額，請刪除後重新建立");
+      // FIX FOR FINDING 4 (final review) — this guard used to only fire when
+      // `data.amount !== undefined`, so a note/date-only PATCH slipped past it
+      // and fell through to the full unwind()+replay below, which deletes
+      // BOTH reinvest history rows (removing the shares from the holding and
+      // refunding the bank debit) and nulls every reinvest* field — silently
+      // destroying the reinvestment for an edit that touched neither the
+      // amount nor the account. Reject ANY update once reinvested, regardless
+      // of which fields changed; the only path to change a reinvested
+      // dividend stays delete-and-recreate.
+      if (existing.reinvestedAt) {
+        throw new ConflictError("已再投資的股利不可修改，請刪除後重新建立");
       }
 
       const stock = await requireStockEntry(tx, existing.entryId, userId);

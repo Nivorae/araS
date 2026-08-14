@@ -23,7 +23,13 @@ export default function DividendSection({
   currentShares,
   costBasis,
 }: DividendSectionProps) {
-  const { fetchDividends, deleteDividend, fetchAll } = useFinanceActions();
+  // FIX FOR FINDING 3 (final review) — `fetchAll()` refreshes
+  // entries/portfolio/recurrences/transactions, but per-entry history lives in
+  // a separate store slice (`historyByEntry`) only refreshed by
+  // `fetchEntryHistory(entryId)`. Without also calling it here, 交易記錄 and
+  // the totalUnits/costBasis/殖利率 derived from it on entry/[id].tsx stay
+  // stale after add/reinvest/delete until the user leaves and returns.
+  const { fetchDividends, deleteDividend, fetchAll, fetchEntryHistory } = useFinanceActions();
   const entries = useFinanceStore((s) => s.entries);
 
   const [rows, setRows] = useState<Dividend[]>([]);
@@ -36,7 +42,18 @@ export default function DividendSection({
     } catch {
       // 讀取失敗就維持現有列表 —— 這是輔助資訊，不該讓詳情頁整頁失敗。
     }
-  }, [fetchDividends, entryId]);
+    // FIX FOR FINDING 3 — `load()` runs after every dividend mutation (new
+    // dividend's onSaved, reinvest's onDone, and delete below), so refreshing
+    // `historyByEntry` here covers add/reinvest/delete in one place, in
+    // addition to each caller's own `fetchAll()` (not instead of it).
+    // Failure is likewise non-fatal: 交易記錄 just stays on its last good
+    // value, same tolerance as the dividend list above.
+    try {
+      await fetchEntryHistory(entryId);
+    } catch {
+      // 同上：交易記錄暫時沒更新不該讓整頁失敗。
+    }
+  }, [fetchDividends, fetchEntryHistory, entryId]);
 
   useEffect(() => {
     void load();

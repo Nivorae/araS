@@ -17,9 +17,22 @@
 
 **上線順序（不可調換）：**
 
-1. Prisma migration 隨 web 部署到 Vercel，正式環境要先有 `Dividend` 資料表
-2. 確認生產 API 可用
-3. 才對 mobile 發 `eas update`
+1. 對正式環境的 Supabase 專案直接跑 migration —— **不要**依賴 `.env`（依
+   CLAUDE.md 規定永遠指向 dev 專案）也**不要**指望 Vercel 部署會做這件事：
+   `apps/web/package.json` 的 build command 是 `prisma generate && next build`，
+   沒有 `prisma migrate deploy` 這一步，單獨部署 web 不會在正式環境建出
+   `Dividend` 資料表。改用內嵌環境變數、只對這一次指令生效的方式，明確指向
+   正式環境的 `DATABASE_URL`/`DIRECT_URL`：
+
+   ```bash
+   DATABASE_URL="<正式環境 pooler URL>" DIRECT_URL="<正式環境 direct URL>" \
+     pnpm --filter @repo/web exec prisma migrate deploy
+   ```
+
+2. 照常把 web 部署到 Vercel
+3. 確認生產 API 可用 —— 具體檢查：已登入使用者呼叫
+   `GET /api/dividends/summary` 要回 `200`，不是 `500`
+4. 都確認過後，才對 mobile 發 `eas update`
 
 順序反過來的話，OTA 會先送到裝置上，裝置卻查詢一張還不存在的資料表。
 

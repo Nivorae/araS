@@ -9,8 +9,11 @@ import { logSecurityEvent } from "@/lib/security-log";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Ctx) {
+  // FIX FOR FINDING 5 — hoisted above the try so the catch block's
+  // mapDividendError call can pass it through for the ownership_violation log.
+  let userId: string | null = null;
   try {
-    const { userId } = await auth();
+    ({ userId } = await auth());
     if (!userId) {
       logSecurityEvent({ type: "auth_fail", resource: "/api/dividends/[id]/reinvest" });
       return err("UNAUTHORIZED", "Authentication required", 401);
@@ -19,6 +22,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const data = ReinvestDividendSchema.parse(await req.json());
     return ok(await dividendsService.reinvest(id, data, userId));
   } catch (e) {
-    return mapDividendError(e);
+    return mapDividendError(e, {
+      userId,
+      resource: "/api/dividends/[id]/reinvest",
+    });
   }
 }

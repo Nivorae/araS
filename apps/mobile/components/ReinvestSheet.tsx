@@ -37,8 +37,16 @@ export default function ReinvestSheet({
   const [amountStr, setAmountStr] = useState(String(dividendAmount));
   const [priceStr, setPriceStr] = useState("");
   const [priceLoading, setPriceLoading] = useState(false);
+  const [currency, setCurrency] = useState("TWD");
+  // FIX FOR FINDING 1 — mirrors DividendForm.tsx's fxLoading: true while the
+  // price + FX quote are in flight for a non-TWD holding, gating submission so
+  // a user can't confirm against a foreign-currency price that hasn't been
+  // converted to TWD yet.
+  const [fxLoading, setFxLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isTWD = subCategory === "台股";
 
   // CONTROLLER RULING R24 — `setPriceStr("")` added to this reset. The original
   // plan reset only the amount and the error, leaving a previously fetched price in
@@ -50,15 +58,31 @@ export default function ReinvestSheet({
     if (!visible) return;
     setAmountStr(String(dividendAmount));
     setPriceStr("");
+    setCurrency("TWD");
     setError(null);
   }, [visible, dividendAmount, stockCode]);
 
   // 現價只是預填。台股報價本來就會有抓不到的情況 —— 那時把價格欄留空讓使用者
   // 手填，而不是讓整個再投資失敗。
+  //
+  // FIX FOR FINDING 1 — the sheet used to prefill `priceStr` from the raw
+  // quote `price` regardless of `currency`. The backend computes
+  // `units = amount / price` (dividends.service.ts `reinvest()`) against an
+  // `amount` that is always TWD, so for any non-台股 holding (美股/加密貨幣/
+  // 貴金屬) that wrote a foreign-currency price paired with a TWD amount —
+  // inflating the derived units by roughly the FX rate and permanently
+  // writing the wrong share count to EntryHistory.units. Mirrors
+  // DividendForm.tsx's fx effect: fetch `{price, currency}`, and when
+  // `currency !== "TWD"`, fetch `${currency}TWD=X` and convert before
+  // prefilling. On fetch/FX failure, fall back to leaving the field for
+  // manual entry rather than blocking forever (fxLoading always clears in
+  // `finally`).
   useEffect(() => {
     if (!visible) return;
     let active = true;
     setPriceLoading(true);
+    // 台股沒有幣別換算，維持原本行為：不設 fxLoading，不擋送出。
+    if (!isTWD) setFxLoading(true);
     (async () => {
       try {
         const symbol = buildYfSymbol(subCategory, stockCode);
@@ -69,26 +93,46 @@ export default function ReinvestSheet({
         // time. `rawGet` (apps/mobile/lib/api.ts:100) is what EntryForm and
         // useInvestmentMarketValues already use against this exact endpoint. The
         // response field IS `price` — verified in apps/web/app/api/stocks/price/route.ts.
-        const r = await api.rawGet<{ price: number }>(
+        const r = await api.rawGet<{ price: number; currency: string }>(
           `/api/stocks/price?symbol=${encodeURIComponent(symbol)}`
         );
-        if (active && typeof r?.price === "number") setPriceStr(String(r.price));
+        if (!active || typeof r?.price !== "number") return;
+        const cur = r.currency ?? "TWD";
+        if (active) setCurrency(cur);
+        if (isTWD || cur === "TWD") {
+          setPriceStr(String(r.price));
+          return;
+        }
+        const fx = await api.rawGet<{ price: number }>(
+          `/api/stocks/price?symbol=${encodeURIComponent(`${cur}TWD=X`)}`
+        );
+        if (active && typeof fx?.price === "number" && fx.price > 0) {
+          setPriceStr(String(r.price * fx.price));
+        }
+        // 抓不到匯率就留空讓使用者手填 —— 手填的是 TWD 價格，見下方幣別提示。
       } catch {
         // 留空，使用者手填。
       } finally {
-        if (active) setPriceLoading(false);
+        if (active) {
+          setPriceLoading(false);
+          setFxLoading(false);
+        }
       }
     })();
     return () => {
       active = false;
     };
-  }, [visible, subCategory, stockCode, api]);
+  }, [visible, subCategory, stockCode, api, isTWD]);
 
   const amount = parseFloat(amountStr) || 0;
   const price = parseFloat(priceStr) || 0;
   const units = useMemo(() => (price > 0 ? amount / price : 0), [amount, price]);
 
   const handleSubmit = async () => {
+    // FIX FOR FINDING 1 — block submission while the FX quote is still in
+    // flight for a non-台股 holding, matching DividendForm.tsx's fxLoading
+    // gate, so a prefilled-but-unconverted foreign price can never be sent.
+    if (fxLoading) return setError("匯率讀取中，請稍候");
     if (amount <= 0) return setError("請輸入大於 0 的再投資金額");
     if (amount > dividendAmount) return setError("再投資金額不可超過股利金額");
     if (price <= 0) return setError("請輸入價格（抓不到現價時可手動填入）");
@@ -133,7 +177,10 @@ export default function ReinvestSheet({
               keyboardType="decimal-pad"
             />
 
-            <Text style={s.label}>買入價格{priceLoading ? "（讀取現價中…）" : ""}</Text>
+            <Text style={s.label}>
+              買入價格{!isTWD ? `（${currency}）` : ""}
+              {priceLoading ? "（讀取現價中…）" : ""}
+            </Text>
             <TextInput
               style={s.input}
               value={priceStr}
@@ -144,6 +191,9 @@ export default function ReinvestSheet({
               keyboardType="decimal-pad"
               placeholder="抓不到現價時請手動填入"
             />
+            {/* FIX FOR FINDING 1 — surface the in-flight FX fetch, same as
+                DividendForm.tsx, so the user knows why 確認再投資 is disabled. */}
+            {!isTWD && fxLoading && <Text style={s.fxHint}>正在讀取匯率…</Text>}
 
             <View style={s.summary}>
               {bankName ? (
@@ -173,10 +223,12 @@ export default function ReinvestSheet({
             </Pressable>
             <Pressable
               onPress={handleSubmit}
-              disabled={submitting}
-              style={[s.btn, s.btnPrimary, submitting && s.btnDisabled]}
+              disabled={submitting || fxLoading}
+              style={[s.btn, s.btnPrimary, (submitting || fxLoading) && s.btnDisabled]}
             >
-              <Text style={s.btnPrimaryText}>{submitting ? "處理中…" : "確認再投資"}</Text>
+              <Text style={s.btnPrimaryText}>
+                {submitting ? "處理中…" : fxLoading ? "匯率讀取中…" : "確認再投資"}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -214,6 +266,7 @@ const s = StyleSheet.create({
     fontSize: 15,
     color: "#1c1c1e",
   },
+  fxHint: { fontSize: 12, color: "#8e8e93", marginTop: 4 },
   summary: { backgroundColor: "#f2f2f7", borderRadius: 12, padding: 14, marginTop: 18, gap: 6 },
   summaryLine: { fontSize: 14, color: "#1c1c1e" },
   summaryMuted: { fontSize: 13, color: "#8e8e93" },

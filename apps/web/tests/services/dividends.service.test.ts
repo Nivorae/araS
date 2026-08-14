@@ -179,6 +179,40 @@ describe("DividendsService.create", () => {
       )
     ).rejects.toThrow();
   });
+
+  // FIX FOR FINDING 6 (final review, mirrors Ruling R5's stock-leg pattern) —
+  // the previous version of this file had no bank-leg ownership test at all;
+  // the closest test above only proves a category mismatch throws. Make the
+  // mock leg-aware by BOTH id and userId (the bank row exists, but only for
+  // its real owner, not for USER_ID), and assert the exact `where` clause
+  // `findFirst` was called with, so this actually proves the `userId`
+  // predicate reaches Prisma for the bank leg too — not just that some
+  // lookup happened and returned null.
+  it("rejects a bank entry owned by someone else", async () => {
+    const REAL_BANK_OWNER = "user_other789";
+    txMock.entry.findFirst.mockImplementation(
+      async ({ where }: { where: { id: string; userId: string } }) => {
+        if (where.id === STOCK.id && where.userId === USER_ID) return STOCK;
+        if (where.id === BANK.id && where.userId === REAL_BANK_OWNER) return BANK;
+        return null;
+      }
+    );
+    await expect(
+      dividendsService.create(
+        {
+          entryId: STOCK.id,
+          payDate: "2026-08-13",
+          amount: 1200,
+          bankEntryId: BANK.id,
+          recordIncome: false,
+        },
+        USER_ID
+      )
+    ).rejects.toThrow();
+    expect(txMock.entry.findFirst).toHaveBeenCalledWith({
+      where: { id: BANK.id, userId: USER_ID },
+    });
+  });
 });
 
 describe("DividendsService.delete", () => {
@@ -487,6 +521,28 @@ describe("DividendsService.update", () => {
     await expect(
       dividendsService.update("div-1", { amount: 2000 }, USER_ID)
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  // FIX FOR FINDING 4 (final review) — the guard used to only trip on
+  // `data.amount !== undefined`, so a note-only PATCH on an already-reinvested
+  // dividend slipped past it into the full unwind()+replay, silently deleting
+  // both reinvest history rows and nulling every reinvest* field even though
+  // the edit touched neither the amount nor the account. Assert the rejection
+  // AND that no history/transaction writes happened.
+  it("refuses a note-only edit of a reinvested dividend, and writes nothing", async () => {
+    txMock.dividend.findFirst.mockResolvedValue(
+      dividendRow({ reinvestedAt: new Date("2026-08-14") })
+    );
+
+    await expect(
+      dividendsService.update("div-1", { note: "changed note" }, USER_ID)
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    expect(txMock.entryHistory.create).not.toHaveBeenCalled();
+    expect(txMock.entryHistory.delete).not.toHaveBeenCalled();
+    expect(txMock.transaction.create).not.toHaveBeenCalled();
+    expect(txMock.transaction.deleteMany).not.toHaveBeenCalled();
+    expect(txMock.dividend.update).not.toHaveBeenCalled();
   });
 
   it("clears the bank posting when bankEntryId is set to null", async () => {

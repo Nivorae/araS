@@ -7,8 +7,11 @@ import { ok, err } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
 
 export async function GET(req: NextRequest) {
+  // FIX FOR FINDING 5 — hoisted above the try so the catch block's
+  // mapDividendError call can pass it through for the ownership_violation log.
+  let userId: string | null = null;
   try {
-    const { userId } = await auth();
+    ({ userId } = await auth());
     if (!userId) {
       logSecurityEvent({ type: "auth_fail", resource: "/api/dividends" });
       return err("UNAUTHORIZED", "Authentication required", 401);
@@ -16,13 +19,14 @@ export async function GET(req: NextRequest) {
     const entryId = req.nextUrl.searchParams.get("entryId") ?? undefined;
     return ok(await dividendsService.list(userId, entryId));
   } catch (e) {
-    return mapDividendError(e);
+    return mapDividendError(e, { userId, resource: "/api/dividends" });
   }
 }
 
 export async function POST(req: NextRequest) {
+  let userId: string | null = null;
   try {
-    const { userId } = await auth();
+    ({ userId } = await auth());
     if (!userId) {
       logSecurityEvent({ type: "auth_fail", resource: "/api/dividends" });
       return err("UNAUTHORIZED", "Authentication required", 401);
@@ -30,6 +34,6 @@ export async function POST(req: NextRequest) {
     const data = CreateDividendSchema.parse(await req.json());
     return ok(await dividendsService.create(data, userId), 201);
   } catch (e) {
-    return mapDividendError(e);
+    return mapDividendError(e, { userId, resource: "/api/dividends" });
   }
 }
