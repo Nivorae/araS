@@ -110,8 +110,18 @@ eas update --branch production --clear-cache --message "…"
 - **Dry-run what the OTA would ship before publishing** (catches wrong env vars):
   ```bash
   cd apps/mobile && NODE_ENV=production npx expo export --platform ios
-  grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # want 0
+  grep -ac "192.168" dist/_expo/static/js/ios/*.hbc   # want 0
+  grep -ac "19\.2\.4" dist/_expo/static/js/ios/*.hbc  # want 0 — web's React
   ```
+  **Hermes stores non-ASCII string constants as UTF-16LE**, so grepping the
+  `.hbc` for a Chinese string always returns 0 even when the string is present —
+  that is the encoding, not a missing string. Verify with ASCII markers (keys,
+  URLs, version numbers), or decode explicitly:
+  ```bash
+  python -c "print(open('dist/_expo/static/js/ios/entry.hbc','rb').read().count('回復購買'.encode('utf-16-le')))"
+  ```
+  Also pass `grep -a`: without it, grep treats the bundle as binary and prints
+  "Binary file matches" instead of counting.
 
 ---
 
@@ -229,6 +239,19 @@ Bump rules (semver `major.minor.patch`):
 
 Only Road B bumps the version. Road A (OTA) keeps the same version.
 
+### Resubmitting after a rejection — do NOT bump the version
+
+A rejected version was never released, so it is still strictly higher than the
+live one and the ASC version entry already exists under that number. Bumping it
+would force a new ASC version entry for no reason.
+
+- `app.json` `version`: **unchanged** (1.2 stays 1.2)
+- Build number: EAS increments it by itself (7 → 8)
+- Rebuild, `eas submit`, then in ASC switch **建置版本** to the new build and
+  resubmit.
+
+Fix the code, rebuild, resubmit — that is the whole loop.
+
 ---
 
 ## App Store Connect facts (avoid past confusion)
@@ -242,6 +265,56 @@ Only Road B bumps the version. Road A (OTA) keeps the same version.
   over automatically and the old one becomes history. Old versions accumulate in
   the list and are never cleaned up.
 - Consider setting the version's release to **manual** to control go-live timing.
+- **年齡分級 (Age Rating) is App-level metadata, not tied to any version** — it
+  can be edited any time, including right after a release, with no rebuild and
+  no resubmission. If Apple adds new questionnaire fields (e.g. the 2026 social
+  media / UGC questions) they surface as a **banner with a deep link** — "前往
+  「App 資訊」頁面" — on both the version page and the App Info page. If the
+  年齡分級 section's normal 編輯 button doesn't respond, use that banner link
+  first; it routes to the questionnaire directly. Also try an incognito window
+  (extensions can silently break ASC's edit buttons) before assuming the
+  feature hasn't rolled out to the account yet. Sub-questions are gated on
+  their parent answer — a greyed-out child question is normal until the parent
+  is answered, not a bug.
+
+### After release: verify the purchase chain end-to-end, don't trust config alone
+
+Getting every ASC field right does not prove the money path works — five
+components (RevenueCat SDK → Apple transaction → Apple's server notification →
+your webhook's signature verification → the DB write your `isPremium` check
+reads) can each be individually correct in config and still never have executed
+together in production. **The only real proof is one real purchase**, then
+confirming the account actually flips to premium in the app.
+
+Two things worth checking _before_ that purchase, because both fail silently
+(HTTP 200, no error, entitlement just never arrives):
+
+- **App Store Server Notifications URL must be Version 2**, matching whatever
+  signature-verification library the webhook uses (`SignedDataVerifier` here
+  only parses V2 JWS). If ASC's edit dialog for the URL shows no version
+  selector at all, that means the account no longer offers V1 — nothing to do.
+  Point Production **and** Sandbox at your own webhook URL, not RevenueCat's —
+  RevenueCat only reads purchases via its own SDK config; entitlement here is
+  decided by your own DB, which only your webhook writes.
+- **A verifying-certificate env var (e.g. `APPLE_ROOT_CA_CERTS_BASE64`) missing
+  in production makes the webhook silently no-op.** If the handler's shape is
+  "return 200 without processing when the cert config is absent" (so Apple
+  doesn't retry forever once the URL is registered), you cannot tell "not
+  configured" and "configured but nothing has hit it yet" apart from the
+  outside — until you send something. Probe cheaply with an empty POST:
+  ```bash
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Content-Type: application/json" -d '{}' <webhook-url>
+  ```
+  `400 missing signedPayload` means the handler got past the cert-config check
+  (good — infra is live). `200` with no processing means the env var is
+  missing in that environment. This distinguishes the two failure modes without
+  needing a real transaction.
+
+Also remember **the subscription _product_ is approved separately from the
+app** — an approved app version with a still-pending subscription product shows
+an empty plan list to real users, indistinguishable from the unsigned Paid Apps
+Agreement failure mode. Check 營利 → 訂閱 shows 已核准 before treating "App is
+Ready for Sale" as done.
 
 ### Submitting a subscription (first time selling anything)
 
@@ -323,9 +396,123 @@ Only once all relevant items — subscription group, each subscription
 product, and the app version — show up together in "已可提交的項目" does
 「提交以供審查」stop being greyed out.
 
+### Guideline 3.1 checklist — work it as a list, not from user needs
+
+1.2 was rejected **twice in a row** on this, once per round. Both misses share
+a root cause worth stating plainly: **Apple's requirements are not derived from
+what users need.** They are an independent checklist. Engineering intuition
+reasons from user needs, so it misses this class of item systematically.
+
+| Requirement                                      | Where it lives                                |
+| ------------------------------------------------ | --------------------------------------------- |
+| **3.1.1** distinct **Restore Purchases** control | Code — paywall                                |
+| **3.1.2** EULA / Terms of Use link               | **Both** in-app _and_ ASC metadata            |
+| 3.1.2 auto-renewal disclosure                    | Code — on the paywall, next to the buy action |
+| 3.1.2 price + duration per plan                  | Code — visible before purchase                |
+| Privacy policy link                              | ASC dedicated field + in-app                  |
+| Subscription management link                     | Code — _should_, not _must_                   |
+
+Two traps in that table:
+
+- **The EULA needs to be in ASC metadata too, not just in the app.** Rejected
+  2026-08-05 for exactly this while the in-app link was already fine. Privacy
+  Policy has a **dedicated ASC field** so it can't be forgotten; Terms of Use
+  has **none** — it must be pasted into the **App Description** (a marketing
+  field), or registered under App Information → License Agreement. Writing a
+  custom EULA page and linking it only from the paywall is _not_ enough.
+  Fix: append to the App Description, no rebuild needed.
+
+  ```
+  使用條款 (EULA)：https://arasasset.com/terms
+  隱私權政策：https://arasasset.com/privacy
+  ```
+
+- **Restore is required even when the architecture makes it pointless.**
+  Rejected 2026-08-06 for its absence. Entitlement here is keyed by
+  `deriveAppleAccountToken(clerkUserId)`, so a user on a new device just signs
+  in and is premium again — the problem Restore exists to solve does not exist
+  in this app, which is precisely why nobody built it. Apple's test is purely
+  formal, and the rejection pre-empts the usual defence: _"automatically
+  restoring purchases on launch will not resolve this issue."_ Ship a distinct,
+  user-initiated button.
+
+  Do **not** gate the Restore button on whether offerings loaded. The buy button
+  is gated that way, and offerings really did come back empty once (unsigned
+  Paid Apps agreement) — gating Restore identically hides it exactly when a
+  subscriber needs it and when the reviewer looks for it.
+
+### Rejections come in rounds — passing one says nothing about the next
+
+Reviewers reject on the **first** problem found; they do not test everything and
+report once. Observed on 1.2:
+
+| Round | Kind                                                            | Caught                   |
+| ----- | --------------------------------------------------------------- | ------------------------ |
+| 1     | **Automated** — the message says "This is an automated message" | metadata (missing EULA)  |
+| 2     | **Human** — the message lists Review Devices and a review date  | in-app (missing Restore) |
+| 3     | **Human**, screenshot only, no prose                            | the SAME missing Restore |
+
+So round 1 never opened the app at all. Budget for more rounds, and work the
+whole 3.1 checklist above before resubmitting rather than fixing only what was
+quoted.
+
+### Uploading a build does NOT attach it — round 3 was the old binary
+
+Round 3 rejected an issue already fixed: the reviewer was still testing **build
+7** while the fix sat in build 8. `eas submit` uploads a build to App Store
+Connect; it does **not** point the version's 建置版本 field at it. **After every
+`eas submit`, open the version in ASC and confirm 建置版本 shows the new build
+number before resubmitting.**
+
+Two techniques for proving which binary a reviewer actually ran, when the
+rejection is just a screenshot:
+
+- **Render logic.** If the disputed control's condition is a strict subset of
+  something visible in the screenshot, that screenshot cannot come from the
+  fixed build. (Restore renders on `!isPremium && !loading`; the buy button adds
+  `&& plans.length > 0` — so a screenshot showing the buy button but no Restore
+  is impossible on the fixed build.)
+- **A value that differs between builds acts as a fingerprint.** `FREE_ENTRY_LIMIT`
+  is interpolated into the paywall copy and differed (20 vs 100_000) across the
+  two builds, which identified the binary outright.
+
+And to settle "is the fix even in that binary": `eas build:list --json` carries
+each build's `gitCommitHash`, so `git merge-base --is-ancestor <fix> <buildhash>`
+answers it in one command. `eas update:list --branch production` rules out an OTA
+having replaced the bundle — updates only reach a matching runtime version.
+
+**"Bug Fix Submissions" offer:** a rejection may say the issue is _eligible to
+be resolved on your next update_ — reply and they will approve this one. Only
+take that for a genuine bug-fix release. Declining it and fixing properly is
+the right call when the missing piece is core to the feature being shipped (a
+subscription release with no Restore will generate refund requests the moment
+someone changes device).
+
+### A compliance fix needs a REBUILD, not an OTA
+
+Even when the fix is pure JS over an already-shipped native module (Restore is
+— `react-native-purchases` is already in the binary), **never ship it as an OTA
+for a resubmission.** The reviewer opens the App Store binary and the OTA
+downloads in the background, so the first launch — the one where they check for
+the thing they rejected — can still be running the embedded bundle.
+
 ---
 
 ## Project-specific gotchas (from real incidents)
+
+- **Every `eas` command must run from `apps/mobile`.** `eas.json` lives there,
+  not at the repo root, and from the root you get
+  `eas.json could not be found at .../araS/eas.json`.
+- **`Redundant Binary Upload` (409) means the submit already worked.** Apple
+  rejecting _"You've already uploaded a build with build number 'N'"_ is a
+  duplicate `eas submit`, not a failure — the binary is in App Store Connect.
+  Check TestFlight before rebuilding anything; nothing needs redoing and the
+  build number does not need incrementing.
+- **`restorePurchases()` cannot run in Expo Go** (no native store), same as
+  `Purchases.configure()`. Any Restore work is therefore unexercised until it
+  reaches TestFlight — test both outcomes there (no purchase → "not found";
+  active sandbox subscription → restored + paywall flips) before resubmitting
+  for review.
 
 - **`eas update` ignores `eas.json`'s `env` blocks** — those apply to `eas build`
   only. It bundles at `NODE_ENV=production` and inlines whatever `EXPO_PUBLIC_*`
@@ -389,6 +576,32 @@ type-check` / `pnpm test` locally (after `pnpm db:generate`) before merging
   clears it safely (structurally cannot touch a real purchase) and lets a
   clean sandbox purchase test run against your normal account instead of
   needing a throwaway one.
+
+  **Caution before running that DELETE:** it assumes the exact product-id
+  prefix. Verify the real prefix against the actual ASC subscription product
+  ids (or just `SELECT` and eyeball every row) before running it — a wrong
+  guess at the prefix can delete a real purchase instead of test residue. Safer
+  first move either way: `SELECT` everything and read it, never delete blind.
+
+- **`isPremium` does not check `environment` — a Sandbox purchase grants real
+  Premium indistinguishably from a Production one.** `entitlements.service.ts`
+  reads only `status` and `expiresAt`. This is deliberate, not a bug: filtering
+  to Production would make TestFlight purchase testing impossible, and
+  TestFlight is the _only_ place `restorePurchases()` and the buy flow can ever
+  be exercised (`Purchases.configure()` throws in Expo Go). So every
+  `environment: Sandbox` row in `Subscription` is a real, permanent grant of
+  premium until it expires or is deleted by hand — clean it up after each round
+  of TestFlight purchase testing rather than leaving it to expire on its own.
+
+- **A `@repo/shared` constant can be both a backend gate and on-screen App
+  copy at the same time.** `FREE_ENTRY_LIMIT` feeds both
+  `entries.service.ts`'s create-limit check and `paywall.tsx`'s first selling
+  point (`` `免費版上限 ${FREE_ENTRY_LIMIT} 筆` ``) — changing it for
+  backend-compatibility reasons silently rewrites a user-facing screen too. A
+  1.2 build shipped saying "免費版上限 100000 筆" for this reason, visible to
+  App Review. Before changing any shared constant, `grep` its usages across
+  both `apps/web` and `apps/mobile` — if mobile interpolates it into copy, the
+  fix needs an OTA alongside the web deploy, not just a Vercel redeploy.
 
 ---
 
