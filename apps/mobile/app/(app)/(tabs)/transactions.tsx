@@ -9,6 +9,7 @@ const SCREEN_H = Dimensions.get("window").height;
 import { BalanceScale } from "@/components/BalanceScale";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationView } from "@/components/AssetAllocationView";
+import { DividendOverview } from "@/components/DividendOverview";
 import { formatCurrency } from "@/lib/format";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { useIsPremium } from "@/hooks/useIsPremium";
@@ -24,9 +25,16 @@ export default function TransactionsScreen() {
   const router = useRouter();
   const { isPremium } = useIsPremium();
   const { fetchNetWorthHistory } = useFinanceActions();
-  const [view, setView] = useState<"trend" | "allocation">("trend");
+  const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
   const [range, setRange] = useState<NetWorthRange>("6m");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // Mounted-once-then-kept-alive: switching `view` only toggles which pane is
+  // visible below (see `display: none` in chartZone), so a tab's component
+  // never unmounts once visited and doesn't reset/refetch on every switch
+  // back to it. Trend is visible from the start so it needs no flag; the
+  // other two mount lazily on first visit.
+  const [everVisitedAllocation, setEverVisitedAllocation] = useState(false);
+  const [everVisitedDividends, setEverVisitedDividends] = useState(false);
   const entries = useFinanceStore((s) => s.entries);
   const netWorthHistory = useFinanceStore((s) => s.netWorthHistory);
 
@@ -85,11 +93,13 @@ export default function TransactionsScreen() {
 
         <Text style={s.periodLabel}>{periodLabel}</Text>
 
-        {/* Trend / allocation toggle. Free users tapping 配置 go straight to
-            the paywall (decision five of the asset-allocation-analysis spec)
-            instead of switching — the free/premium check must also happen
-            server-side (GET /api/entries/allocation returns 403), this is
-            just the fast UX path. */}
+        {/* Trend / allocation / dividends toggle. Free users tapping 配置 or
+            股息 go straight to the paywall (decision five of the
+            asset-allocation-analysis spec, applied identically to dividends
+            since that module is also Premium-only) instead of switching —
+            the free/premium check must also happen server-side (GET
+            /api/entries/allocation and the dividend write endpoints both
+            return 403), this is just the fast UX path. */}
         <View style={s.toggleRow}>
           <Pressable
             style={[s.toggleBtn, view === "trend" && s.toggleBtnActive]}
@@ -104,44 +114,66 @@ export default function TransactionsScreen() {
                 router.push("/paywall");
                 return;
               }
+              setEverVisitedAllocation(true);
               setView("allocation");
             }}
           >
             <Text style={[s.toggleText, view === "allocation" && s.toggleTextActive]}>配置</Text>
           </Pressable>
+          <Pressable
+            style={[s.toggleBtn, view === "dividends" && s.toggleBtnActive]}
+            onPress={() => {
+              if (!isPremium) {
+                router.push("/paywall");
+                return;
+              }
+              setEverVisitedDividends(true);
+              setView("dividends");
+            }}
+          >
+            <Text style={[s.toggleText, view === "dividends" && s.toggleTextActive]}>股息</Text>
+          </Pressable>
         </View>
       </View>
 
-      {/* Chart zone — fills remaining height */}
+      {/* Chart zone — fills remaining height. All visited panes stay mounted;
+          `display: none` removes the hidden ones from layout without
+          unmounting them, so switching tabs never re-triggers their fetch. */}
       <View style={s.chartZone}>
-        {view === "trend" ? (
-          <>
-            <View style={s.rangeRow}>
-              {RANGES.map((r) => (
-                <Pressable
-                  key={r.key}
-                  disabled={isHistoryLoading}
-                  style={[
-                    s.rangeBtn,
-                    range === r.key && s.rangeBtnActive,
-                    isHistoryLoading && s.rangeBtnDisabled,
-                  ]}
-                  onPress={() => setRange(r.key)}
-                >
-                  <Text style={[s.rangeText, range === r.key && s.rangeTextActive]}>{r.label}</Text>
-                </Pressable>
-              ))}
+        <View style={[s.tabPane, view !== "trend" && s.hiddenPane]}>
+          <View style={s.rangeRow}>
+            {RANGES.map((r) => (
+              <Pressable
+                key={r.key}
+                disabled={isHistoryLoading}
+                style={[
+                  s.rangeBtn,
+                  range === r.key && s.rangeBtnActive,
+                  isHistoryLoading && s.rangeBtnDisabled,
+                ]}
+                onPress={() => setRange(r.key)}
+              >
+                <Text style={[s.rangeText, range === r.key && s.rangeTextActive]}>{r.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {isHistoryLoading ? (
+            <View style={s.chartLoading}>
+              <ActivityIndicator size="small" color="#8e8e93" />
             </View>
-            {isHistoryLoading ? (
-              <View style={s.chartLoading}>
-                <ActivityIndicator size="small" color="#8e8e93" />
-              </View>
-            ) : (
-              <NetWorthChart data={points} />
-            )}
-          </>
-        ) : (
-          <AssetAllocationView />
+          ) : (
+            <NetWorthChart data={points} />
+          )}
+        </View>
+        {everVisitedAllocation && (
+          <View style={[s.tabPane, view !== "allocation" && s.hiddenPane]}>
+            <AssetAllocationView />
+          </View>
+        )}
+        {everVisitedDividends && (
+          <View style={[s.tabPane, view !== "dividends" && s.hiddenPane]}>
+            <DividendOverview />
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -194,4 +226,6 @@ const s = StyleSheet.create({
   rangeText: { fontSize: 11, fontWeight: "600", color: "#c7c7cc" },
   rangeTextActive: { color: "#1c1c1e" },
   chartLoading: { flex: 1, alignItems: "center", justifyContent: "center" },
+  tabPane: { flex: 1 },
+  hiddenPane: { display: "none" },
 });

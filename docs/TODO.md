@@ -4,7 +4,7 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-08-13
+最後整理：2026-08-17
 
 ## 進行中
 
@@ -15,11 +15,13 @@
 新增這份 `docs/TODO.md`、`mobile-release` skill 補發版教訓、`CLAUDE.md` 補
 WON'T FIX 清單。
 
-### 2. PR #89 — 移除 Clerk dual-auth shim
+已於 2026-08-17 把 develop（含股息功能）合進本分支並解掉三個衝突。
+`資產損益` 頁現在是三個分頁：走勢（真實淨值歷史 + 區間選擇）／配置／股息，
+沿用 develop 的 keep-mounted 機制，切換分頁不會重新載入。
+**待確認的產品決定**：本分支把頁面標題從「投資損益」改名為「資產損益」，
+股息分頁是在股息功能合併時掛在「投資損益」下的 —— 上線前確認新名稱是想要的。
 
-`chore/remove-clerk-dual-auth`，狀態 OPEN，待審查/合併。
-
-### 3. 基金淨值更新（含境內外）— 設計階段
+### 2. 基金淨值更新（含境內外）— 設計階段
 
 - [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
       `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，

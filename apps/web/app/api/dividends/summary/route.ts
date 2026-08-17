@@ -1,17 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
-import { recurrencesService } from "@/services/recurrences.service";
+import { dividendsService } from "@/services/dividends.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
 
-export async function POST() {
+export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) {
-      logSecurityEvent({ type: "auth_fail", resource: "/api/recurrences/process" });
+      logSecurityEvent({ type: "auth_fail", resource: "/api/dividends/summary" });
       return err("UNAUTHORIZED", "Authentication required", 401);
     }
-    const created = await recurrencesService.process(userId);
-    return ok({ created });
+    return ok(await dividendsService.summary(userId));
   } catch (e) {
     return handleError(e);
   }

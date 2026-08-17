@@ -19,6 +19,7 @@ import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react-native";
 import * as Sentry from "@sentry/react-native";
 import type { EntryHistory } from "@repo/shared";
 import { BankLogo } from "@/components/BankLogo";
+import DividendSection from "@/components/DividendSection";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useFocusRefresh } from "@/hooks/useFocusRefresh";
@@ -441,16 +442,22 @@ export default function EntryDetailScreen() {
           )}
         </View>
 
+        {isStockEntry && entry.stockCode && (
+          <DividendSection
+            entryId={entry.id}
+            entryName={entry.name}
+            subCategory={entry.subCategory}
+            stockCode={entry.stockCode}
+            currentShares={history.reduce((sum, h) => sum + (h.units ?? 0), 0) || null}
+            costBasis={history.reduce((sum, h) => sum + h.delta, 0)}
+          />
+        )}
+
         {/* History */}
         <View style={s.historySection}>
           <View style={s.historySectionHeader}>
             <View style={s.historyTitleRow}>
               <Text style={s.historySectionTitle}>交易記錄</Text>
-              {/* Refresh indicator — shows while a background refetch runs even
-                  when cached rows are already on screen (e.g. after adding a record). */}
-              {historyLoading && history.length > 0 && (
-                <ActivityIndicator size="small" color="#8e8e93" />
-              )}
             </View>
             <Text style={s.historySectionSub}>變動</Text>
           </View>

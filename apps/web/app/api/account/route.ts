@@ -1,5 +1,5 @@
 import { clerkClient } from "@clerk/nextjs/server";
-import { auth } from "@/lib/clerk-auth";
+import { auth } from "@clerk/nextjs/server";
 import { revokeOAuthGrants } from "@/lib/oauth-revoke";
 import { accountService } from "@/services/account.service";
 import { ok, err, handleError } from "@/lib/api-response";

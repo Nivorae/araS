@@ -213,10 +213,12 @@ async function main(): Promise<void> {
             })
           ).count;
 
-          // Written in the same transaction as the rewrite above, because
-          // lib/clerk-auth.ts relies on this table to translate legacy tokens.
-          // If the rewrite committed without the map, every user still on the
-          // old iOS build would be locked out.
+          // Written in the same transaction as the rewrite above, because the
+          // dual-auth shim relied on this table to translate legacy tokens: if
+          // the rewrite committed without the map, every user still on the old
+          // iOS build would have been locked out. That grace period ended on
+          // 2026-08-11 (shim removed, CLERK_LEGACY_SECRET_KEY deleted), so the
+          // table is now only a record of the migration.
           const email = mapping.find((m) => m.devUserId === oldId)?.email ?? "";
           await tx.userIdMigration.upsert({
             where: { legacyUserId: oldId },

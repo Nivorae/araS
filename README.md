@@ -13,7 +13,7 @@
 | ORM        | Prisma 6                                                                              |
 | Database   | PostgreSQL（Supabase）                                                                |
 | Validation | Zod（共用於 `@repo/shared`）                                                          |
-| Testing    | Vitest + React Testing Library + Playwright                                           |
+| Testing    | Vitest + React Testing Library                                                        |
 | Language   | TypeScript 5（strict）                                                                |
 | Monorepo   | Turborepo + pnpm workspaces                                                           |
 | Deploy     | Web/API → Vercel（Root Directory `apps/web`）；Mobile → EAS + App Store               |
@@ -221,8 +221,6 @@ git tag 會是同一件事的第三份人工副本，只會失準。
 | `pnpm type-check`    | TypeScript 型別檢查                  |
 | `pnpm test`          | 執行測試                             |
 | `pnpm test:coverage` | 測試 + 80% coverage 門檻             |
-| `pnpm test:e2e`      | Playwright E2E                       |
-| `pnpm docker:up`     | 本地 PostgreSQL（port 5434）         |
 | `pnpm db:generate`   | 改完 schema 後重新產生 Prisma client |
 | `pnpm db:migrate`    | 執行 migration（dev）                |
 | `pnpm db:studio`     | Prisma Studio GUI                    |
