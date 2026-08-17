@@ -8,25 +8,20 @@
 
 ## 進行中
 
-### 1. 淨值走勢圖 — web 已上線，**mobile OTA 未發**
+### 1. iPad RWD 適配 — PR #97，待審查／待裝置實測
 
-PR #90 → develop → main（release PR #95）都已合併，`GET /api/entries/net-worth-history`
-已隨 Vercel 部署上正式環境。`資產損益` 頁現在是走勢（真實淨值歷史 + 6M/1Y/全部
-區間選擇）／配置／股息三個分頁。
+`feature/ipad-rwd`（原 `claude/ipad-rwd-pages-update-ynca88`，手機上用 Claude
+開發），41 個檔案 / +414 −204。新增 `apps/mobile/hooks/useResponsive.ts`
+（斷點 700pt、內容欄上限 560／圖表 820），mobile 17 個畫面與 web 各頁套用。
 
-- [ ] **發 mobile OTA** —— 走勢圖的新 UI 還在裝置上看不到。發之前先確認正式環境
-      `GET /api/entries/net-worth-history` 回 401（未登入）而不是 405；405 表示
-      舊 build 還在服務，該路徑會被 `api/entries/[id]` 接走。
-- [ ] OTA 後補 `CHANGELOG.md` 的 `### OTA` 條目
+已於 2026-08-17 把 develop 合進來，解掉 `transactions.tsx`（`SCREEN_H` →
+`useResponsive` 對上走勢區間選擇）與 `ReinvestSheet.tsx`（`sheetTablet` 對上
+送出期間鎖 backdrop）兩個衝突，lint / type-check / test 全綠。
 
-### 2. iPad RWD 適配 — 有分支、**從未開 PR**
+- [ ] **沒有在實體 iPad 或模擬器上看過版面** —— 靜態檢查全綠不代表好看
+- [ ] review 後合併；合併後要發 OTA 才會到裝置上（純 JS，無原生變更）
 
-`origin/claude/ipad-rwd-pages-update-ynca88`，兩個 commit（`070b953` web 斷點、
-`f2333d1` mobile 版面），8/14 之後沒動過，41 個檔案 / +414 −204。基準是 PR #92
-當時的 develop，**落後現在的 develop**（股息、淨值走勢圖、shim 移除都不在裡面），
-所以合併前要先把 develop 合進去解衝突。尚未有人在 iPad 上實測過。
-
-### 3. 每月記帳提醒通知 — 已設計，尚未實作
+### 2. 每月記帳提醒通知 — 已設計，尚未實作
 
 Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design.md`
 （PR #96 合入）。本機通知，`expo-notifications` calendar trigger 每月 1 號 9:00
@@ -36,7 +31,7 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
   所以排程上適合跟下一次上架版本綁在一起做。
 
-### 4. 基金淨值更新（含境內外）— 設計階段
+### 3. 基金淨值更新（含境內外）— 設計階段
 
 - [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
       `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，
