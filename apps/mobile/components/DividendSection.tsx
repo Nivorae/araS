@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Dividend } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useFinanceStore } from "@/store/financeStore";
@@ -35,6 +35,10 @@ export default function DividendSection({
   const [rows, setRows] = useState<Dividend[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [reinvestTarget, setReinvestTarget] = useState<Dividend | null>(null);
+  // 刪除是長按觸發的原生 Alert，一按「刪除」對話框就立刻關閉——沒有這個狀態的
+  // 話，接下來的 API 呼叫與 fetchAll/load 這段完全沒有任何畫面回饋，使用者會
+  // 誤以為長按沒反應而重複操作。
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -77,18 +81,22 @@ export default function DividendSection({
     d.bankEntryId ? (entries.find((e) => e.id === d.bankEntryId)?.name ?? null) : null;
 
   const confirmDelete = (d: Dividend) => {
+    if (deletingId) return; // 已有一筆刪除進行中，避免重複觸發
     Alert.alert("刪除這筆股利？", "入帳與再投資的紀錄會一併沖銷，帳戶餘額回到原本的金額。", [
       { text: "取消", style: "cancel" },
       {
         text: "刪除",
         style: "destructive",
         onPress: async () => {
+          setDeletingId(d.id);
           try {
             await deleteDividend(d.id);
             await fetchAll();
             await load();
           } catch (e) {
             Alert.alert("刪除失敗", e instanceof Error ? e.message : "請稍後再試");
+          } finally {
+            setDeletingId(null);
           }
         },
       },
@@ -119,33 +127,48 @@ export default function DividendSection({
         {rows.length === 0 ? (
           <Text style={s.empty}>還沒有股利紀錄</Text>
         ) : (
-          rows.map((d, i) => (
-            <View key={d.id}>
-              {i > 0 && <View style={s.separator} />}
-              <Pressable onLongPress={() => confirmDelete(d)} style={s.row}>
-                <View>
-                  <Text style={s.rowDate}>{d.payDate.slice(0, 10)}</Text>
-                  {d.perShare != null && (
-                    <Text style={s.rowMeta}>
-                      每股 {d.perShare} × {d.shares ?? "—"} 股
-                    </Text>
-                  )}
-                </View>
-                <View style={s.rowRight}>
-                  <Text style={s.rowAmount}>+NT$ {d.amount.toLocaleString()}</Text>
-                  {d.reinvestedAt ? (
-                    <Text style={s.reinvested}>
-                      已再投資 {d.reinvestUnits != null ? `${d.reinvestUnits.toFixed(2)} 股` : ""}
-                    </Text>
+          rows.map((d, i) => {
+            const isDeleting = deletingId === d.id;
+            return (
+              <View key={d.id}>
+                {i > 0 && <View style={s.separator} />}
+                <Pressable
+                  onLongPress={() => confirmDelete(d)}
+                  disabled={isDeleting}
+                  style={[s.row, isDeleting && s.rowDeleting]}
+                >
+                  <View>
+                    <Text style={s.rowDate}>{d.payDate.slice(0, 10)}</Text>
+                    {d.perShare != null && (
+                      <Text style={s.rowMeta}>
+                        每股 {d.perShare} × {d.shares ?? "—"} 股
+                      </Text>
+                    )}
+                  </View>
+                  {isDeleting ? (
+                    <View style={s.rowRight}>
+                      <ActivityIndicator size="small" color="#8e8e93" />
+                      <Text style={s.reinvested}>刪除中…</Text>
+                    </View>
                   ) : (
-                    <Pressable onPress={() => setReinvestTarget(d)} hitSlop={6}>
-                      <Text style={s.reinvestBtn}>再投資</Text>
-                    </Pressable>
+                    <View style={s.rowRight}>
+                      <Text style={s.rowAmount}>+NT$ {d.amount.toLocaleString()}</Text>
+                      {d.reinvestedAt ? (
+                        <Text style={s.reinvested}>
+                          已再投資{" "}
+                          {d.reinvestUnits != null ? `${d.reinvestUnits.toFixed(2)} 股` : ""}
+                        </Text>
+                      ) : (
+                        <Pressable onPress={() => setReinvestTarget(d)} hitSlop={6}>
+                          <Text style={s.reinvestBtn}>再投資</Text>
+                        </Pressable>
+                      )}
+                    </View>
                   )}
-                </View>
-              </Pressable>
-            </View>
-          ))
+                </Pressable>
+              </View>
+            );
+          })
         )}
       </View>
       <Text style={s.hint}>長按一筆紀錄可刪除</Text>
@@ -199,6 +222,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 12,
   },
+  rowDeleting: { opacity: 0.5 },
   rowDate: { fontSize: 14, color: "#1c1c1e" },
   rowMeta: { fontSize: 12, color: "#8e8e93", marginTop: 2 },
   rowRight: { alignItems: "flex-end", gap: 4 },
