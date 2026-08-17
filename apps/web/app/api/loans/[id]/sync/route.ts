@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/clerk-auth";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { loansService } from "@/services/loans.service";
 import { ok, err, handleError } from "@/lib/api-response";
