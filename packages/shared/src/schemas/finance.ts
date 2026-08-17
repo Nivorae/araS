@@ -248,6 +248,27 @@ export const ValueSnapshotSchema = z.object({
 });
 export type ValueSnapshot = z.infer<typeof ValueSnapshotSchema>;
 
+// Net worth history — reconstructed server-side from EntryHistory balances.
+// Unlike ValueSnapshot (a client-side in-memory approximation), these points
+// carry real history and are the only source the growth chart reads.
+export const NetWorthRangeSchema = z.enum(["6m", "1y", "all"]);
+export type NetWorthRange = z.infer<typeof NetWorthRangeSchema>;
+
+export const NetWorthPointSchema = z.object({
+  period: z.string(), // display label, e.g. "Apr" or "2026"
+  date: z.string(), // ISO string for the end of the bucket
+  totalAssets: z.number(),
+  totalLiabilities: z.number(),
+  netWorth: z.number(),
+});
+export type NetWorthPoint = z.infer<typeof NetWorthPointSchema>;
+
+export const NetWorthHistorySchema = z.object({
+  range: NetWorthRangeSchema,
+  points: z.array(NetWorthPointSchema),
+});
+export type NetWorthHistory = z.infer<typeof NetWorthHistorySchema>;
+
 // Insurance
 export const CoverageItemSchema = z.object({
   key: z.string().min(1),

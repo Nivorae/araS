@@ -576,6 +576,26 @@ type-check` / `pnpm test` locally (after `pnpm db:generate`) before merging
   clears it safely (structurally cannot touch a real purchase) and lets a
   clean sandbox purchase test run against your normal account instead of
   needing a throwaway one.
+- **A `--clear-cache` OTA can pull the web app's React into the mobile
+  bundle**, even with no source change. `@react-native-community/slider`
+  declares no `react` dependency, so under pnpm's isolated `node_modules`
+  Metro's upward walk can resolve `react` from the **web** app instead of
+  `apps/mobile` — both end up in the bundle and the second has no active
+  dispatcher, crashing on first hook use (seen: retirement screen,
+  `Cannot read property 'useState' of null`). Fixed in
+  `apps/mobile/metro.config.js` via a `resolver.resolveRequest` that pins
+  `react`/`react-dom`/`react-native` to `apps/mobile` regardless of
+  importer. Before any OTA that touches dependencies, add this to the
+  dry-run export check:
+
+  ```bash
+  grep -c "19.2.4" dist/_expo/static/js/ios/*.hbc   # web's React — must be 0
+  grep -c "19.1.0" dist/_expo/static/js/ios/*.hbc   # mobile's React — must be > 0
+  ```
+
+  (Update the version numbers if either app's React version changes.)
+  Hermes bytecode keeps ASCII string constants in the clear, so this grep
+  works for version strings/URLs/keys but not Chinese text.
 
   **Caution before running that DELETE:** it assumes the exact product-id
   prefix. Verify the real prefix against the actual ASC subscription product

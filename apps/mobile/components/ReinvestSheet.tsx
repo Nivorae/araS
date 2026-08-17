@@ -169,9 +169,16 @@ export default function ReinvestSheet({
     }
   };
 
+  // 送出期間鎖住關閉：原本 backdrop 點擊與 Android 返回鍵在 submitting 時仍可
+  // 關閉 Sheet，使用者容易在等待 API 回應時誤觸關掉，看不到任何處理中的回饋。
+  const handleClose = () => {
+    if (submitting) return;
+    onClose();
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <Pressable style={s.backdrop} onPress={handleClose}>
         <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
           <View style={s.handle} />
           <Text style={s.title}>再投資 · {entryName}</Text>
@@ -229,7 +236,11 @@ export default function ReinvestSheet({
           </View>
 
           <View style={s.actions}>
-            <Pressable onPress={onClose} style={[s.btn, s.btnGhost]}>
+            <Pressable
+              onPress={handleClose}
+              disabled={submitting}
+              style={[s.btn, s.btnGhost, submitting && s.btnDisabled]}
+            >
               <Text style={s.btnGhostText}>取消</Text>
             </Pressable>
             <Pressable
