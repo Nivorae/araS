@@ -8,20 +8,35 @@
 
 ## 進行中
 
-### 1. PR #90 — 淨值走勢圖 + 文件清理
+### 1. 淨值走勢圖 — web 已上線，**mobile OTA 未發**
 
-`feature/net-worth-growth-chart` → develop，狀態 OPEN，待審查/合併。內容：
-淨值走勢圖改用真實歷史資料 + loading UI、清掉已完成功能的 specs/plans/Roadmap、
-新增這份 `docs/TODO.md`、`mobile-release` skill 補發版教訓、`CLAUDE.md` 補
-WON'T FIX 清單。
+PR #90 → develop → main（release PR #95）都已合併，`GET /api/entries/net-worth-history`
+已隨 Vercel 部署上正式環境。`資產損益` 頁現在是走勢（真實淨值歷史 + 6M/1Y/全部
+區間選擇）／配置／股息三個分頁。
 
-已於 2026-08-17 把 develop（含股息功能）合進本分支並解掉三個衝突。
-`資產損益` 頁現在是三個分頁：走勢（真實淨值歷史 + 區間選擇）／配置／股息，
-沿用 develop 的 keep-mounted 機制，切換分頁不會重新載入。
-**待確認的產品決定**：本分支把頁面標題從「投資損益」改名為「資產損益」，
-股息分頁是在股息功能合併時掛在「投資損益」下的 —— 上線前確認新名稱是想要的。
+- [ ] **發 mobile OTA** —— 走勢圖的新 UI 還在裝置上看不到。發之前先確認正式環境
+      `GET /api/entries/net-worth-history` 回 401（未登入）而不是 405；405 表示
+      舊 build 還在服務，該路徑會被 `api/entries/[id]` 接走。
+- [ ] OTA 後補 `CHANGELOG.md` 的 `### OTA` 條目
 
-### 2. 基金淨值更新（含境內外）— 設計階段
+### 2. iPad RWD 適配 — 有分支、**從未開 PR**
+
+`origin/claude/ipad-rwd-pages-update-ynca88`，兩個 commit（`070b953` web 斷點、
+`f2333d1` mobile 版面），8/14 之後沒動過，41 個檔案 / +414 −204。基準是 PR #92
+當時的 develop，**落後現在的 develop**（股息、淨值走勢圖、shim 移除都不在裡面），
+所以合併前要先把 develop 合進去解衝突。尚未有人在 iPad 上實測過。
+
+### 3. 每月記帳提醒通知 — 已設計，尚未實作
+
+Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design.md`
+（PR #96 合入）。本機通知，`expo-notifications` calendar trigger 每月 1 號 9:00
+重複，不動後端與資料庫。設定頁加 Switch 卡片、預設關閉。
+
+- [ ] 尚未開始寫 plan、尚未實作
+- 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
+  所以排程上適合跟下一次上架版本綁在一起做。
+
+### 4. 基金淨值更新（含境內外）— 設計階段
 
 - [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
       `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，
