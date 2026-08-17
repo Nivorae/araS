@@ -32,6 +32,22 @@ changelog tracks App Store versions, **not** the root `package.json` version.
 - Abort if the working tree is dirty (`git status --porcelain` non-empty).
 - `git pull --ff-only origin develop`. Stop on failure.
 
+### 1.5. Read docs/TODO.md in full
+
+Read the entire `docs/TODO.md`, not just the "進行中" section — cross-check
+it against what this run will cover:
+
+- Use it to write accurate, specific changelog entries: if a commit's
+  one-line message is terse but `docs/TODO.md` describes the feature it
+  belongs to in more detail, prefer the fuller context when phrasing the
+  user-facing entry.
+- Note which `docs/TODO.md` items the commits in this range actually
+  complete (a task there may span multiple commits, or a commit may only
+  partially finish one).
+- If a commit references work that `docs/TODO.md` has no record of at all,
+  don't block — just flag it in your report at the end so the user knows
+  the file may be missing something.
+
 ### 2. Determine the mode
 
 | Argument    | Mode                                                                |
@@ -109,6 +125,14 @@ git commit -m "docs: update changelog"
 ```
 
 Only stage `CHANGELOG.md`. Never `git add .` or `-A`.
+
+### 6.5. Update docs/TODO.md
+
+For each item identified in step 1.5 as fully completed by this range,
+check it off or remove it from `docs/TODO.md` (per that file's own "how to
+use" rules). Leave partially-completed items as-is. Commit this as its own
+`docs:` commit — don't fold it into step 6's commit, they're different
+concerns.
 
 ### 7. Report
 

@@ -121,6 +121,41 @@ Personal-finance models in `apps/web/prisma/schema.prisma`, all scoped by Clerk 
 
 Root `.env` is the single source of truth. `apps/web` loads it via `next dev --env-file ../../.env`. See `.env.example`. Key vars: `DATABASE_URL`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
+## Current progress
+
+Before starting any task, check `docs/TODO.md` for what's currently in
+progress or open — it's the single source of truth for task state (not
+memory). Keep it updated as work completes or new tasks surface.
+
+## Known won't-fix / deliberate decisions
+
+Don't re-propose these — each was raised and rejected on purpose:
+
+- **Vercel preview deployments 500 on every route** (`MIDDLEWARE_INVOCATION_FAILED`).
+  Clerk env vars are Production-only in Vercel; only `DATABASE_URL`/`DIRECT_URL`
+  are set to All Environments. Fixing it would mean a working preview reads/writes
+  the real financial database on every PR, since those two vars already are
+  All-Environments — the brokenness is an accidental safeguard. Revisit only if
+  someone else joins the project or a change genuinely needs visual review before merge.
+- **CI does not run on PRs into `develop`** — `.github/workflows/ci.yml` triggers
+  only on `pull_request: branches: [main]` and `push: branches: [main, dev]`
+  (`dev` matches no real branch here). A develop-targeted PR's `gh pr checks`
+  shows only the Vercel deploy check, which reads like "CI passed" but isn't.
+  Run `pnpm lint` / `pnpm type-check` / `pnpm test` locally before merging into
+  `develop`.
+- **No multi-currency support.** The genuinely non-TWD assets (美股/加密貨幣/貴金屬)
+  already convert at display time via `useInvestmentMarketValues`. Full per-entry
+  currency would require a historical-FX table to keep the net-worth chart's past
+  snapshots from silently changing value, plus migrations on `Entry`/`EntryHistory`
+  (currently implicit-TWD `Decimal`) and rewrites of every aggregate. Not worth it
+  without a real user request. If it resurfaces, the cheap version is a 外幣存款
+  subcategory that converts to TWD at save time — no schema change, no historical-FX
+  problem.
+- **No web premium/paywall UI.** Subscriptions are iOS-IAP only; web has no upgrade
+  path. Entitlement is keyed by Clerk `userId`, so a subscription bought on iOS
+  already makes the web account premium — the only stuck case is a web-only user
+  with no iPhone, judged out of scope for this product.
+
 ## Reference Resources
 
 | Resource                        | URL                                             | Description                                          |
