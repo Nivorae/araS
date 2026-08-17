@@ -1,4 +1,4 @@
-import type { Transaction, ValueSnapshot } from "@repo/shared";
+import type { Transaction } from "@repo/shared";
 
 export type Range = "5w" | "5m" | "6m" | "1y" | "4y";
 
@@ -6,12 +6,6 @@ export interface LiquidityPoint {
   period: string;
   income: number;
   expense: number;
-}
-
-export interface InvestmentPoint {
-  period: string;
-  totalAssets: number;
-  netWorth: number;
 }
 
 const MONTHS = [
@@ -120,53 +114,4 @@ export function aggregateTransactions(transactions: Transaction[], range: Range)
     income: map.get(key)!.income,
     expense: map.get(key)!.expense,
   }));
-}
-
-/** Aggregates value snapshots into per-period totalAssets/netWorth (latest snapshot wins per period). */
-export function aggregateSnapshots(snapshots: ValueSnapshot[], range: Range): InvestmentPoint[] {
-  const keys = buildPeriods(range);
-  const keySet = new Set(keys);
-  const map = new Map<string, ValueSnapshot>();
-
-  for (const s of snapshots) {
-    const d = new Date(s.date);
-    const key = dateToPeriodKey(d, range);
-    if (!keySet.has(key)) continue;
-    const existing = map.get(key);
-    if (!existing || s.date > existing.date) {
-      map.set(key, s);
-    }
-  }
-
-  return keys.map((key) => {
-    const snap = map.get(key);
-    return {
-      period: formatPeriodLabel(key, range),
-      totalAssets: snap?.totalAssets ?? 0,
-      netWorth: snap ? snap.totalAssets - snap.totalLiabilities : 0,
-    };
-  });
-}
-
-/** Returns a human-readable date range label, e.g. "Nov 2025 – Apr 2026". */
-export function getRangeDisplayLabel(range: Range): string {
-  const keys = buildPeriods(range);
-  if (keys.length === 0) return "";
-  const first = keys[0]!;
-  const last = keys[keys.length - 1]!;
-
-  function keyToDisplay(key: string): string {
-    if (range === "5w") {
-      const d = new Date(`${key}T00:00:00`);
-      const monthIdx = Math.max(0, Math.min(11, d.getMonth()));
-      return `${MONTHS[monthIdx] ?? "Jan"} ${d.getDate()}`;
-    }
-    if (range === "4y") return key;
-    const parts = key.split("-");
-    const year = parts[0] ?? new Date().getFullYear().toString();
-    const monthIdx = Math.max(0, Math.min(11, parseInt(parts[1] ?? "1", 10) - 1));
-    return `${MONTHS[monthIdx] ?? "Jan"} ${year}`;
-  }
-
-  return `${keyToDisplay(first)} – ${keyToDisplay(last)}`;
 }

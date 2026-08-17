@@ -4,48 +4,37 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-08-14
+最後整理：2026-08-17
 
 ## 進行中
 
-### 1. 股票股息紀錄（Premium）— 開發完成，待上線
+### 1. PR #90 — 淨值走勢圖 + 文件清理
 
-`feature/stock-dividends`，14 個實作 task + Task 15 全套驗證皆完成，
-`pnpm lint && pnpm type-check && pnpm test` 全綠。內容：Premium 專屬的股票股
-息紀錄，可手動輸入每檔股票的股利、可選入帳到流動資金帳戶、一鍵再投資回同一
-檔股票。
+`feature/net-worth-growth-chart` → develop，狀態 OPEN，待審查/合併。內容：
+淨值走勢圖改用真實歷史資料 + loading UI、清掉已完成功能的 specs/plans/Roadmap、
+新增這份 `docs/TODO.md`、`mobile-release` skill 補發版教訓、`CLAUDE.md` 補
+WON'T FIX 清單。
 
-**上線順序（不可調換）：**
+已於 2026-08-17 把 develop（含股息功能）合進本分支並解掉三個衝突。
+`資產損益` 頁現在是三個分頁：走勢（真實淨值歷史 + 區間選擇）／配置／股息，
+沿用 develop 的 keep-mounted 機制，切換分頁不會重新載入。
+**待確認的產品決定**：本分支把頁面標題從「投資損益」改名為「資產損益」，
+股息分頁是在股息功能合併時掛在「投資損益」下的 —— 上線前確認新名稱是想要的。
 
-1. 對正式環境的 Supabase 專案直接跑 migration —— **不要**依賴 `.env`（依
-   CLAUDE.md 規定永遠指向 dev 專案）也**不要**指望 Vercel 部署會做這件事：
-   `apps/web/package.json` 的 build command 是 `prisma generate && next build`，
-   沒有 `prisma migrate deploy` 這一步，單獨部署 web 不會在正式環境建出
-   `Dividend` 資料表。改用內嵌環境變數、只對這一次指令生效的方式，明確指向
-   正式環境的 `DATABASE_URL`/`DIRECT_URL`：
+### 2. 基金淨值更新（含境內外）— 設計階段
 
-   ```bash
-   DATABASE_URL="<正式環境 pooler URL>" DIRECT_URL="<正式環境 direct URL>" \
-     pnpm --filter @repo/web exec prisma migrate deploy
-   ```
-
-2. 照常把 web 部署到 Vercel
-3. 確認生產 API 可用 —— 具體檢查：已登入使用者呼叫
-   `GET /api/dividends/summary` 要回 `200`，不是 `500`
-4. 都確認過後，才對 mobile 發 `eas update`
-
-順序反過來的話，OTA 會先送到裝置上，裝置卻查詢一張還不存在的資料表。
-
-**尚未完成：裝置實測。** 目前沒有任何 subagent 有實體裝置可測，以下項目都還
-沒有在真機上驗證過：
-
-- [ ] 用 Premium 帳號新增一筆股利、選擇入帳到某個流動資金帳戶，該帳戶餘額
-      確實增加對應金額
-- [ ] 再投資 sheet 的三行摘要正確，確認送出後同時扣銀行、加回同一檔股票的
-      零股股數
-- [ ] 長按刪除該筆股利紀錄後，兩邊餘額（銀行與股票）都完整回復到沖銷前的
-      原始金額
-- [ ] 非 Premium 帳號嘗試新增股利時，出現 paywall 而不是真的存進資料庫
+- [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
+      `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，
+      單次回應含基金代碼、名稱、淨值、淨值日期、計價幣別、ISIN（整包 dump，
+      5,990 檔，360KB，建議 server 端快取 12h 再讓 App 查單一檔）
+- [ ] 境內基金資料源尚未確認（TDCC 沒有，歸投信投顧公會 SITCA 管，其官網是
+      ASP.NET viewstate，還沒驗證是否有其他免費 JSON 源）
+- [ ] 定案：`Entry.stockCode` 存基金代碼（沿用既有多型欄位，不需 migration）；
+      淨值/幣別 on-demand 抓取、不落地存資料庫（跟美股現在的模式一致）
+- [ ] 使用情境已定案：entry 清單/詳情頁上的「獲取淨值」按鈕，第一次按時用
+      使用者輸入的名稱去搜尋比對、綁定官方代碼寫回 `stockCode`，之後每次按
+      直接用代碼查
+- [ ] 尚未開始寫 spec / plan
 
 ## 已評估、暫不執行
 

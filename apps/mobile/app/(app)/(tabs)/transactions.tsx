@@ -1,23 +1,33 @@
-import { useMemo, useState } from "react";
-import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import type { NetWorthRange } from "@repo/shared";
 import { useFinanceStore } from "@/store/financeStore";
 
 const SCREEN_H = Dimensions.get("window").height;
 import { BalanceScale } from "@/components/BalanceScale";
-import { InvestmentChart } from "@/components/InvestmentChart";
+import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationView } from "@/components/AssetAllocationView";
 import { DividendOverview } from "@/components/DividendOverview";
-import { aggregateSnapshots, getRangeDisplayLabel } from "@/lib/chartAggregation";
 import { formatCurrency } from "@/lib/format";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { useIsPremium } from "@/hooks/useIsPremium";
+import { useFinanceActions } from "@/hooks/useFinanceActions";
+
+const RANGES: { key: NetWorthRange; label: string }[] = [
+  { key: "6m", label: "6M" },
+  { key: "1y", label: "1Y" },
+  { key: "all", label: "全部" },
+];
 
 export default function TransactionsScreen() {
   const router = useRouter();
   const { isPremium } = useIsPremium();
+  const { fetchNetWorthHistory } = useFinanceActions();
   const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
+  const [range, setRange] = useState<NetWorthRange>("6m");
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   // Mounted-once-then-kept-alive: switching `view` only toggles which pane is
   // visible below (see `display: none` in chartZone), so a tab's component
   // never unmounts once visited and doesn't reset/refetch on every switch
@@ -26,7 +36,7 @@ export default function TransactionsScreen() {
   const [everVisitedAllocation, setEverVisitedAllocation] = useState(false);
   const [everVisitedDividends, setEverVisitedDividends] = useState(false);
   const entries = useFinanceStore((s) => s.entries);
-  const valueSnapshots = useFinanceStore((s) => s.valueSnapshots);
+  const netWorthHistory = useFinanceStore((s) => s.netWorthHistory);
 
   const totalAssets = useMemo(
     () => entries.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0),
@@ -37,14 +47,34 @@ export default function TransactionsScreen() {
     [entries]
   );
 
-  const investmentData = useMemo(() => aggregateSnapshots(valueSnapshots, "5m"), [valueSnapshots]);
-  const periodLabel = useMemo(() => getRangeDisplayLabel("5m"), []);
+  // Only the selected range is fetched, and only once — the store caches it and
+  // clears the cache whenever an entry changes. Loading only shows for an
+  // uncached range so switching back to an already-fetched range is instant.
+  useEffect(() => {
+    if (netWorthHistory[range]) return;
+    let cancelled = false;
+    setIsHistoryLoading(true);
+    void fetchNetWorthHistory(range).finally(() => {
+      if (!cancelled) setIsHistoryLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchNetWorthHistory, range, netWorthHistory]);
+
+  const points = useMemo(() => netWorthHistory[range] ?? [], [netWorthHistory, range]);
+  const periodLabel = useMemo(() => {
+    if (points.length === 0) return "";
+    const first = points[0]!.period;
+    const last = points[points.length - 1]!.period;
+    return first === last ? first : `${first} – ${last}`;
+  }, [points]);
 
   return (
     <SafeAreaView style={s.root} edges={["top"]}>
       {/* Header: balance scale — same height as retirement header */}
       <View style={[s.headerZone, { height: SCREEN_H * 0.44 }]}>
-        <Text style={s.title}>投資損益</Text>
+        <Text style={s.title}>資產損益</Text>
         <BalanceScale assets={totalAssets} liabilities={totalLiabilities} />
 
         {/* Asset / Liability values aligned below the pans */}
@@ -111,7 +141,29 @@ export default function TransactionsScreen() {
           unmounting them, so switching tabs never re-triggers their fetch. */}
       <View style={s.chartZone}>
         <View style={[s.tabPane, view !== "trend" && s.hiddenPane]}>
-          <InvestmentChart data={investmentData} />
+          <View style={s.rangeRow}>
+            {RANGES.map((r) => (
+              <Pressable
+                key={r.key}
+                disabled={isHistoryLoading}
+                style={[
+                  s.rangeBtn,
+                  range === r.key && s.rangeBtnActive,
+                  isHistoryLoading && s.rangeBtnDisabled,
+                ]}
+                onPress={() => setRange(r.key)}
+              >
+                <Text style={[s.rangeText, range === r.key && s.rangeTextActive]}>{r.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {isHistoryLoading ? (
+            <View style={s.chartLoading}>
+              <ActivityIndicator size="small" color="#8e8e93" />
+            </View>
+          ) : (
+            <NetWorthChart data={points} />
+          )}
         </View>
         {everVisitedAllocation && (
           <View style={[s.tabPane, view !== "allocation" && s.hiddenPane]}>
@@ -162,6 +214,18 @@ const s = StyleSheet.create({
     paddingHorizontal: 30,
     paddingBottom: 36,
   },
+  rangeRow: {
+    flexDirection: "row",
+    alignSelf: "flex-end",
+    gap: 4,
+    marginBottom: 8,
+  },
+  rangeBtn: { paddingVertical: 4, paddingHorizontal: 12, borderRadius: 12 },
+  rangeBtnActive: { backgroundColor: "#e5e5ea" },
+  rangeBtnDisabled: { opacity: 0.4 },
+  rangeText: { fontSize: 11, fontWeight: "600", color: "#c7c7cc" },
+  rangeTextActive: { color: "#1c1c1e" },
+  chartLoading: { flex: 1, alignItems: "center", justifyContent: "center" },
   tabPane: { flex: 1 },
   hiddenPane: { display: "none" },
 });
