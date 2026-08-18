@@ -121,6 +121,14 @@ Personal-finance models in `apps/web/prisma/schema.prisma`, all scoped by Clerk 
 
 Root `.env` is the single source of truth. `apps/web` loads it via `next dev --env-file ../../.env`. See `.env.example`. Key vars: `DATABASE_URL`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
+`PREMIUM_OWNER_USER_IDS` (comma-separated Clerk user ids) makes those accounts
+premium without an Apple purchase — checked in `EntitlementsService.isPremium`
+before the `Subscription` lookup. Server-side only, so it never ships in the App
+bundle; changing it in Vercel takes effect on the next app launch with no
+rebuild and no OTA. Deliberately not a hand-written `Subscription` row: that
+table means "Apple says this person paid", and a manual row also collides with
+the unique `appleAccountToken` if that account later subscribes for real.
+
 ## Current progress
 
 Before starting any task, check `docs/TODO.md` for what's currently in
