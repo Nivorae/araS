@@ -117,12 +117,17 @@ pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Ex
 4.  /create-pr               推分支 + 開 PR（base 自動是 develop）
 5.  （在 GitHub merge PR 進 develop）
 6.  git checkout develop && git pull
-7.  /git:changelog --ota     記錄這次改動到 CHANGELOG
+7.  /git:changelog --ota     記錄這次改動到 CHANGELOG，**同時**把同一批文案寫進
+                             app.json 的 extra.whatsNew（id 和 lines 都要改）
 8.  「推 OTA」                Claude 會先確認版號不變、跑乾跑驗證，再 eas update
 9.  git checkout main && git merge develop && git push origin main
 ```
 
 用戶重開 App 後幾分鐘內生效，設定頁的「更新於」會變成新時間。
+
+第 7 步的 `whatsNew` 不能跳過：App 套用更新後顯示的「本次更新」說明只從那裡讀文案，
+`CHANGELOG.md` 不會被打包進 App。忘了改的後果是**那次更新對使用者靜默**（見下面
+「更新提示」）。
 
 ### 情境 B：動到原生 → 重新打包送審
 
@@ -168,8 +173,40 @@ cd apps/mobile && eas update --branch production --clear-cache --message "…"
 代表 runtimeVersion 就等於 version，而 OTA 只送給 runtimeVersion 完全相符的 binary ——
 bump 了版號，更新就永遠送不到已安裝的裝置上，**而且不會報錯**。
 
-設定頁底部會顯示版號：`版本 1.1` + `更新於 <OTA 發佈時間>`。版號來自 `app.json`，
-時間來自 `expo-updates` 的 `Updates.createdAt`，每次 `eas update` 自動更新，不需手動維護。
+設定頁底部會顯示版號：`版本 1.2` + `更新於 <OTA 發佈時間>` + 更新狀態（下載進度／
+已下載待重啟／已是最新版本）。版號來自 `app.json`，時間來自 `expo-updates` 的
+`Updates.createdAt`，每次 `eas update` 自動更新，不需手動維護。
+
+### 更新提示（發 OTA 前必做一步）
+
+`fallbackToCacheTimeout` 是預設的 0，所以套用一次 OTA 需要開**兩次** App：第一次仍跑
+舊 bundle 並在背景下載，第二次才生效。App 因此有兩個提示：
+
+| 時機           | 顯示                                               | 文案來源                    |
+| -------------- | -------------------------------------------------- | --------------------------- |
+| 下載完成當下   | 底部 banner「有新版本已準備好　[稍後] [立即重啟]」 | 固定文字（與版本無關）      |
+| 重啟後首次執行 | 「本次更新」sheet，只顯示一次                      | `app.json` `extra.whatsNew` |
+
+**每次發 OTA 前都要改 `app.json` 的 `expo.extra.whatsNew`**，`id` 和 `lines` 都要改
+（文案沿用 `CHANGELOG.md` 剛寫好的那幾行，不要另外編）：
+
+```json
+"extra": {
+  "whatsNew": {
+    "id": "2026-08-18-update-notice",
+    "lines": ["更新下載完成後會在畫面下方提示…"]
+  }
+}
+```
+
+sheet 是否顯示，取決於「bundle 帶的 `id`」與「AsyncStorage 存的上次顯示過的 id」是否
+不同。**忘了改 id → 什麼都不顯示（靜默）**，而不是重播上一版的舊文案 —— 錯的方向刻意
+設計成「少講」而非「講錯」。判斷邏輯在 `apps/mobile/lib/whatsNew.ts` 的
+`shouldShowWhatsNew()`（純函式，不依賴 React）。
+
+`extra` 不是原生欄位，改它走 OTA 即可，**不需要重新打包**，也不可以順手 bump `version`。
+另外這兩個提示在 Expo Go 驗證不了（`Updates.isEnabled` 為 false，整段邏輯短路），
+只能在 TestFlight 或正式版上看。
 
 環境變數有兩套且**必須同步**：`eas.json` 的 `build.production.env` 給 `eas build` 用，
 `apps/mobile/.env.production` 給 `eas update` 用（`eas update` 不讀 `eas.json`）。
