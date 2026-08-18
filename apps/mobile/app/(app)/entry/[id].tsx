@@ -23,6 +23,7 @@ import DividendSection from "@/components/DividendSection";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
 import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { useApi, ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
@@ -167,6 +168,8 @@ function HistoryRow({
 
 export default function EntryDetailScreen() {
   const { isTablet, contentWidth } = useResponsive();
+  // modalSheet 沒有自己的 paddingBottom，儲存/取消按鈕直接貼著螢幕底緣。
+  const sheetBottomPad = useSheetBottomPadding();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const api = useApi();
@@ -514,7 +517,7 @@ export default function EntryDetailScreen() {
 
           {/* Sheet — rendered on top of backdrop */}
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
-            <View style={s.modalSheet}>
+            <View style={[s.modalSheet, { paddingBottom: sheetBottomPad }]}>
               <View style={s.modalHandle} />
               <Text style={s.modalTitle}>編輯記錄</Text>
 

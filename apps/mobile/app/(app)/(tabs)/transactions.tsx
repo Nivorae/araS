@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -28,6 +28,13 @@ export default function TransactionsScreen() {
   const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
   const [range, setRange] = useState<NetWorthRange>("6m");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // Identifies the newest request so a superseded one can't clear the spinner
+  // out from under its replacement. Deliberately not a per-effect-run
+  // "cancelled" flag: the fetch completing is what writes to the store, which
+  // re-runs the effect below, so a cleanup-based flag would cancel the very
+  // continuation that turns the spinner off and leave the chart loading
+  // forever.
+  const requestTokenRef = useRef(0);
   // Mounted-once-then-kept-alive: switching `view` only toggles which pane is
   // visible below (see `display: none` in chartZone), so a tab's component
   // never unmounts once visited and doesn't reset/refetch on every switch
@@ -51,15 +58,20 @@ export default function TransactionsScreen() {
   // clears the cache whenever an entry changes. Loading only shows for an
   // uncached range so switching back to an already-fetched range is instant.
   useEffect(() => {
-    if (netWorthHistory[range]) return;
-    let cancelled = false;
+    if (netWorthHistory[range]) {
+      // Cached — including the case where this run was triggered by the fetch
+      // below landing in the store, so this is the success path's clear, not
+      // just an early return.
+      setIsHistoryLoading(false);
+      return;
+    }
+    const token = ++requestTokenRef.current;
     setIsHistoryLoading(true);
     void fetchNetWorthHistory(range).finally(() => {
-      if (!cancelled) setIsHistoryLoading(false);
+      // Covers the failure path, which writes nothing and so never re-runs this
+      // effect. A newer request owning the token means it will do the clearing.
+      if (requestTokenRef.current === token) setIsHistoryLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
   }, [fetchNetWorthHistory, range, netWorthHistory]);
 
   const points = useMemo(() => netWorthHistory[range] ?? [], [netWorthHistory, range]);

@@ -148,14 +148,25 @@ Reuse the bullets just written. Do not compose separate copy.
 "extra": {
   "whatsNew": {
     "id": "2026-08-18-ipad",
-    "lines": ["適配 iPad 與大螢幕：表單改為置中欄，圖表使用較寬的版面"]
+    "sections": [
+      { "title": "新功能", "items": ["…"] },
+      { "title": "優化", "items": ["…"] },
+      { "title": "立即重啟", "items": ["…"] }
+    ]
   }
 }
 ```
 
+Sort the bullets into the three standard sections — 「新功能」 for user-visible
+additions, 「優化」 for improvements and fixes, 「立即重啟」 for anything about
+applying the update itself. **Omit a section entirely when it has nothing**
+(a pure bugfix release has no 「新功能」); never emit an empty `items` array.
+The titles and their order come from the JSON, not from the App — see
+`WHATS_NEW_SECTION_TITLES` in `apps/mobile/lib/whatsNew.ts`.
+
 Two rules:
 
-- **`id` must change whenever `lines` changes.** The sheet is shown once per
+- **`id` must change whenever the copy changes.** The sheet is shown once per
   `id`; an unchanged `id` means users who already saw the previous sheet see
   nothing. Date-plus-topic (`2026-08-18-ipad`) is enough.
 - **`version` stays untouched.** `extra` is read from JS, not a native config

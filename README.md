@@ -118,7 +118,7 @@ pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Ex
 5.  （在 GitHub merge PR 進 develop）
 6.  git checkout develop && git pull
 7.  /git:changelog --ota     記錄這次改動到 CHANGELOG，**同時**把同一批文案寫進
-                             app.json 的 extra.whatsNew（id 和 lines 都要改）
+                             app.json 的 extra.whatsNew（id 和 sections 都要改）
 8.  開 develop → main 的 release PR，CI 綠燈後合併
     gh pr create --base main --head develop
 9.  切到 main，「推 OTA」      Claude 會先確認版號不變、跑乾跑驗證，再 eas update
@@ -189,17 +189,26 @@ bump 了版號，更新就永遠送不到已安裝的裝置上，**而且不會�
 | 下載完成當下   | 底部 banner「有新版本已準備好　[稍後] [立即重啟]」 | 固定文字（與版本無關）      |
 | 重啟後首次執行 | 「本次更新」sheet，只顯示一次                      | `app.json` `extra.whatsNew` |
 
-**每次發 OTA 前都要改 `app.json` 的 `expo.extra.whatsNew`**，`id` 和 `lines` 都要改
+**每次發 OTA 前都要改 `app.json` 的 `expo.extra.whatsNew`**，`id` 和 `sections` 都要改
 （文案沿用 `CHANGELOG.md` 剛寫好的那幾行，不要另外編）：
 
 ```json
 "extra": {
   "whatsNew": {
     "id": "2026-08-18-update-notice",
-    "lines": ["更新下載完成後會在畫面下方提示…"]
+    "sections": [
+      { "title": "新功能", "items": ["…"] },
+      { "title": "優化", "items": ["…"] },
+      { "title": "立即重啟", "items": ["…"] }
+    ]
   }
 }
 ```
+
+文案固定分成「新功能」「優化」「立即重啟」三個區塊。**沒有內容的區塊整段省略**
+（純修 bug 的版本就不會有「新功能」），不要留空的 `items`。標題與順序完全由
+`app.json` 決定，App 端不寫死 —— 見 `apps/mobile/lib/whatsNew.ts` 的
+`WHATS_NEW_SECTION_TITLES`。
 
 sheet 是否顯示，取決於「bundle 帶的 `id`」與「AsyncStorage 存的上次顯示過的 id」是否
 不同。**忘了改 id → 什麼都不顯示（靜默）**，而不是重播上一版的舊文案 —— 錯的方向刻意
