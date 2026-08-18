@@ -4,22 +4,18 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-08-17
+最後整理：2026-08-18
 
 ## 進行中
 
-### 1. iPad RWD 適配 — PR #97，待審查／待裝置實測
+### 1. iPad RWD 適配 — 已上線，**版面仍未經任何裝置檢視**
 
-`feature/ipad-rwd`（原 `claude/ipad-rwd-pages-update-ynca88`，手機上用 Claude
-開發），41 個檔案 / +414 −204。新增 `apps/mobile/hooks/useResponsive.ts`
-（斷點 700pt、內容欄上限 560／圖表 820），mobile 17 個畫面與 web 各頁套用。
+PR #97 → develop → main（release PR #98）已合併，web 已部署，OTA 已發
+（group `fb81cd6e`，runtime 1.2，commit `aed9fbb`）。
 
-已於 2026-08-17 把 develop 合進來，解掉 `transactions.tsx`（`SCREEN_H` →
-`useResponsive` 對上走勢區間選擇）與 `ReinvestSheet.tsx`（`sheetTablet` 對上
-送出期間鎖 backdrop）兩個衝突，lint / type-check / test 全綠。
-
-- [ ] **沒有在實體 iPad 或模擬器上看過版面** —— 靜態檢查全綠不代表好看
-- [ ] review 後合併；合併後要發 OTA 才會到裝置上（純 JS，無原生變更）
+- [ ] **有空時在 iPad 或模擬器上看一次版面。** 上線前只做過靜態檢查（lint /
+      type-check / test 全綠），沒有人看過實際長相 —— 這是刻意接受的風險，
+      不是遺漏。要調的話純 JS，再發一次 OTA 即可。
 
 ### 2. 每月記帳提醒通知 — 已設計，尚未實作
 
