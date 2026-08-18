@@ -6,6 +6,7 @@ import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { buildYfSymbol } from "@/lib/stockConstants";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
+import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
 
 interface ReinvestSheetProps {
   visible: boolean;
@@ -31,6 +32,7 @@ export default function ReinvestSheet({
   onDone,
 }: ReinvestSheetProps) {
   const { isTablet } = useResponsive();
+  const bottomPad = useSheetBottomPadding();
   const api = useApi();
   const router = useRouter();
   const { reinvestDividend, fetchAll } = useFinanceActions();
@@ -235,7 +237,7 @@ export default function ReinvestSheet({
             {error && <Text style={s.error}>{error}</Text>}
           </View>
 
-          <View style={s.actions}>
+          <View style={[s.actions, { paddingBottom: bottomPad }]}>
             <Pressable
               onPress={handleClose}
               disabled={submitting}

@@ -19,6 +19,7 @@ import { useFinanceStore } from "@/store/financeStore";
 import { buildYfSymbol } from "@/lib/stockConstants";
 import { DatePickerModal } from "./DatePickerModal";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
+import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
 
 interface DividendFormProps {
   visible: boolean;
@@ -81,6 +82,7 @@ export default function DividendForm({
   onSaved,
 }: DividendFormProps) {
   const { isTablet } = useResponsive();
+  const bottomPad = useSheetBottomPadding();
   const api = useApi();
   const router = useRouter();
   const { addDividend, fetchAll } = useFinanceActions();
@@ -444,7 +446,7 @@ export default function DividendForm({
             {error && <Text style={s.error}>{error}</Text>}
           </ScrollView>
 
-          <View style={s.actions}>
+          <View style={[s.actions, { paddingBottom: bottomPad }]}>
             <Pressable onPress={onClose} style={[s.btn, s.btnGhost]}>
               <Text style={s.btnGhostText}>取消</Text>
             </Pressable>
