@@ -119,8 +119,9 @@ pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Ex
 6.  git checkout develop && git pull
 7.  /git:changelog --ota     記錄這次改動到 CHANGELOG，**同時**把同一批文案寫進
                              app.json 的 extra.whatsNew（id 和 lines 都要改）
-8.  「推 OTA」                Claude 會先確認版號不變、跑乾跑驗證，再 eas update
-9.  git checkout main && git merge develop && git push origin main
+8.  開 develop → main 的 release PR，CI 綠燈後合併
+    gh pr create --base main --head develop
+9.  切到 main，「推 OTA」      Claude 會先確認版號不變、跑乾跑驗證，再 eas update
 ```
 
 用戶重開 App 後幾分鐘內生效，設定頁的「更新於」會變成新時間。
@@ -140,7 +141,8 @@ pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Ex
                                 改 app.json → eas build → eas submit
 9.   （到 App Store Connect）    新增版本 → 貼上第 7 步的 CHANGELOG 文字
                                 → 選 build → 送審（1–3 天）
-10.  git checkout main && git merge develop && git push origin main
+10.  開 develop → main 的 release PR，CI 綠燈後合併
+     gh pr create --base main --head develop
 ```
 
 ### 不確定是 A 還是 B？
@@ -222,7 +224,7 @@ grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # 要是 0
 `feature/*` → `develop` → `main`。Feature 分支一律從 `main` checkout。
 
 ```
-main ──► feature/*  ──/create-pr──►  develop  ──merge──►  main
+main ──► feature/*  ──/create-pr──►  develop  ──release PR──►  main
 ```
 
 > 完整的指令順序見上面「[🚀 完整流程速查](#-完整流程速查從改動到上線)」。
@@ -233,10 +235,14 @@ main ──► feature/*  ──/create-pr──►  develop  ──merge──�
 4. **`/create-pr`** — 在 feature 分支執行（**不可在 develop/main**）。推分支、開 PR（base 一律是 `develop`）、跑 CI/CD、合併進 develop。
 5. **切到 develop，`/git:changelog`** — 記錄這次改動（`--ota` 或 `--release`），寫進 `CHANGELOG.md`。**僅可在 develop 執行**，工作區需乾淨。
 6. **`git push origin develop`** — 驗證功能正常。
-7. **merge develop → main**
+7. **開 develop → main 的 release PR**（不要直接 `git merge` 推 `main`）
    ```bash
-   git checkout main && git merge develop && git push origin main
+   gh pr create --base main --head develop
    ```
+   CI（`.github/workflows/ci.yml`）**只在 base 是 `main` 的 PR 上跑** —— base 是
+   `develop` 的 PR 只看得到 Vercel 的檢查，看起來像「CI 過了」其實沒跑過。這支
+   release PR 是整條流程裡唯一一次 Lint / Type Check / Build / Security Scan
+   真的會執行的地方，所以不要用 `git merge` 繞過它。
 8. **發版** — 見上面「Mobile 發版」（`/mobile-release` 判定 OTA 或送審）。
 
 ### 版號只有一套
