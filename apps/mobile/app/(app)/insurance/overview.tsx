@@ -73,6 +73,12 @@ function Row({ label, value, theme }: { label: string; value: string; theme: The
   );
 }
 
+/** Upper bound on the width the coverflow deck sizes itself from. */
+const CARD_BASE_MAX_WIDTH = 700;
+/** Bounds for the expanded detail card, so it stays card-shaped on a tablet. */
+const EXPANDED_MAX_WIDTH = 640;
+const EXPANDED_MAX_HEIGHT = 900;
+
 export default function InsuranceOverviewScreen() {
   const { focus } = useLocalSearchParams<{ focus?: string }>();
   const router = useRouter();
@@ -84,8 +90,12 @@ export default function InsuranceOverviewScreen() {
   // peek on each side of the active card, like a Framer-style cover flow.
   // A card is centred when scrollX === index * INTERVAL, thanks to the
   // sideInset padding on the scroll content.
-  const CARD_W = Math.round(screenW * 0.54);
-  const CARD_H = Math.round(CARD_W * 1.35);
+  // Card size is derived from a *bounded* width, not the raw screen width:
+  // at 0.54 × 1024pt an iPad would produce a 553pt-wide, 747pt-tall card, and
+  // the extra height cap keeps it on screen in landscape too. Both bounds are
+  // inert at phone sizes, so the phone deck is unchanged.
+  const CARD_W = Math.round(Math.min(screenW, CARD_BASE_MAX_WIDTH) * 0.54);
+  const CARD_H = Math.round(Math.min(CARD_W * 1.35, screenH * 0.62));
   const SPACING = -Math.round(CARD_W * 0.38);
   const INTERVAL = CARD_W + SPACING;
   const sideInset = (screenW - CARD_W) / 2;
@@ -95,8 +105,8 @@ export default function InsuranceOverviewScreen() {
 
   // Bounds the tapped card grows into — a near-fullscreen detail card,
   // centred over the deck.
-  const EXPANDED_W = Math.round(screenW * 0.86);
-  const EXPANDED_H = Math.round(screenH * 0.72);
+  const EXPANDED_W = Math.round(Math.min(screenW * 0.86, EXPANDED_MAX_WIDTH));
+  const EXPANDED_H = Math.round(Math.min(screenH * 0.72, EXPANDED_MAX_HEIGHT));
   const EXPANDED_LEFT = (screenW - EXPANDED_W) / 2;
   const EXPANDED_TOP = (screenH - EXPANDED_H) / 2;
   const HEADER_H_EXPANDED = 116;

@@ -105,10 +105,12 @@ export default function SignInPage() {
         <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 14 }}>個人資產管理工具</p>
       </div>
 
-      {/* Login card */}
+      {/* Login card — a bottom sheet on phones, a centred floating card from
+          iPad up, where a full-bleed sheet would stretch the 52px buttons
+          across the whole screen. */}
       <div
-        className="flex flex-col gap-3 px-7 pt-8 pb-12"
-        style={{ background: "#fff", borderRadius: "28px 28px 0 0" }}
+        className="mx-auto flex w-full flex-col gap-3 rounded-t-[28px] px-7 pt-8 pb-12 md:mb-12 md:max-w-md md:rounded-[28px] md:pb-8 md:shadow-[0_18px_50px_rgba(0,0,0,0.28)]"
+        style={{ background: "#fff" }}
       >
         <p style={{ color: "#1c1c1e", fontSize: 17, fontWeight: 600, marginBottom: 4 }}>
           登入你的帳號

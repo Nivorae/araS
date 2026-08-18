@@ -8,20 +8,30 @@
 
 ## 進行中
 
-### 1. PR #90 — 淨值走勢圖 + 文件清理
+### 1. iPad RWD 適配 — PR #97，待審查／待裝置實測
 
-`feature/net-worth-growth-chart` → develop，狀態 OPEN，待審查/合併。內容：
-淨值走勢圖改用真實歷史資料 + loading UI、清掉已完成功能的 specs/plans/Roadmap、
-新增這份 `docs/TODO.md`、`mobile-release` skill 補發版教訓、`CLAUDE.md` 補
-WON'T FIX 清單。
+`feature/ipad-rwd`（原 `claude/ipad-rwd-pages-update-ynca88`，手機上用 Claude
+開發），41 個檔案 / +414 −204。新增 `apps/mobile/hooks/useResponsive.ts`
+（斷點 700pt、內容欄上限 560／圖表 820），mobile 17 個畫面與 web 各頁套用。
 
-已於 2026-08-17 把 develop（含股息功能）合進本分支並解掉三個衝突。
-`資產損益` 頁現在是三個分頁：走勢（真實淨值歷史 + 區間選擇）／配置／股息，
-沿用 develop 的 keep-mounted 機制，切換分頁不會重新載入。
-**待確認的產品決定**：本分支把頁面標題從「投資損益」改名為「資產損益」，
-股息分頁是在股息功能合併時掛在「投資損益」下的 —— 上線前確認新名稱是想要的。
+已於 2026-08-17 把 develop 合進來，解掉 `transactions.tsx`（`SCREEN_H` →
+`useResponsive` 對上走勢區間選擇）與 `ReinvestSheet.tsx`（`sheetTablet` 對上
+送出期間鎖 backdrop）兩個衝突，lint / type-check / test 全綠。
 
-### 2. 基金淨值更新（含境內外）— 設計階段
+- [ ] **沒有在實體 iPad 或模擬器上看過版面** —— 靜態檢查全綠不代表好看
+- [ ] review 後合併；合併後要發 OTA 才會到裝置上（純 JS，無原生變更）
+
+### 2. 每月記帳提醒通知 — 已設計，尚未實作
+
+Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design.md`
+（PR #96 合入）。本機通知，`expo-notifications` calendar trigger 每月 1 號 9:00
+重複，不動後端與資料庫。設定頁加 Switch 卡片、預設關閉。
+
+- [ ] 尚未開始寫 plan、尚未實作
+- 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
+  所以排程上適合跟下一次上架版本綁在一起做。
+
+### 3. 基金淨值更新（含境內外）— 設計階段
 
 - [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
       `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，

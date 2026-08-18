@@ -192,7 +192,7 @@ export function InsuranceFormPage({ open, onClose, onSaved, categoryColor, editI
       }`}
     >
       <div
-        className="mx-auto max-w-md overflow-y-auto px-4 pt-14 pb-12"
+        className="mx-auto max-w-md overflow-y-auto px-4 pt-14 pb-12 md:max-w-xl lg:max-w-2xl"
         style={{ height: "100vh" }}
       >
         {/* Top nav */}

@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { Calendar, Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import { BankLogo } from "./BankLogo";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useResponsive } from "@/hooks/useResponsive";
 import { useFinanceStore } from "@/store/financeStore";
 import { useApi, ApiError } from "@/lib/api";
 import { getNodeIcon } from "@/lib/categoryConfig";
@@ -126,6 +127,7 @@ export function EntryForm({
   onBack,
   onSaved,
 }: EntryFormProps) {
+  const { isTablet, contentWidth } = useResponsive();
   const { addEntry, updateEntry, fetchAll } = useFinanceActions();
   const entries = useFinanceStore((s) => s.entries);
   const api = useApi();
@@ -432,7 +434,10 @@ export function EntryForm({
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
           style={s.flex}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[
+            s.scrollContent,
+            isTablet && { width: contentWidth, alignSelf: "center" },
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           {/* ── Floating nav buttons ────────────────────────────────────── */}

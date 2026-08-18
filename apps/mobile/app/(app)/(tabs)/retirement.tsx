@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
   FlatList,
   Modal,
   Pressable,
@@ -38,8 +37,7 @@ import {
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { ProjectionChart, type ProjRow } from "@/components/retirement/ProjectionChart";
 import { InfoModal } from "@/components/retirement/InfoModal";
-
-const SCREEN_H = Dimensions.get("window").height;
+import { useResponsive } from "@/hooks/useResponsive";
 
 // ── Small components ────────────────────────────────────────────────────────────
 
@@ -264,6 +262,7 @@ function WaterPiggy({ pct, color }: { pct: number; color: string }) {
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export default function RetirementScreen() {
+  const { height: screenH, isTablet, wideContentWidth } = useResponsive();
   const entries = useFinanceStore((st) => st.entries);
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [initialized, setInitialized] = useState(false);
@@ -522,17 +521,22 @@ export default function RetirementScreen() {
   return (
     <SafeAreaView style={s.root} edges={["top"]}>
       <ScrollView
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={[
+          s.scroll,
+          isTablet && { width: wideContentWidth, alignSelf: "center" },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
-        <View style={[s.header, { height: SCREEN_H * 0.42 }]}>
+        <View style={[s.header, { height: screenH * 0.42 }]}>
           <View style={{ alignItems: "center", marginBottom: 4 }}>
-            <Text style={s.h1}>退休計劃</Text>
-            <Text style={s.h1sub}>財務自由追蹤與模擬</Text>
+            <Text style={[s.h1, isTablet && s.h1Tablet]}>退休計劃</Text>
+            <Text style={[s.h1sub, isTablet && s.h1subTablet]}>財務自由追蹤與模擬</Text>
           </View>
-          <Pressable onPress={() => setOpenModal("goal")}>
+          {/* Fixed 80pt art — scaled as a unit on tablet, with margin to give
+              the extra size layout room `scale` alone does not reserve. */}
+          <Pressable onPress={() => setOpenModal("goal")} style={isTablet && s.piggyTablet}>
             <WaterPiggy pct={calcs.goalPct} color={goalColor} />
           </Pressable>
           <View style={{ alignItems: "center" }}>
@@ -976,7 +980,10 @@ const s = StyleSheet.create({
 
   header: { alignItems: "center", justifyContent: "center", gap: 8 },
   h1: { fontSize: 22, fontWeight: "700", color: "#1c1c1e" },
+  h1Tablet: { fontSize: 27 },
   h1sub: { fontSize: 13, color: "#8e8e93", marginTop: 2 },
+  h1subTablet: { fontSize: 15 },
+  piggyTablet: { transform: [{ scale: 1.3 }], marginVertical: 14 },
   goalPct: { fontSize: 20, fontWeight: "700" },
   goalLabel: { fontSize: 12, color: "#8e8e93" },
 

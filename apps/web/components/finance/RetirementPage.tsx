@@ -651,8 +651,8 @@ export function RetirementPage() {
           style={{ height: "calc((100dvh - 64px) * 0.5)" }}
         >
           <div className="mb-1 text-center">
-            <h1 className="text-[22px] font-bold text-[#1c1c1e]">退休計劃</h1>
-            <p className="mt-0.5 text-[13px] text-[#8e8e93]">財務自由追蹤與模擬</p>
+            <h1 className="text-[22px] font-bold text-[#1c1c1e] md:text-[26px]">退休計劃</h1>
+            <p className="mt-0.5 text-[13px] text-[#8e8e93] md:text-[15px]">財務自由追蹤與模擬</p>
           </div>
 
           {/* Water-fill Piggy Bank */}
@@ -666,7 +666,7 @@ export function RetirementPage() {
               }
             }}
             aria-label="目標達成率"
-            className="relative cursor-pointer focus:outline-none active:opacity-70"
+            className="relative cursor-pointer focus:outline-none active:opacity-70 md:scale-125"
             style={{ width: 80, height: 80 }}
           >
             {/* Ghost outline — always full */}

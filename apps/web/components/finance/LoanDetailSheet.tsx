@@ -233,7 +233,7 @@ export function LoanDetailSheet({
         }`}
       >
         {/* Header */}
-        <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-14 pb-3">
+        <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-14 pb-3 md:max-w-xl lg:max-w-2xl">
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
@@ -252,7 +252,7 @@ export function LoanDetailSheet({
 
         {/* Scrollable body */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-md space-y-3 px-4 pb-12">
+          <div className="mx-auto max-w-md space-y-3 px-4 pb-12 md:max-w-xl lg:max-w-2xl">
             {/* Three editable input cards */}
             <div className="space-y-2">
               <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
@@ -417,7 +417,7 @@ export function LoanDetailSheet({
             onClick={closeSyncSheet}
           />
           <div className="fixed right-0 bottom-0 left-0 z-[96] rounded-t-2xl bg-white px-5 py-6 shadow-xl">
-            <div className="mx-auto max-w-md">
+            <div className="mx-auto max-w-md md:max-w-xl lg:max-w-2xl">
               <p className="mb-4 text-[17px] font-semibold text-[#1c1c1e]">確認本期還款</p>
 
               {syncMode === "auto" ? (

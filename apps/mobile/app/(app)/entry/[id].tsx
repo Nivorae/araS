@@ -22,6 +22,7 @@ import { BankLogo } from "@/components/BankLogo";
 import DividendSection from "@/components/DividendSection";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useResponsive } from "@/hooks/useResponsive";
 import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { useApi, ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
@@ -165,6 +166,7 @@ function HistoryRow({
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function EntryDetailScreen() {
+  const { isTablet, contentWidth } = useResponsive();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const api = useApi();
@@ -393,7 +395,13 @@ export default function EntryDetailScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          { paddingBottom: 40 },
+          isTablet && { width: contentWidth, alignSelf: "center" },
+        ]}
+      >
         {/* Entry info */}
         <View style={s.infoSection}>
           <View style={s.nameRow}>

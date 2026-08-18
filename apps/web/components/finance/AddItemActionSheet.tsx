@@ -23,7 +23,7 @@ export function AddItemActionSheet({ open, onClose, onAddAsset, onAddLiability }
           open ? "translate-y-0" : "pointer-events-none translate-y-full"
         }`}
       >
-        <div className="mx-auto max-w-md space-y-2 px-4 pb-16">
+        <div className="mx-auto max-w-md space-y-2 px-4 pb-16 md:max-w-xl lg:max-w-2xl">
           <div className="overflow-hidden rounded-2xl bg-white">
             <button
               onClick={() => {
