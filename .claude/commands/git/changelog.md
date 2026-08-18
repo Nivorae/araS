@@ -134,6 +134,39 @@ use" rules). Leave partially-completed items as-is. Commit this as its own
 `docs:` commit — don't fold it into step 6's commit, they're different
 concerns.
 
+### 6.6. Mirror the entries into `app.json`'s `extra.whatsNew`
+
+The App shows a 「本次更新」 sheet on the first launch after an update applies,
+reading `expo.extra.whatsNew` out of `apps/mobile/app.json`. That field is the
+**only** place those user-facing lines live at runtime — `CHANGELOG.md` is not
+bundled — so it has to be updated here, alongside the changelog, or the sheet
+shows nothing.
+
+Reuse the bullets just written. Do not compose separate copy.
+
+```json
+"extra": {
+  "whatsNew": {
+    "id": "2026-08-18-ipad",
+    "lines": ["適配 iPad 與大螢幕：表單改為置中欄，圖表使用較寬的版面"]
+  }
+}
+```
+
+Two rules:
+
+- **`id` must change whenever `lines` changes.** The sheet is shown once per
+  `id`; an unchanged `id` means users who already saw the previous sheet see
+  nothing. Date-plus-topic (`2026-08-18-ipad`) is enough.
+- **`version` stays untouched.** `extra` is read from JS, not a native config
+  field, so editing it ships over OTA and does **not** require a rebuild. See
+  `/mobile-release` Step 0.5 for why bumping `version` on an OTA is destructive.
+
+Failing to update this is fail-safe by design: a stale or missing `id` shows
+**nothing** rather than last release's notes. Silence is the intended failure.
+
+Commit with the changelog in step 6 — they are one concern.
+
 ### 7. Report
 
 Print the entries added, and for `--release` mode remind the user:
