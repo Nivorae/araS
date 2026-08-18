@@ -50,8 +50,17 @@ const SPRING_PRESS = { stiffness: 220, damping: 25, mass: 1, useNativeDriver: tr
  *
  * `createdAt` is null when the app is running its embedded (App Store) bundle
  * with no OTA applied yet. `isEnabled` is false in Expo Go / dev.
+ *
+ * The third line is the update state, and it is the direct answer to "has the
+ * new version finished downloading yet?" — the question the background download
+ * gives the user no way to answer. Values come from `Updates.useUpdates()`,
+ * read by the caller (a pure function can't call a hook).
  */
-function versionLines(): string[] {
+function versionLines(status: {
+  isDownloading: boolean;
+  downloadProgress?: number | undefined;
+  isUpdatePending: boolean;
+}): string[] {
   const version = Constants.expoConfig?.version ?? "—";
   if (!Updates.isEnabled) return [`版本 ${version} · 開發模式`];
 
@@ -63,6 +72,20 @@ function versionLines(): string[] {
       `更新於 ${createdAt.getFullYear()}/${p(createdAt.getMonth() + 1)}/${p(createdAt.getDate())} ` +
         `${p(createdAt.getHours())}:${p(createdAt.getMinutes())}`
     );
+  }
+
+  if (status.isDownloading) {
+    // `downloadProgress` is only continuous when the server sends
+    // Content-Length; without it the value stays coarse, so show a bare
+    // "下載中…" rather than a percentage that looks stuck at 0%.
+    const pct = status.downloadProgress;
+    lines.push(
+      typeof pct === "number" && pct > 0 ? `更新下載中… ${Math.round(pct * 100)}%` : "更新下載中…"
+    );
+  } else if (status.isUpdatePending) {
+    lines.push("已下載，重啟後生效");
+  } else {
+    lines.push("已是最新版本");
   }
   return lines;
 }
@@ -119,6 +142,9 @@ export default function SettingsScreen() {
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const [deleting, setDeleting] = useState(false);
   const [devToggling, setDevToggling] = useState(false);
+  // Live OTA state for the version footer — 「下載完成了沒」 answered in place.
+  const { isDownloading, downloadProgress, isUpdatePending } = Updates.useUpdates();
+  const updateStatus = { isDownloading, downloadProgress, isUpdatePending };
 
   async function simulatePremium(action: "activate" | "deactivate") {
     if (devToggling) return;
@@ -278,7 +304,7 @@ export default function SettingsScreen() {
           <Text style={s.dangerHint}>永久刪除帳號與所有資料，無法復原。</Text>
 
           <View style={s.versionBlock}>
-            {versionLines().map((line) => (
+            {versionLines(updateStatus).map((line) => (
               <Text key={line} style={s.versionText}>
                 {line}
               </Text>
