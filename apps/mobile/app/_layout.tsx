@@ -5,6 +5,8 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { tokenCache } from "@/lib/tokenCache";
+import UpdateBanner from "@/components/UpdateBanner";
+import WhatsNewSheet from "@/components/WhatsNewSheet";
 import { configurePurchases } from "@/lib/purchases";
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
@@ -65,6 +67,13 @@ export default Sentry.wrap(function RootLayout() {
       <ClerkLoaded>
         <InitialLayout />
       </ClerkLoaded>
+      {/*
+        更新提示掛在 root、而且刻意在 <ClerkLoaded> 外面 —— 登入牆外（含還沒登入、
+        Clerk 還在載入）也要看得到。教訓來自設定頁的版號顯示：它藏在登入牆後面，
+        剛好是登入出問題時最看不到的地方。
+      */}
+      <UpdateBanner />
+      <WhatsNewSheet />
     </ClerkProvider>
   );
 });
