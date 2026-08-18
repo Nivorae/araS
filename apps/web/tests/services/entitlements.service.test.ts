@@ -13,7 +13,10 @@ const FUTURE = new Date(Date.now() + 1000 * 60 * 60 * 24);
 const PAST = new Date(Date.now() - 1000 * 60 * 60 * 24);
 
 describe("EntitlementsService.isPremium", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.PREMIUM_OWNER_USER_IDS;
+  });
 
   it("looks up the subscription by the derived apple account token, not the raw userId", async () => {
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null);
@@ -58,5 +61,36 @@ describe("EntitlementsService.isPremium", () => {
       expiresAt: FUTURE,
     } as never);
     expect(await entitlementsService.isPremium(USER_ID)).toBe(false);
+  });
+  describe("PREMIUM_OWNER_USER_IDS allowlist", () => {
+    it("grants premium without touching the database", async () => {
+      process.env.PREMIUM_OWNER_USER_IDS = USER_ID;
+      expect(await entitlementsService.isPremium(USER_ID)).toBe(true);
+      // The short-circuit is the point: an owner stays premium even when the
+      // database is unreachable, so no query may be issued.
+      expect(prisma.subscription.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("accepts a comma-separated list with surrounding whitespace", async () => {
+      process.env.PREMIUM_OWNER_USER_IDS = ` user_other , ${USER_ID} `;
+      expect(await entitlementsService.isPremium(USER_ID)).toBe(true);
+    });
+
+    it("leaves non-listed users on the normal subscription path", async () => {
+      process.env.PREMIUM_OWNER_USER_IDS = "user_someone_else";
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null);
+      expect(await entitlementsService.isPremium(USER_ID)).toBe(false);
+      expect(prisma.subscription.findUnique).toHaveBeenCalled();
+    });
+
+    it("treats an empty or unset value as nobody, not as everybody", async () => {
+      process.env.PREMIUM_OWNER_USER_IDS = "";
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null);
+      expect(await entitlementsService.isPremium(USER_ID)).toBe(false);
+      // An empty string splits to [""], so a bare filter-less implementation
+      // would match a user whose id is "" — and, worse, `"".split(",")` never
+      // yields an empty array. Guard the blank-id case explicitly.
+      expect(await entitlementsService.isPremium("")).toBe(false);
+    });
   });
 });

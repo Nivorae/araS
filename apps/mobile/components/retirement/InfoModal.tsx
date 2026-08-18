@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import type { ModalContent } from "@/lib/retirement";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
+import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
 
 export function InfoModal({
   content,
@@ -20,6 +21,8 @@ export function InfoModal({
   onClose: () => void;
 }) {
   const { isTablet } = useResponsive();
+  // 了解了 按鈕是這個捲動區的最後一個元素，而 sheet 底緣就是螢幕底緣。
+  const bottomPad = useSheetBottomPadding(24);
 
   return (
     <Modal
@@ -56,7 +59,7 @@ export function InfoModal({
               {/* Formula block — light gray */}
               <ScrollView
                 style={s.formula}
-                contentContainerStyle={s.formulaContent}
+                contentContainerStyle={[s.formulaContent, { paddingBottom: bottomPad }]}
                 showsVerticalScrollIndicator={false}
               >
                 <Text style={s.formulaTitle}>計算公式</Text>

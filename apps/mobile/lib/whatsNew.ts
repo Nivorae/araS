@@ -12,24 +12,50 @@
 /** AsyncStorage key：存「上一次顯示過的 whatsNew id」。 */
 export const WHATS_NEW_STORAGE_KEY = "whatsNew.lastShownId";
 
+/**
+ * 發版時固定使用的三個區塊標題，依這個順序寫進 `app.json`。
+ *
+ * 這裡只是「約定」而不是「限制」—— `parseWhatsNew` 照 `app.json` 給的標題與順序
+ * 原樣顯示，沒有東西可寫的區塊直接整段省略（例如純修 bug 的版本就不會有
+ * 「新功能」）。
+ */
+export const WHATS_NEW_SECTION_TITLES = ["新功能", "優化", "立即重啟"] as const;
+
+export interface WhatsNewSection {
+  title: string;
+  items: string[];
+}
+
 export interface WhatsNew {
   id: string;
-  lines: string[];
+  sections: WhatsNewSection[];
 }
 
 /**
  * 從 `Constants.expoConfig?.extra?.whatsNew` 這種來源不明的值解析出文案。
  *
- * 任何形狀不對的情況一律回 null —— 失效方向必須是「少講」，不是講錯。
+ * 任何形狀不對的情況一律回 null —— 失效方向必須是「少講」，不是講錯。空白的
+ * 項目、以及沒有任何項目的區塊，都會被丟掉而不是留下一個空標題。
  */
 export function parseWhatsNew(extra: unknown): WhatsNew | null {
   if (!extra || typeof extra !== "object") return null;
-  const { id, lines } = extra as { id?: unknown; lines?: unknown };
+  const { id, sections } = extra as { id?: unknown; sections?: unknown };
   if (typeof id !== "string" || id.trim() === "") return null;
-  if (!Array.isArray(lines)) return null;
-  const clean = lines.filter((l): l is string => typeof l === "string" && l.trim() !== "");
+  if (!Array.isArray(sections)) return null;
+
+  const clean: WhatsNewSection[] = [];
+  for (const section of sections) {
+    if (!section || typeof section !== "object") continue;
+    const { title, items } = section as { title?: unknown; items?: unknown };
+    if (typeof title !== "string" || title.trim() === "") continue;
+    if (!Array.isArray(items)) continue;
+    const cleanItems = items.filter((i): i is string => typeof i === "string" && i.trim() !== "");
+    if (cleanItems.length === 0) continue;
+    clean.push({ title, items: cleanItems });
+  }
   if (clean.length === 0) return null;
-  return { id, lines: clean };
+
+  return { id, sections: clean };
 }
 
 export interface ShouldShowWhatsNewInput {

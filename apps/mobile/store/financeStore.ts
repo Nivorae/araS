@@ -18,6 +18,11 @@ export interface FinanceState {
   // Each range is fetched once per session — the server rebuilds these points
   // from EntryHistory, so they don't change between range switches.
   netWorthHistory: Partial<Record<NetWorthRange, NetWorthPoint[]>>;
+  // Bumped every time the cache above is dropped. An in-flight request that
+  // started under an older epoch is stale by definition, so the fetcher can
+  // tell "nobody has fetched this yet" apart from "this answer is for a
+  // version of the data that no longer exists" and discard the latter.
+  netWorthHistoryEpoch: number;
   // Per-entry history, keyed by entry id. Cached so re-opening an entry renders
   // its records immediately while a refetch runs in the background, instead of
   // dropping back to a loading state on every focus.
@@ -57,6 +62,7 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   portfolio: [],
   recurrences: [],
   netWorthHistory: {},
+  netWorthHistoryEpoch: 0,
   historyByEntry: {},
   loading: false,
   error: null,
@@ -79,12 +85,14 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
     set((s) => ({
       entries: [entry, ...s.entries.filter((e) => e.id !== entry.id)],
       netWorthHistory: {},
+      netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
     })),
 
   updateEntryLocal: (id, entry) =>
     set((s) => ({
       entries: s.entries.map((e) => (e.id === id ? entry : e)),
       netWorthHistory: {},
+      netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
     })),
 
   deleteEntryLocal: (id) =>
@@ -95,6 +103,7 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
         entries: s.entries.filter((e) => e.id !== id),
         historyByEntry,
         netWorthHistory: {},
+        netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
       };
     }),
 

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import type { NetWorthRange } from "@repo/shared";
 import { useFinanceStore } from "@/store/financeStore";
+import { chartedEntries } from "@/lib/chartedEntries";
 import { useResponsive } from "@/hooks/useResponsive";
 import { BalanceScale } from "@/components/BalanceScale";
 import { NetWorthChart } from "@/components/NetWorthChart";
@@ -28,6 +29,13 @@ export default function TransactionsScreen() {
   const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
   const [range, setRange] = useState<NetWorthRange>("6m");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // Identifies the newest request so a superseded one can't clear the spinner
+  // out from under its replacement. Deliberately not a per-effect-run
+  // "cancelled" flag: the fetch completing is what writes to the store, which
+  // re-runs the effect below, so a cleanup-based flag would cancel the very
+  // continuation that turns the spinner off and leave the chart loading
+  // forever.
+  const requestTokenRef = useRef(0);
   // Mounted-once-then-kept-alive: switching `view` only toggles which pane is
   // visible below (see `display: none` in chartZone), so a tab's component
   // never unmounts once visited and doesn't reset/refetch on every switch
@@ -38,28 +46,38 @@ export default function TransactionsScreen() {
   const entries = useFinanceStore((s) => s.entries);
   const netWorthHistory = useFinanceStore((s) => s.netWorthHistory);
 
+  // 這兩個數字就印在走勢圖正上方，描述的是圖表所呈現的那份資產，所以要跟折線
+  // 用同一組項目 —— 折線是伺服器算的、已經濾掉「納入圖表」關閉的項目，這裡漏濾
+  // 的話關掉開關後數字不動，看起來就像設定沒生效。
+  const charted = useMemo(() => chartedEntries(entries), [entries]);
+
   const totalAssets = useMemo(
-    () => entries.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0),
-    [entries]
+    () => charted.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0),
+    [charted]
   );
   const totalLiabilities = useMemo(
-    () => entries.filter((e) => e.topCategory === "負債").reduce((s, e) => s + e.value, 0),
-    [entries]
+    () => charted.filter((e) => e.topCategory === "負債").reduce((s, e) => s + e.value, 0),
+    [charted]
   );
 
   // Only the selected range is fetched, and only once — the store caches it and
   // clears the cache whenever an entry changes. Loading only shows for an
   // uncached range so switching back to an already-fetched range is instant.
   useEffect(() => {
-    if (netWorthHistory[range]) return;
-    let cancelled = false;
+    if (netWorthHistory[range]) {
+      // Cached — including the case where this run was triggered by the fetch
+      // below landing in the store, so this is the success path's clear, not
+      // just an early return.
+      setIsHistoryLoading(false);
+      return;
+    }
+    const token = ++requestTokenRef.current;
     setIsHistoryLoading(true);
     void fetchNetWorthHistory(range).finally(() => {
-      if (!cancelled) setIsHistoryLoading(false);
+      // Covers the failure path, which writes nothing and so never re-runs this
+      // effect. A newer request owning the token means it will do the clearing.
+      if (requestTokenRef.current === token) setIsHistoryLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
   }, [fetchNetWorthHistory, range, netWorthHistory]);
 
   const points = useMemo(() => netWorthHistory[range] ?? [], [netWorthHistory, range]);

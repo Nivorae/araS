@@ -114,9 +114,11 @@ eas update --branch production --clear-cache --message "…"
   the user first.
 - **DO update `app.json`'s `expo.extra.whatsNew` before publishing** — the
   「本次更新」 sheet the App shows after an update applies reads its copy from
-  there, and `CHANGELOG.md` is not bundled. Change **both** `lines` (reuse the
-  changelog bullets, don't compose new copy) and `id` — the sheet is shown once
-  per `id`, so an unchanged `id` shows nothing to anyone who saw the last one.
+  there, and `CHANGELOG.md` is not bundled. Change **both** `sections` (reuse
+  the changelog bullets, don't compose new copy — sorted into 新功能／優化／
+  立即重啟, omitting any section with nothing in it) and `id` — the sheet is
+  shown once per `id`, so an unchanged `id` shows nothing to anyone who saw the
+  last one.
   `extra` is read from JS, not a native config field, so this stays Road A and
   needs no rebuild. Skipping it is fail-safe: users see **nothing** rather than
   the previous release's notes. Full detail in `/git:changelog` step 6.6.

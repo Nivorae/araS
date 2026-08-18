@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
+import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
 import {
   WHATS_NEW_STORAGE_KEY,
   parseWhatsNew,
@@ -19,15 +20,20 @@ import {
  * `lib/whatsNew.ts` 的 `shouldShowWhatsNew()`，這裡只負責讀 storage 與畫面。
  *
  * 沿用 ReinvestSheet 的 bottom-sheet 視覺，不另創一套。
+ *
+ * 文案分區塊（新功能／優化／立即重啟）呈現，區塊標題與順序完全由 `app.json`
+ * 決定，這裡不寫死任何一個標題 —— 沒有內容的區塊在解析階段就被丟掉了。
  */
 export default function WhatsNewSheet() {
   const { isTablet } = useResponsive();
+  const bottomPad = useSheetBottomPadding();
   const { currentlyRunning } = Updates.useUpdates();
   const [content, setContent] = useState<WhatsNew | null>(null);
 
   useEffect(() => {
     let active = true;
     const whatsNew = parseWhatsNew(Constants.expoConfig?.extra?.whatsNew);
+
     (async () => {
       let lastShownId: string | null = null;
       try {
@@ -68,15 +74,20 @@ export default function WhatsNewSheet() {
           <Text style={s.title}>本次更新</Text>
 
           <ScrollView style={s.body} contentContainerStyle={s.bodyContent}>
-            {content.lines.map((line) => (
-              <View key={line} style={s.row}>
-                <Text style={s.bullet}>・</Text>
-                <Text style={s.line}>{line}</Text>
+            {content.sections.map((section) => (
+              <View key={section.title} style={s.section}>
+                <Text style={s.sectionTitle}>{section.title}</Text>
+                {section.items.map((item) => (
+                  <View key={item} style={s.row}>
+                    <Text style={s.bullet}>・</Text>
+                    <Text style={s.line}>{item}</Text>
+                  </View>
+                ))}
               </View>
             ))}
           </ScrollView>
 
-          <View style={s.actions}>
+          <View style={[s.actions, { paddingBottom: bottomPad }]}>
             <Pressable onPress={handleClose} style={[s.btn, s.btnPrimary]}>
               <Text style={s.btnPrimaryText}>知道了</Text>
             </Pressable>
@@ -109,11 +120,17 @@ const s = StyleSheet.create({
   // 文案長度不受控（發版時想寫幾行就幾行），所以給一個上限並讓它自己捲動，
   // 不讓 sheet 長到把按鈕推出畫面外。
   body: { paddingHorizontal: 20, maxHeight: 320 },
-  bodyContent: { gap: 10, paddingBottom: 4 },
+  bodyContent: { gap: 18, paddingBottom: 4 },
+  // 區塊之間留 18，區塊內的項目只留 6 —— 靠間距而不是分隔線來分組，標題才不會
+  // 看起來像跟著上一組的最後一行。
+  section: { gap: 6 },
+  sectionTitle: { fontSize: 12, fontWeight: "700", color: "#8e8e93", letterSpacing: 0.5 },
   row: { flexDirection: "row", alignItems: "flex-start" },
   bullet: { fontSize: 14, color: "#8e8e93", lineHeight: 21 },
   line: { flex: 1, fontSize: 14, color: "#1c1c1e", lineHeight: 21 },
-  actions: { padding: 20 },
+  // `row` 是必要的，不是排版偏好：btn 用 flex: 1 佔滿寬度，放在預設的 column
+  // 容器裡會被當成 flexBasis: 0 壓掉高度，按鈕文字就整個被裁掉。
+  actions: { flexDirection: "row", padding: 20 },
   btn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   btnPrimary: { backgroundColor: "#66788E" },
   btnPrimaryText: { fontSize: 15, color: "#fff", fontWeight: "600" },

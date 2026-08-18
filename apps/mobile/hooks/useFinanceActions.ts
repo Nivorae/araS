@@ -27,6 +27,18 @@ import type {
   DividendSummary,
 } from "@repo/shared";
 
+// In-flight net-worth-history requests, keyed by range. Module-level rather
+// than a ref so two screens (or two mounts of the same one) share it: the
+// chart effect can fire again before the first response lands, and a plain
+// cache check only dedupes *after* the write. Entries are removed on settle,
+// so a failed fetch is retried rather than being remembered as pending. The
+// epoch each request started under is kept alongside it, so a request issued
+// before an entry mutation is never handed to a caller asking after it.
+const netWorthHistoryInFlight = new Map<
+  NetWorthRange,
+  { epoch: number; promise: Promise<NetWorthPoint[] | null> }
+>();
+
 export function useFinanceActions() {
   const api = useApi();
 
@@ -99,20 +111,39 @@ export function useFinanceActions() {
   // already cached, so flicking between 6M/1Y/全部 only ever costs one fetch
   // each; entry mutations clear the cache and make the next view refetch.
   const fetchNetWorthHistory = useCallback(
-    async (range: NetWorthRange): Promise<NetWorthPoint[] | null> => {
+    (range: NetWorthRange): Promise<NetWorthPoint[] | null> => {
       const cached = useFinanceStore.getState().netWorthHistory[range];
-      if (cached) return cached;
-      try {
-        const result = await api.get<NetWorthHistory>(
-          `/api/entries/net-worth-history?range=${range}`
-        );
-        useFinanceStore.getState().setNetWorthHistory(range, result.points);
-        return result.points;
-      } catch {
-        // The chart falls back to its empty state; a failed chart read must not
-        // take over the screen the way a failed initial load does.
-        return null;
-      }
+      if (cached) return Promise.resolve(cached);
+
+      const epoch = useFinanceStore.getState().netWorthHistoryEpoch;
+      const pending = netWorthHistoryInFlight.get(range);
+      if (pending && pending.epoch === epoch) return pending.promise;
+
+      const promise = api
+        .get<NetWorthHistory>(`/api/entries/net-worth-history?range=${range}`)
+        .then((result) => {
+          // An entry changed while this was in flight, so these points describe
+          // a net worth that no longer holds. Caching them would pin the chart
+          // to stale numbers; the mutation already triggered a fresh fetch.
+          if (useFinanceStore.getState().netWorthHistoryEpoch !== epoch) return null;
+          useFinanceStore.getState().setNetWorthHistory(range, result.points);
+          return result.points;
+        })
+        .catch(() => {
+          // The chart falls back to its empty state; a failed chart read must
+          // not take over the screen the way a failed initial load does.
+          return null;
+        })
+        .finally(() => {
+          // Only clear the slot if it is still this request's — a newer epoch
+          // may have replaced it while this one was resolving.
+          if (netWorthHistoryInFlight.get(range)?.promise === promise) {
+            netWorthHistoryInFlight.delete(range);
+          }
+        });
+
+      netWorthHistoryInFlight.set(range, { epoch, promise });
+      return promise;
     },
     [api]
   );
