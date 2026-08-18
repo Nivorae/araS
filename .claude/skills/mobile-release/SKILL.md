@@ -25,6 +25,14 @@ If unsure, inspect the diff: changes only under JS/TSX/logic → Road A. Anythin
 touching `package.json` native deps, `app.json` native fields, or `ios/`/pods →
 Road B.
 
+**`app.json` is not uniformly native.** The row above means the fields the
+native build consumes — `icon`, `splash`, `plugins`, `bundleIdentifier`,
+`permissions`, `associatedDomains`. `expo.extra` is the opposite: it is read at
+runtime from JS via `Constants.expoConfig?.extra`, ships inside the OTA
+manifest, and needs **no** rebuild. So editing `extra.whatsNew` (the release
+notes the App shows after updating) stays Road A. Do not let "the diff touches
+app.json" alone push a JS-only change into a two-week App Store round trip.
+
 **Critical rule (learned the hard way):** OTA (`eas update`) can only ship
 **JavaScript**. It can NOT add a native module to an already-installed binary.
 Pushing JS that imports a native module the shipped binary lacks will **crash on
@@ -104,7 +112,20 @@ eas update --branch production --clear-cache --message "…"
 
 - Do **NOT** change `app.json` `version` (see Step 0.5) — but DO confirm it with
   the user first.
-- Users get it on next app reopen (minutes).
+- **DO update `app.json`'s `expo.extra.whatsNew` before publishing** — the
+  「本次更新」 sheet the App shows after an update applies reads its copy from
+  there, and `CHANGELOG.md` is not bundled. Change **both** `lines` (reuse the
+  changelog bullets, don't compose new copy) and `id` — the sheet is shown once
+  per `id`, so an unchanged `id` shows nothing to anyone who saw the last one.
+  `extra` is read from JS, not a native config field, so this stays Road A and
+  needs no rebuild. Skipping it is fail-safe: users see **nothing** rather than
+  the previous release's notes. Full detail in `/git:changelog` step 6.6.
+- Users get it on next app reopen (minutes). More precisely: **two** opens —
+  `fallbackToCacheTimeout` is unset (0), so launch N runs the old bundle while
+  downloading in the background and launch N+1 runs the new one. The
+  update-ready banner exists to collapse that into one launch by offering
+  `Updates.reloadAsync()`, but it only helps from the update _after_ the one
+  that ships the banner itself.
 - Verify locally first in Expo Go (`pnpm --filter @repo/mobile start`) — but note
   Expo Go does not run RevenueCat/native store (see Gotchas).
 - **Dry-run what the OTA would ship before publishing** (catches wrong env vars):
