@@ -92,7 +92,7 @@ export function InsuranceDetailPage({ open, insuranceId, color, onClose, onChang
       }`}
     >
       {/* Header */}
-      <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-14 pb-3">
+      <div className="mx-auto w-full max-w-md shrink-0 px-4 pt-14 pb-3 md:max-w-xl lg:max-w-2xl">
         <div className="flex items-center justify-between">
           <button
             onClick={onClose}
@@ -120,7 +120,7 @@ export function InsuranceDetailPage({ open, insuranceId, color, onClose, onChang
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-md px-4 pb-12">
+        <div className="mx-auto max-w-md px-4 pb-12 md:max-w-xl lg:max-w-2xl">
           {loading ? (
             <p className="py-8 text-center text-[13px] text-[#8e8e93]">載入中...</p>
           ) : !insurance ? (

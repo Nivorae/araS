@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import type { ModalContent } from "@/lib/retirement";
+import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 
 export function InfoModal({
   content,
@@ -18,6 +19,8 @@ export function InfoModal({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { isTablet } = useResponsive();
+
   return (
     <Modal
       visible={visible && content !== null}
@@ -26,7 +29,10 @@ export function InfoModal({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable style={s.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable
+          style={[s.sheet, isTablet && s.sheetTablet]}
+          onPress={(e) => e.stopPropagation()}
+        >
           {/* Drag handle */}
           <View style={s.handleWrap} pointerEvents="none">
             <View style={s.handle} />
@@ -73,6 +79,9 @@ export function InfoModal({
 }
 
 const s = StyleSheet.create({
+  // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
+  // and centring it keeps it sheet-shaped.
+  sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",

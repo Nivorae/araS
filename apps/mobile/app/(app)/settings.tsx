@@ -27,6 +27,7 @@ import {
 } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
+import { useResponsive } from "@/hooks/useResponsive";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -110,6 +111,7 @@ function SettingCard({
 }
 
 export default function SettingsScreen() {
+  const { isTablet, contentWidth } = useResponsive();
   const router = useRouter();
   const { signOut } = useAuth();
   const { user } = useUser();
@@ -187,7 +189,12 @@ export default function SettingsScreen() {
           <View style={s.headerSpacer} />
         </View>
 
-        <ScrollView contentContainerStyle={s.content}>
+        <ScrollView
+          contentContainerStyle={[
+            s.content,
+            isTablet && { width: contentWidth, alignSelf: "center" },
+          ]}
+        >
           {/* Profile — the page's title block, deliberately outside the deck so
               the cards read as the one piece of content. */}
           <View style={s.profile}>

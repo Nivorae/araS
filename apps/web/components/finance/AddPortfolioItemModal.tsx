@@ -77,7 +77,7 @@ export function AddPortfolioItemModal({ open, onClose }: Props) {
         <div className="flex justify-center pt-3 pb-1">
           <div className="h-1 w-10 rounded-full bg-[#e5e5ea]" />
         </div>
-        <div className="mx-auto max-w-md px-4 pt-2 pb-8">
+        <div className="mx-auto max-w-md px-4 pt-2 pb-8 md:max-w-xl lg:max-w-2xl">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-[17px] font-semibold text-[#1c1c1e]">新增投資標的</h2>
             <button

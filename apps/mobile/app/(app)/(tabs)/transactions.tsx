@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import type { NetWorthRange } from "@repo/shared";
 import { useFinanceStore } from "@/store/financeStore";
-
-const SCREEN_H = Dimensions.get("window").height;
+import { useResponsive } from "@/hooks/useResponsive";
 import { BalanceScale } from "@/components/BalanceScale";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { AssetAllocationView } from "@/components/AssetAllocationView";
@@ -23,6 +22,7 @@ const RANGES: { key: NetWorthRange; label: string }[] = [
 
 export default function TransactionsScreen() {
   const router = useRouter();
+  const { height: screenH, isTablet, contentWidth, wideContentWidth } = useResponsive();
   const { isPremium } = useIsPremium();
   const { fetchNetWorthHistory } = useFinanceActions();
   const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
@@ -72,10 +72,24 @@ export default function TransactionsScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={["top"]}>
-      {/* Header: balance scale — same height as retirement header */}
-      <View style={[s.headerZone, { height: SCREEN_H * 0.44 }]}>
-        <Text style={s.title}>資產損益</Text>
-        <BalanceScale assets={totalAssets} liabilities={totalLiabilities} />
+      {/* Header: balance scale — same height as retirement header. Capped to
+          the content column on tablet so the values row (a % of its parent)
+          does not fan out to the far edges of an iPad while the scale itself
+          stays a fixed 220pt composition. */}
+      <View
+        style={[
+          s.headerZone,
+          { height: screenH * 0.44 },
+          isTablet && { width: contentWidth, alignSelf: "center" },
+        ]}
+      >
+        <Text style={[s.title, isTablet && s.titleTablet]}>資產損益</Text>
+
+        {/* The scale is fixed-size art, so it is scaled as a unit rather than
+            re-laid-out; the values below it are a share of the same column. */}
+        <View style={isTablet ? s.scaleTablet : undefined}>
+          <BalanceScale assets={totalAssets} liabilities={totalLiabilities} />
+        </View>
 
         {/* Asset / Liability values aligned below the pans */}
         <View style={s.valuesRow}>
@@ -139,7 +153,7 @@ export default function TransactionsScreen() {
       {/* Chart zone — fills remaining height. All visited panes stay mounted;
           `display: none` removes the hidden ones from layout without
           unmounting them, so switching tabs never re-triggers their fetch. */}
-      <View style={s.chartZone}>
+      <View style={[s.chartZone, isTablet && { width: wideContentWidth, alignSelf: "center" }]}>
         <View style={[s.tabPane, view !== "trend" && s.hiddenPane]}>
           <View style={s.rangeRow}>
             {RANGES.map((r) => (
@@ -188,6 +202,10 @@ const s = StyleSheet.create({
     gap: 16,
   },
   title: { fontSize: 22, fontWeight: "700", color: "#1c1c1e" },
+  titleTablet: { fontSize: 27 },
+  // `scale` does not grow the layout box, so the extra 30% of the 108pt art
+  // would overlap the title and values; the margin gives it that room back.
+  scaleTablet: { transform: [{ scale: 1.3 }], marginVertical: 18 },
   valuesRow: {
     width: "75%",
     flexDirection: "row",

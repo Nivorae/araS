@@ -18,6 +18,7 @@ import { useIsPremium } from "@/hooks/useIsPremium";
 import { useFinanceStore } from "@/store/financeStore";
 import { buildYfSymbol } from "@/lib/stockConstants";
 import { DatePickerModal } from "./DatePickerModal";
+import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 
 interface DividendFormProps {
   visible: boolean;
@@ -79,6 +80,7 @@ export default function DividendForm({
   onClose,
   onSaved,
 }: DividendFormProps) {
+  const { isTablet } = useResponsive();
   const api = useApi();
   const router = useRouter();
   const { addDividend, fetchAll } = useFinanceActions();
@@ -307,7 +309,7 @@ export default function DividendForm({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable style={s.sheet} onPress={() => {}}>
+        <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
           <View style={s.handle} />
           <Text style={s.title}>新增股利 · {entryName}</Text>
 
@@ -473,6 +475,9 @@ export default function DividendForm({
 }
 
 const s = StyleSheet.create({
+  // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
+  // and centring it keeps it sheet-shaped.
+  sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
   backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: {
     backgroundColor: "#fff",

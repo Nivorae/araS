@@ -71,7 +71,7 @@ export default function MorePage() {
             className="fixed inset-0 z-[80] bg-black/40"
             onClick={() => setShowDeleteConfirm(false)}
           />
-          <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10">
+          <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10 md:max-w-xl lg:max-w-2xl">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e5e5ea]" />
             <p className="mb-2 text-center text-[16px] font-semibold text-[#1c1c1e]">刪除帳號</p>
             <p className="mb-6 text-center text-[13px] text-[#8e8e93]">

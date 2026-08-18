@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Dimensions,
   LayoutAnimation,
   Platform,
   StyleSheet,
@@ -18,18 +17,18 @@ import {
   type CategoryNode,
   type TopCategory,
 } from "@/lib/categoryConfig";
+import { useResponsive } from "@/hooks/useResponsive";
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-const HERO_HEIGHT = Dimensions.get("window").height * 0.4;
-const GRID_COLUMNS = 3;
 const GRID_GAP = 12;
 const BODY_PADDING = 16;
-const GRID_ITEM_WIDTH =
-  (Dimensions.get("window").width - BODY_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) /
-  GRID_COLUMNS;
+
+/** Extra columns on a tablet, so tiles stay thumb-sized instead of ballooning. */
+const GRID_COLUMNS_PHONE = 3;
+const GRID_COLUMNS_TABLET = 4;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const rows: T[][] = [];
@@ -47,7 +46,18 @@ type GridCell = { type: "back" } | { type: "node"; node: CategoryNode };
 
 export default function NewEntryScreen() {
   const router = useRouter();
+  const { height: screenH, isTablet, contentWidth } = useResponsive();
   const { topCategory } = useLocalSearchParams<{ topCategory?: string }>();
+
+  // Derived per render rather than at module load, so the grid re-flows when
+  // an iPad rotates or is resized in Split View.
+  const gridColumns = isTablet ? GRID_COLUMNS_TABLET : GRID_COLUMNS_PHONE;
+  const gridItemWidth =
+    (contentWidth - BODY_PADDING * 2 - GRID_GAP * (gridColumns - 1)) / gridColumns;
+  const heroHeight = screenH * 0.4;
+  // The hero fills 40% of the screen, so on a taller tablet a 128pt glyph
+  // floats in a lot of empty space.
+  const heroIconSize = isTablet ? 168 : 128;
   const [state, setState] = useState<PickerState>({
     level: "root",
     expanded: topCategory ?? null,
@@ -110,7 +120,7 @@ export default function NewEntryScreen() {
     state.level === "drill"
       ? [{ type: "back" }, ...gridItems.map((node) => ({ type: "node" as const, node }))]
       : gridItems.map((node) => ({ type: "node" as const, node }));
-  const gridRows = chunk(gridCells, GRID_COLUMNS);
+  const gridRows = chunk(gridCells, gridColumns);
 
   return (
     <SafeAreaView style={s.root}>
@@ -126,16 +136,16 @@ export default function NewEntryScreen() {
         <View style={s.placeholder} />
       </View>
 
-      <View style={s.body}>
-        <View style={s.hero}>
+      <View style={[s.body, isTablet && { width: contentWidth, alignSelf: "center" }]}>
+        <View style={[s.hero, { height: heroHeight }]}>
           {activeTopCat ? (
             <>
-              <activeTopCat.icon size={128} color={heroIconColor} strokeWidth={1.5} />
+              <activeTopCat.icon size={heroIconSize} color={heroIconColor} strokeWidth={1.5} />
               <Text style={s.heroLabel}>{activeTopCat.name}</Text>
             </>
           ) : (
             <>
-              <LayoutGrid size={128} color="#c7c7cc" strokeWidth={1.5} />
+              <LayoutGrid size={heroIconSize} color="#c7c7cc" strokeWidth={1.5} />
               <Text style={s.heroLabelEmpty}>請選擇分類</Text>
             </>
           )}
@@ -175,7 +185,7 @@ export default function NewEntryScreen() {
                     <TouchableOpacity
                       key="__back__"
                       onPress={handleDrillBack}
-                      style={s.gridItem}
+                      style={[s.gridItem, { width: gridItemWidth }]}
                       activeOpacity={0.7}
                     >
                       <View style={s.gridIcon}>
@@ -194,7 +204,7 @@ export default function NewEntryScreen() {
                   <TouchableOpacity
                     key={node.name}
                     onPress={() => activeTopCat && handleSubItemClick(node, activeTopCat)}
-                    style={s.gridItem}
+                    style={[s.gridItem, { width: gridItemWidth }]}
                     activeOpacity={0.7}
                   >
                     <View style={s.gridIcon}>
@@ -240,7 +250,6 @@ const s = StyleSheet.create({
   body: { flex: 1, padding: BODY_PADDING, gap: 16 },
 
   hero: {
-    height: HERO_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -296,7 +305,6 @@ const s = StyleSheet.create({
     columnGap: GRID_GAP,
   },
   gridItem: {
-    width: GRID_ITEM_WIDTH,
     alignItems: "center",
     justifyContent: "center",
   },

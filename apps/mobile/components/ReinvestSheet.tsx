@@ -5,6 +5,7 @@ import { useApi } from "@/lib/api";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { buildYfSymbol } from "@/lib/stockConstants";
+import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 
 interface ReinvestSheetProps {
   visible: boolean;
@@ -29,6 +30,7 @@ export default function ReinvestSheet({
   onClose,
   onDone,
 }: ReinvestSheetProps) {
+  const { isTablet } = useResponsive();
   const api = useApi();
   const router = useRouter();
   const { reinvestDividend, fetchAll } = useFinanceActions();
@@ -177,7 +179,7 @@ export default function ReinvestSheet({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={s.backdrop} onPress={handleClose}>
-        <Pressable style={s.sheet} onPress={() => {}}>
+        <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
           <View style={s.handle} />
           <Text style={s.title}>再投資 · {entryName}</Text>
 
@@ -258,6 +260,9 @@ export default function ReinvestSheet({
 }
 
 const s = StyleSheet.create({
+  // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
+  // and centring it keeps it sheet-shaped.
+  sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
   backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   handle: {

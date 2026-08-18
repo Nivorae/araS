@@ -477,7 +477,7 @@ export function AccountFormPage({
           open ? "translate-x-0" : "pointer-events-none translate-x-full"
         }`}
       >
-        <div className="mx-auto max-w-md px-4 pt-14">
+        <div className="mx-auto max-w-md px-4 pt-14 md:max-w-xl lg:max-w-2xl">
           {/* Top nav */}
           <div className="mb-6 flex items-center justify-between">
             <button

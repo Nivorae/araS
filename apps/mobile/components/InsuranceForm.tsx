@@ -28,6 +28,7 @@ import {
   type UpdateInsurance,
 } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { useResponsive } from "@/hooks/useResponsive";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { ApiError } from "@/lib/api";
 import { InsurerPickerModal } from "./InsurerPickerModal";
@@ -103,6 +104,7 @@ export function InsuranceForm({
   embedded = false,
   headerColor = "#1c1c1e",
 }: InsuranceFormProps) {
+  const { isTablet, contentWidth } = useResponsive();
   const { addInsurance, updateInsurance, fetchAll } = useFinanceActions();
   const { isPremium, loading: premiumLoading } = useIsPremium();
   const router = useRouter();
@@ -278,7 +280,10 @@ export function InsuranceForm({
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
           style={s.flex}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[
+            s.scrollContent,
+            isTablet && { width: contentWidth, alignSelf: "center" },
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           <View style={[s.navRow, embedded && s.navRowEmbedded]}>

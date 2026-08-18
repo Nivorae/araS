@@ -1,18 +1,13 @@
-import {
-  Dimensions,
-  FlatList,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronLeft } from "lucide-react-native";
 import { BankLogo } from "./BankLogo";
+import { useResponsive } from "@/hooks/useResponsive";
 
-const COLS = 4;
-const CELL_SIZE = (Dimensions.get("window").width - 32 - (COLS - 1) * 12) / COLS;
+const COLS_PHONE = 4;
+const COLS_TABLET = 6;
+const GRID_PADDING = 16;
+const GRID_GAP = 12;
 
 export interface BankItem {
   code: string;
@@ -48,6 +43,12 @@ interface Props {
 }
 
 export function BankPickerModal({ visible, onClose, onSelect, selectedCode }: Props) {
+  const { isTablet, contentWidth } = useResponsive();
+  // Sized per render, not at module load: a module-level Dimensions read keeps
+  // a stale width after an iPad rotates or is resized in Split View.
+  const cols = isTablet ? COLS_TABLET : COLS_PHONE;
+  const cellSize = (contentWidth - GRID_PADDING * 2 - (cols - 1) * GRID_GAP) / cols;
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <SafeAreaView style={s.root}>
@@ -64,9 +65,13 @@ export function BankPickerModal({ visible, onClose, onSelect, selectedCode }: Pr
         </View>
 
         <FlatList
+          // FlatList refuses to change numColumns in place, so the key forces a
+          // remount when the form factor (and therefore the column count) flips.
+          key={`banks-${cols}`}
           data={BANKS}
           keyExtractor={(item) => item.code}
-          numColumns={COLS}
+          numColumns={cols}
+          style={isTablet ? { width: contentWidth, alignSelf: "center" } : undefined}
           contentContainerStyle={s.grid}
           columnWrapperStyle={s.row}
           renderItem={({ item }) => (
@@ -75,10 +80,10 @@ export function BankPickerModal({ visible, onClose, onSelect, selectedCode }: Pr
                 onSelect(item);
                 onClose();
               }}
-              style={[s.cell, selectedCode === item.code && s.cellSelected]}
+              style={[s.cell, { width: cellSize }, selectedCode === item.code && s.cellSelected]}
               activeOpacity={0.7}
             >
-              <BankLogo code={item.code} name={item.name} size={CELL_SIZE * 0.55} />
+              <BankLogo code={item.code} name={item.name} size={cellSize * 0.55} />
               <Text style={s.bankName} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -111,10 +116,9 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   title: { fontSize: 18, fontWeight: "700", color: "#1c1c1e" },
-  grid: { padding: 16, gap: 12 },
-  row: { gap: 12 },
+  grid: { padding: GRID_PADDING, gap: GRID_GAP },
+  row: { gap: GRID_GAP },
   cell: {
-    width: CELL_SIZE,
     alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 4,

@@ -6,13 +6,13 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { useOAuth } from "@/hooks/useOAuth";
 import { useAppleAuth } from "@/hooks/useAppleAuth";
+import { useResponsive } from "@/hooks/useResponsive";
 import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
 import iconPng from "../../assets/icon.png";
 
@@ -112,7 +112,7 @@ function OAuthPill({
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, isTablet } = useResponsive();
   const { start, busy } = useOAuth();
   const { start: startApple, busy: appleBusy } = useAppleAuth();
   const [error, setError] = useState<string | null>(null);
@@ -126,9 +126,9 @@ export default function WelcomeScreen() {
 
       {/* Center: icon + title + subtitle */}
       <View style={[styles.center, { top: height * 0.48 - 96 }]}>
-        <Image source={iconPng} style={styles.icon} />
-        <Text style={styles.title}>araS</Text>
-        <Text style={styles.subtitle}>個人資產管理工具</Text>
+        <Image source={iconPng} style={[styles.icon, isTablet && styles.iconTablet]} />
+        <Text style={[styles.title, isTablet && styles.titleTablet]}>araS</Text>
+        <Text style={[styles.subtitle, isTablet && styles.subtitleTablet]}>個人資產管理工具</Text>
       </View>
 
       {/* Bottom: OAuth login (no separate sign-in / sign-up screens) */}
@@ -181,6 +181,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
+  iconTablet: { width: 124, height: 124, borderRadius: 28 },
   title: {
     marginTop: 12,
     fontSize: 24,
@@ -189,6 +190,7 @@ const styles = StyleSheet.create({
     color: "#4b5563",
     textAlign: "center",
   },
+  titleTablet: { fontSize: 30 },
   subtitle: {
     fontSize: 16,
     fontWeight: "700",
@@ -196,6 +198,8 @@ const styles = StyleSheet.create({
     color: "#4b5563",
     textAlign: "center",
   },
+
+  subtitleTablet: { fontSize: 19 },
 
   // Buttons
   buttons: {

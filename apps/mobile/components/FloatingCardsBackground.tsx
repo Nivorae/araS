@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { useResponsive } from "@/hooks/useResponsive";
 
 // Mirrors apps/web/app/welcome/page.tsx: each card "breathes" (scale oscillation
 // by depth) and enters with a staggered scale-pop. Outer transform = enter,
@@ -22,7 +23,13 @@ interface CardConfig {
   value: string;
   depth: Depth;
   opacity: number;
-  top: number;
+  /**
+   * Vertical position as a share of the stage height rather than a pixel
+   * offset. The composition was laid out against a ~844pt phone; as a
+   * percentage the same spread covers a taller iPad screen instead of
+   * crowding into its top half.
+   */
+  topPct: number;
   left?: number;
   right?: number;
   durationMs: number;
@@ -36,7 +43,7 @@ const CARDS: CardConfig[] = [
     value: "$82,500",
     depth: "near",
     opacity: 1,
-    top: 65,
+    topPct: 7.7,
     right: -30,
     durationMs: 3800,
   },
@@ -47,7 +54,7 @@ const CARDS: CardConfig[] = [
     value: "$320,000",
     depth: "far",
     opacity: 0.55,
-    top: 115,
+    topPct: 13.6,
     left: 32,
     durationMs: 5200,
   },
@@ -58,7 +65,7 @@ const CARDS: CardConfig[] = [
     value: "$540,000",
     depth: "mid",
     opacity: 0.78,
-    top: 285,
+    topPct: 33.8,
     left: -28,
     durationMs: 4500,
   },
@@ -69,7 +76,7 @@ const CARDS: CardConfig[] = [
     value: "$200,000",
     depth: "far",
     opacity: 0.55,
-    top: 368,
+    topPct: 43.6,
     right: -12,
     durationMs: 6100,
   },
@@ -80,7 +87,7 @@ const CARDS: CardConfig[] = [
     value: "$15,000",
     depth: "near",
     opacity: 1,
-    top: 490,
+    topPct: 58.1,
     left: 38,
     durationMs: 4200,
   },
@@ -88,7 +95,7 @@ const CARDS: CardConfig[] = [
 
 const ENTER_DELAYS = [40, 160, 280, 400, 520];
 
-function FloatingCard({ card, index }: { card: CardConfig; index: number }) {
+function FloatingCard({ card, index, size }: { card: CardConfig; index: number; size: number }) {
   const enter = useRef(new Animated.Value(0)).current; // 0 → 1, scale-pop on mount
   const breathe = useRef(new Animated.Value(0)).current; // 0 ↔ 1 looping
 
@@ -146,7 +153,9 @@ function FloatingCard({ card, index }: { card: CardConfig; index: number }) {
       style={[
         styles.cardWrap,
         {
-          top: card.top,
+          width: size,
+          height: size,
+          top: `${card.topPct}%`,
           ...(card.left !== undefined ? { left: card.left } : {}),
           ...(card.right !== undefined ? { right: card.right } : {}),
           opacity: enterOpacity,
@@ -154,7 +163,12 @@ function FloatingCard({ card, index }: { card: CardConfig; index: number }) {
         },
       ]}
     >
-      <View style={[styles.card, { backgroundColor: card.color, opacity: card.opacity }]}>
+      <View
+        style={[
+          styles.card,
+          { width: size, height: size, backgroundColor: card.color, opacity: card.opacity },
+        ]}
+      >
         <Text style={[styles.cardName, { color: card.textColor }]}>{card.name}</Text>
         <Text style={[styles.cardValue, { color: card.textColor }]}>{card.value}</Text>
       </View>
@@ -163,20 +177,36 @@ function FloatingCard({ card, index }: { card: CardConfig; index: number }) {
 }
 
 export function FloatingCardsBackground() {
+  const { isTablet, width } = useResponsive();
+  // A centred stage keeps the composition at phone proportions, so on an iPad
+  // the cards frame the logo instead of splaying out to the far edges of a
+  // 768–1366pt screen. The cards' left/right offsets are relative to it.
+  const stageWidth = Math.min(width, isTablet ? 600 : 430);
+  const cardSize = isTablet ? 172 : 136;
+
   return (
-    <>
+    <View
+      pointerEvents="none"
+      style={[styles.stage, { width: stageWidth, marginLeft: -stageWidth / 2 }]}
+    >
       {CARDS.map((card, i) => (
-        <FloatingCard key={card.name} card={card} index={i} />
+        <FloatingCard key={card.name} card={card} index={i} size={cardSize} />
       ))}
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  cardWrap: { position: "absolute", width: 136, height: 136 },
+  stage: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    // Centred with the left/-marginLeft pair rather than alignSelf, which
+    // Yoga does not apply reliably to absolutely-positioned children.
+    left: "50%",
+  },
+  cardWrap: { position: "absolute" },
   card: {
-    width: 136,
-    height: 136,
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",

@@ -94,7 +94,7 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
       }`}
     >
       {/* Header */}
-      <div className="mx-auto max-w-md px-4 pt-14">
+      <div className="mx-auto max-w-md px-4 pt-14 md:max-w-xl lg:max-w-2xl">
         <div className="mb-6 flex items-center">
           <button
             onClick={handleBack}
@@ -111,7 +111,7 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
       {/* Drill-down view (Level 3 items) */}
       {drillTarget ? (
         <div
-          className="mx-auto max-w-md overflow-y-auto px-4"
+          className="mx-auto max-w-md overflow-y-auto px-4 md:max-w-xl lg:max-w-2xl"
           style={{ height: "calc(100vh - 120px)" }}
         >
           <div className="space-y-2 pb-8">
@@ -141,7 +141,7 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
       ) : (
         /* Root view — accordion categories */
         <div
-          className="mx-auto max-w-md overflow-y-auto px-4"
+          className="mx-auto max-w-md overflow-y-auto px-4 md:max-w-xl lg:max-w-2xl"
           style={{ height: "calc(100vh - 120px)" }}
         >
           <div className="space-y-3 pb-8">

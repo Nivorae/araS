@@ -237,7 +237,7 @@ export function EntryDetailPage({
         open ? "translate-x-0" : "pointer-events-none translate-x-full"
       }`}
     >
-      <div className="mx-auto flex h-full max-w-md flex-col">
+      <div className="mx-auto flex h-full max-w-md flex-col md:max-w-xl lg:max-w-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-14 pb-4">
           <button
@@ -460,7 +460,7 @@ export function EntryDetailPage({
             className="fixed inset-0 z-[80] bg-black/40"
             onClick={() => setShowDeleteConfirm(false)}
           />
-          <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10">
+          <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10 md:max-w-xl lg:max-w-2xl">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e5e5ea]" />
             <p className="mb-2 text-center text-[16px] font-semibold text-[#1c1c1e]">刪除項目</p>
             <p className="mb-6 text-center text-[13px] text-[#8e8e93]">
@@ -505,7 +505,7 @@ export function EntryDetailPage({
           />
 
           {/* Sheet */}
-          <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10">
+          <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10 md:max-w-xl lg:max-w-2xl">
             {/* Handle */}
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e5e5ea]" />
 
