@@ -164,6 +164,10 @@ export function EntryForm({
   const [balance, setBalance] = useState(
     !isInvestment && !addRecord && initialValue != null ? String(initialValue) : ""
   );
+  // 收入/支出 toggle — only shown for asset entries in add-record mode. Liability
+  // entries keep their existing single-direction (增加負債) semantics.
+  const [recordType, setRecordType] = useState<"income" | "expense">("income");
+  const isExpenseRecord = addRecord && !isLiability && recordType === "expense";
 
   // ── Investment / stock state ──────────────────────────────────────────────────
   const [units, setUnits] = useState(() => {
@@ -368,7 +372,12 @@ export function EntryForm({
           ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
         });
       } else {
-        const entered = isInvestment ? computedValue : parseFloat(balance) || 0;
+        const typedBalance = parseFloat(balance) || 0;
+        const entered = isInvestment
+          ? computedValue
+          : isExpenseRecord
+            ? -typedBalance
+            : typedBalance;
         // Add-record mode appends on top of the current value; edit/create replace.
         const value = addRecord ? baseValue + entered : entered;
         const finalName = name.trim() || selectedStock?.name || subCategory;
@@ -687,33 +696,65 @@ export function EntryForm({
                 </>
               ) : (
                 /* Standard balance */
-                <View style={s.row}>
-                  <Text style={s.rowLabel}>
-                    {addRecord ? "新增金額" : getBalanceLabel(topCategory)}
-                  </Text>
-                  <View style={s.rowRight}>
-                    {isLiability && <Text style={s.minus}>−</Text>}
-                    <TextInput
-                      style={[
-                        s.bigInput,
-                        { textAlign: "right" },
-                        isLiability && { color: "#ff3b30" },
-                      ]}
-                      value={balance}
-                      onChangeText={(t) => {
-                        setBalance(t);
-                        setError(null);
-                      }}
-                      placeholder="0"
-                      placeholderTextColor="#c7c7cc"
-                      keyboardType="decimal-pad"
-                      maxLength={MAX_AMOUNT_LENGTH}
-                    />
-                    <View style={[s.badge, isLiability && { backgroundColor: "#ff3b30" }]}>
-                      <Text style={s.badgeText}>TWD</Text>
+                <>
+                  {/* 收入/支出 toggle — asset entries only, add-record mode only. */}
+                  {addRecord && !isLiability && (
+                    <View style={s.modeRow}>
+                      {(
+                        [
+                          { type: "income" as const, label: "收入" },
+                          { type: "expense" as const, label: "支出" },
+                        ] satisfies { type: "income" | "expense"; label: string }[]
+                      ).map(({ type, label }) => (
+                        <TouchableOpacity
+                          key={type}
+                          onPress={() => {
+                            setRecordType(type);
+                            setError(null);
+                          }}
+                          style={[s.modeBtn, recordType === type && s.modeBtnActive]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.modeText, recordType === type && s.modeTextActive]}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <View style={s.row}>
+                    <Text style={s.rowLabel}>
+                      {addRecord ? "新增金額" : getBalanceLabel(topCategory)}
+                    </Text>
+                    <View style={s.rowRight}>
+                      {(isLiability || isExpenseRecord) && <Text style={s.minus}>−</Text>}
+                      <TextInput
+                        style={[
+                          s.bigInput,
+                          { textAlign: "right" },
+                          (isLiability || isExpenseRecord) && { color: "#ff3b30" },
+                        ]}
+                        value={balance}
+                        onChangeText={(t) => {
+                          setBalance(t);
+                          setError(null);
+                        }}
+                        placeholder="0"
+                        placeholderTextColor="#c7c7cc"
+                        keyboardType="decimal-pad"
+                        maxLength={MAX_AMOUNT_LENGTH}
+                      />
+                      <View
+                        style={[
+                          s.badge,
+                          (isLiability || isExpenseRecord) && { backgroundColor: "#ff3b30" },
+                        ]}
+                      >
+                        <Text style={s.badgeText}>TWD</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                </>
               ))}
 
             {!isLoan && !editBasicInfoOnly && <View style={s.sep} />}
