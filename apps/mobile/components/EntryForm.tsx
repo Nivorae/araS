@@ -33,6 +33,7 @@ import { StockPickerModal } from "./StockPickerModal";
 import { BankPickerModal, BANKS, type BankItem } from "./BankPickerModal";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import { DatePickerModal } from "./DatePickerModal";
+import { parseISODate, toISODate, todayISO, formatDisplayDate } from "@/lib/date";
 import type { RepaymentType } from "@repo/shared";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -47,18 +48,6 @@ function getBalanceLabel(topCategory: string) {
   return "帳戶餘額";
 }
 
-function parseISODate(s: string): Date {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-function toISODate(d: Date): string {
-  return d.toISOString().split("T")[0] ?? "";
-}
-function formatDisplayDate(s: string): string {
-  const d = parseISODate(s);
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 function defaultLoanValues(): LoanFormValues {
@@ -67,7 +56,7 @@ function defaultLoanValues(): LoanFormValues {
     totalAmount: "",
     annualInterestRate: "",
     termMonths: "",
-    startDate: new Date().toISOString().split("T")[0] ?? "",
+    startDate: todayISO(),
     gracePeriodMonths: "0",
     repaymentType: "principal_interest" as RepaymentType,
   };
@@ -151,7 +140,7 @@ export function EntryForm({
   // Appending a record starts a fresh note — the entry's stored note belongs to
   // the entry/last record, not this new line, so it must not pre-fill here.
   const [note, setNote] = useState(addRecord ? "" : initialNote);
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0] ?? "");
+  const [date, setDate] = useState(todayISO);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [includeInChart, setIncludeInChart] = useState(initialIncludeInChart);
   const [submitting, setSubmitting] = useState(false);
