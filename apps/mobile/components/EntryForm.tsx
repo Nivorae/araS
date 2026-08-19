@@ -33,6 +33,7 @@ import { StockPickerModal } from "./StockPickerModal";
 import { BankPickerModal, BANKS, type BankItem } from "./BankPickerModal";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import { DatePickerModal } from "./DatePickerModal";
+import { parseISODate, toISODate, todayISO, formatDisplayDate } from "@/lib/date";
 import type { RepaymentType } from "@repo/shared";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -47,18 +48,6 @@ function getBalanceLabel(topCategory: string) {
   return "帳戶餘額";
 }
 
-function parseISODate(s: string): Date {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-function toISODate(d: Date): string {
-  return d.toISOString().split("T")[0] ?? "";
-}
-function formatDisplayDate(s: string): string {
-  const d = parseISODate(s);
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 function defaultLoanValues(): LoanFormValues {
@@ -67,7 +56,7 @@ function defaultLoanValues(): LoanFormValues {
     totalAmount: "",
     annualInterestRate: "",
     termMonths: "",
-    startDate: new Date().toISOString().split("T")[0] ?? "",
+    startDate: todayISO(),
     gracePeriodMonths: "0",
     repaymentType: "principal_interest" as RepaymentType,
   };
@@ -151,7 +140,7 @@ export function EntryForm({
   // Appending a record starts a fresh note — the entry's stored note belongs to
   // the entry/last record, not this new line, so it must not pre-fill here.
   const [note, setNote] = useState(addRecord ? "" : initialNote);
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0] ?? "");
+  const [date, setDate] = useState(todayISO);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [includeInChart, setIncludeInChart] = useState(initialIncludeInChart);
   const [submitting, setSubmitting] = useState(false);
@@ -164,6 +153,10 @@ export function EntryForm({
   const [balance, setBalance] = useState(
     !isInvestment && !addRecord && initialValue != null ? String(initialValue) : ""
   );
+  // 收入/支出 toggle — only shown for asset entries in add-record mode. Liability
+  // entries keep their existing single-direction (增加負債) semantics.
+  const [recordType, setRecordType] = useState<"income" | "expense">("income");
+  const isExpenseRecord = addRecord && !isLiability && recordType === "expense";
 
   // ── Investment / stock state ──────────────────────────────────────────────────
   const [units, setUnits] = useState(() => {
@@ -368,13 +361,22 @@ export function EntryForm({
           ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
         });
       } else {
-        const entered = isInvestment ? computedValue : parseFloat(balance) || 0;
+        const typedBalance = parseFloat(balance) || 0;
+        const entered = isInvestment
+          ? computedValue
+          : isExpenseRecord
+            ? -typedBalance
+            : typedBalance;
         // Add-record mode appends on top of the current value; edit/create replace.
         const value = addRecord ? baseValue + entered : entered;
         const finalName = name.trim() || selectedStock?.name || subCategory;
         // In amount mode `units` is derived from the cost amount ÷ price so the
         // holding's share count (and P&L) stays correct.
         const unitsParsed = hasStockPicker ? derivedUnits || undefined : undefined;
+        // `priceTWD` is already computed for the total-cost math above (manual
+        // override or fetched × FX) — send it through so the backend stores the
+        // actual per-share price paid instead of it being lost after this screen.
+        const pricePerShareParsed = hasStockPicker && priceTWD > 0 ? priceTWD : undefined;
 
         if (isEdit && entryId) {
           await updateEntry(entryId, {
@@ -386,6 +388,7 @@ export function EntryForm({
             note: note.trim() || undefined,
             ...(hasStockPicker && selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
+            ...(pricePerShareParsed != null ? { pricePerShare: pricePerShareParsed } : {}),
             ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
             // Back-date the appended record when adding to an existing holding.
             ...(addRecord ? { createdAt: date } : {}),
@@ -400,6 +403,7 @@ export function EntryForm({
             note: note.trim() || undefined,
             ...(hasStockPicker && selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
+            ...(pricePerShareParsed != null ? { pricePerShare: pricePerShareParsed } : {}),
             ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
             createdAt: date,
           });
@@ -687,33 +691,65 @@ export function EntryForm({
                 </>
               ) : (
                 /* Standard balance */
-                <View style={s.row}>
-                  <Text style={s.rowLabel}>
-                    {addRecord ? "新增金額" : getBalanceLabel(topCategory)}
-                  </Text>
-                  <View style={s.rowRight}>
-                    {isLiability && <Text style={s.minus}>−</Text>}
-                    <TextInput
-                      style={[
-                        s.bigInput,
-                        { textAlign: "right" },
-                        isLiability && { color: "#ff3b30" },
-                      ]}
-                      value={balance}
-                      onChangeText={(t) => {
-                        setBalance(t);
-                        setError(null);
-                      }}
-                      placeholder="0"
-                      placeholderTextColor="#c7c7cc"
-                      keyboardType="decimal-pad"
-                      maxLength={MAX_AMOUNT_LENGTH}
-                    />
-                    <View style={[s.badge, isLiability && { backgroundColor: "#ff3b30" }]}>
-                      <Text style={s.badgeText}>TWD</Text>
+                <>
+                  {/* 收入/支出 toggle — asset entries only, add-record mode only. */}
+                  {addRecord && !isLiability && (
+                    <View style={s.modeRow}>
+                      {(
+                        [
+                          { type: "income" as const, label: "收入" },
+                          { type: "expense" as const, label: "支出" },
+                        ] satisfies { type: "income" | "expense"; label: string }[]
+                      ).map(({ type, label }) => (
+                        <TouchableOpacity
+                          key={type}
+                          onPress={() => {
+                            setRecordType(type);
+                            setError(null);
+                          }}
+                          style={[s.modeBtn, recordType === type && s.modeBtnActive]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.modeText, recordType === type && s.modeTextActive]}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <View style={s.row}>
+                    <Text style={s.rowLabel}>
+                      {addRecord ? "新增金額" : getBalanceLabel(topCategory)}
+                    </Text>
+                    <View style={s.rowRight}>
+                      {(isLiability || isExpenseRecord) && <Text style={s.minus}>−</Text>}
+                      <TextInput
+                        style={[
+                          s.bigInput,
+                          { textAlign: "right" },
+                          (isLiability || isExpenseRecord) && { color: "#ff3b30" },
+                        ]}
+                        value={balance}
+                        onChangeText={(t) => {
+                          setBalance(t);
+                          setError(null);
+                        }}
+                        placeholder="0"
+                        placeholderTextColor="#c7c7cc"
+                        keyboardType="decimal-pad"
+                        maxLength={MAX_AMOUNT_LENGTH}
+                      />
+                      <View
+                        style={[
+                          s.badge,
+                          (isLiability || isExpenseRecord) && { backgroundColor: "#ff3b30" },
+                        ]}
+                      >
+                        <Text style={s.badgeText}>TWD</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                </>
               ))}
 
             {!isLoan && !editBasicInfoOnly && <View style={s.sep} />}

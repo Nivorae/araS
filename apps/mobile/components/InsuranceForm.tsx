@@ -34,19 +34,7 @@ import { ApiError } from "@/lib/api";
 import { InsurerPickerModal } from "./InsurerPickerModal";
 import { CoverageItemPicker } from "./CoverageItemPicker";
 import { DatePickerModal } from "./DatePickerModal";
-
-function parseISODate(s: string): Date {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-function toISODate(d: Date): string {
-  return d.toISOString().split("T")[0] ?? "";
-}
-function formatDisplayDate(s: string): string {
-  if (!s) return "選擇日期";
-  const d = parseISODate(s);
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-}
+import { parseISODate, toISODate, formatDisplayDate } from "@/lib/date";
 
 let _coverageKeySeq = 0;
 function generateCoverageKey(): string {
