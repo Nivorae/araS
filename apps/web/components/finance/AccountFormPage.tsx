@@ -9,6 +9,7 @@ import { StockPickerPage, type StockItem } from "./StockPickerPage";
 import { BankPickerPage, BANKS, type BankItem } from "./BankPickerPage";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import { RecurrenceFormPage } from "./RecurrenceFormPage";
+import { promptMobileApp, MOBILE_APP_PROMPT } from "../../lib/mobileAppPrompt";
 import type { Recurrence } from "@repo/shared";
 
 interface EditItem {
@@ -462,9 +463,11 @@ export function AccountFormPage({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "儲存失敗，請重試";
       // Web has no in-app purchase path (iOS-only IAP); point users to the app.
-      window.alert(
-        msg.includes("上限") ? `${msg}。請於 araS App 內升級 Premium 解鎖無上限。` : msg
-      );
+      if (msg.includes("上限")) {
+        promptMobileApp(`${msg}。${MOBILE_APP_PROMPT}`);
+      } else {
+        window.alert(msg);
+      }
     } finally {
       setSubmitting(false);
     }
