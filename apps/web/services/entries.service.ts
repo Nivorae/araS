@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { d, dn } from "@/lib/serialize";
 import type {
@@ -6,11 +7,13 @@ import type {
   UpdateEntryHistory,
   NetWorthRange,
   NetWorthHistory,
+  TransferEntry,
 } from "@repo/shared";
 import { entitlementsService } from "@/services/entitlements.service";
-import { FREE_ENTRY_LIMIT, LIABILITY_TOP_CATEGORIES } from "@repo/shared";
+import { FREE_ENTRY_LIMIT, LIABILITY_TOP_CATEGORIES, TRANSFER_TOP_CATEGORIES } from "@repo/shared";
 
 const LIABILITY_SET = new Set(LIABILITY_TOP_CATEGORIES);
+const TRANSFER_SET = new Set(TRANSFER_TOP_CATEGORIES);
 
 function serializeHistory(h: {
   id: string;
@@ -18,10 +21,17 @@ function serializeHistory(h: {
   delta: import("@prisma/client").Prisma.Decimal;
   balance: import("@prisma/client").Prisma.Decimal;
   units: import("@prisma/client").Prisma.Decimal | null;
+  pricePerShare: import("@prisma/client").Prisma.Decimal | null;
   note: string | null;
   createdAt: Date;
 }) {
-  return { ...h, delta: d(h.delta), balance: d(h.balance), units: dn(h.units) };
+  return {
+    ...h,
+    delta: d(h.delta),
+    balance: d(h.balance),
+    units: dn(h.units),
+    pricePerShare: dn(h.pricePerShare),
+  };
 }
 
 function serializeLoan(loan: {
@@ -113,6 +123,45 @@ export class EntryLimitError extends Error {
   }
 }
 
+// Thrown by transfer() — the route layer maps these to 404/400 envelopes.
+export class EntryNotFoundError extends Error {
+  constructor(message = "項目不存在") {
+    super(message);
+    this.name = "EntryNotFoundError";
+  }
+}
+export class InvalidTransferError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidTransferError";
+  }
+}
+export class InsufficientBalanceError extends Error {
+  constructor(message = "來源項目餘額不足") {
+    super(message);
+    this.name = "InsufficientBalanceError";
+  }
+}
+
+type Tx = Prisma.TransactionClient;
+
+// Writes one EntryHistory row and moves Entry.value to the given balance —
+// the "log a delta, then move the balance" pair transfer() needs on both the
+// from and to side. Same shape as dividends.service.ts's postHistory.
+async function postTransferEntryHistory(
+  tx: Tx,
+  entryId: string,
+  delta: number,
+  balance: number,
+  note: string,
+  createdAt: Date | undefined
+) {
+  await tx.entryHistory.create({
+    data: { entryId, delta, balance, note, ...(createdAt ? { createdAt } : {}) },
+  });
+  return tx.entry.update({ where: { id: entryId }, data: { value: balance } });
+}
+
 export class EntriesService {
   async list(userId: string) {
     const entries = await prisma.entry.findMany({
@@ -174,7 +223,8 @@ export class EntriesService {
       if (count >= FREE_ENTRY_LIMIT) throw new EntryLimitError();
     }
 
-    const { units, stockCode, bankCode, createdAt, note, includeInChart, ...rest } = data;
+    const { units, pricePerShare, stockCode, bankCode, createdAt, note, includeInChart, ...rest } =
+      data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
     const entry = await prisma.entry.create({
@@ -195,6 +245,7 @@ export class EntriesService {
         delta: entry.value,
         balance: entry.value,
         units: units ?? null,
+        pricePerShare: pricePerShare ?? null,
         ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
       },
     });
@@ -208,7 +259,7 @@ export class EntriesService {
     // `createdAt` is not an entry-column edit here — it dates the appended
     // history line (e.g. back-dating an added record), so pull it out of the
     // entry update payload.
-    const { units, createdAt, ...updateData } = data;
+    const { units, pricePerShare, createdAt, ...updateData } = data;
     const cleaned = Object.fromEntries(
       Object.entries(updateData).filter(([, v]) => v !== undefined)
     ) as Parameters<typeof prisma.entry.update>[0]["data"];
@@ -221,6 +272,7 @@ export class EntriesService {
           delta,
           balance: d(entry.value),
           units: units ?? null,
+          pricePerShare: pricePerShare ?? null,
           note: data.note ?? null,
           ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
         },
@@ -256,6 +308,8 @@ export class EntriesService {
         note: data.note !== undefined ? data.note : existing.note,
         createdAt: data.createdAt !== undefined ? new Date(data.createdAt) : existing.createdAt,
         units: data.units !== undefined ? data.units : dn(existing.units),
+        pricePerShare:
+          data.pricePerShare !== undefined ? data.pricePerShare : dn(existing.pricePerShare),
         delta: newDelta,
         balance: existingBalance + deltaDiff,
       },
@@ -313,18 +367,66 @@ export class EntriesService {
 
   async createHistory(
     entryId: string,
-    data: { delta: number; balance: number; units?: number | null; note?: string; createdAt?: Date }
+    data: {
+      delta: number;
+      balance: number;
+      units?: number | null;
+      pricePerShare?: number | null;
+      note?: string;
+      createdAt?: Date;
+    }
   ) {
     const payload: Parameters<typeof prisma.entryHistory.create>[0]["data"] = {
       entryId,
       delta: data.delta,
       balance: data.balance,
       units: data.units ?? null,
+      pricePerShare: data.pricePerShare ?? null,
       note: data.note ?? null,
     };
     if (data.createdAt) payload.createdAt = data.createdAt;
     const row = await prisma.entryHistory.create({ data: payload });
     return serializeHistory(row);
+  }
+
+  // Moves a balance between two entries (流動資金/負債/應收款 only), writing one
+  // EntryHistory row on each side inside a single transaction so the two
+  // balances never observably diverge. `fee`, when set, is deducted from the
+  // source on top of `amount` — the target always receives `amount` exactly.
+  async transfer(data: TransferEntry, userId: string) {
+    return prisma.$transaction(async (tx) => {
+      const [from, to] = await Promise.all([
+        tx.entry.findFirst({ where: { id: data.fromEntryId, userId } }),
+        tx.entry.findFirst({ where: { id: data.toEntryId, userId } }),
+      ]);
+      if (!from) throw new EntryNotFoundError("來源項目不存在");
+      if (!to) throw new EntryNotFoundError("目標項目不存在");
+      if (!TRANSFER_SET.has(from.topCategory) || !TRANSFER_SET.has(to.topCategory)) {
+        throw new InvalidTransferError("轉帳僅限流動資金、負債、應收款之間");
+      }
+
+      const fee = data.fee ?? 0;
+      const fromDebit = data.amount + fee;
+      const fromBalance = d(from.value) - fromDebit;
+      if (fromBalance < 0) throw new InsufficientBalanceError();
+      const toBalance = d(to.value) + data.amount;
+
+      const timestamp = data.createdAt ? new Date(data.createdAt) : undefined;
+      const fromNote = data.note ?? `轉帳至「${to.name}」${fee > 0 ? `（含手續費 $${fee}）` : ""}`;
+      const toNote = data.note ?? `轉帳自「${from.name}」`;
+
+      // Disjoint rows (different entryId) — safe to write both sides at once
+      // rather than four sequential round trips inside the transaction.
+      const [, updatedTo] = await Promise.all([
+        postTransferEntryHistory(tx, from.id, -fromDebit, fromBalance, fromNote, timestamp),
+        postTransferEntryHistory(tx, to.id, data.amount, toBalance, toNote, timestamp),
+      ]);
+
+      return {
+        from: { ...from, value: fromBalance },
+        to: { ...updatedTo, value: d(updatedTo.value) },
+      };
+    });
   }
 
   async getAssetAllocation(userId: string) {

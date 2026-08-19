@@ -20,6 +20,7 @@ import { buildYfSymbol } from "@/lib/stockConstants";
 import { DatePickerModal } from "./DatePickerModal";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
+import { parseISODate, toISODate, todayISO, formatDisplayDate } from "@/lib/date";
 
 interface DividendFormProps {
   visible: boolean;
@@ -30,45 +31,6 @@ interface DividendFormProps {
   currentShares: number | null;
   onClose: () => void;
   onSaved: () => void;
-}
-
-// CONTROLLER RULING R15 — use exactly this. The original plan used
-// `new Date().toISOString().slice(0, 10)`, which is the UTC date: for a Taiwan
-// user (UTC+8) between 00:00 and 08:00 local, that defaults 發放日 to YESTERDAY.
-// Build the string from local date parts instead.
-function todayISO() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-// FIX FOR FINDING 5 — deliberately NOT InsuranceForm's `toISODate` (its lines
-// 41-43), which does `d.toISOString().split("T")[0]`: that converts the
-// picker's LOCAL midnight to UTC and stores the PREVIOUS day for a Taiwan
-// user. That is a pre-existing bug in the insurance feature the controller
-// has left out of scope — not copied here. Build the string from local date
-// parts instead, same approach as `todayISO()` above.
-function dateToISO(d: Date): string {
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${month}-${day}`;
-}
-
-// Parse "YYYY-MM-DD" back into a Date for the picker's `date` prop by reading
-// the parts explicitly. `new Date(string)` would parse it as UTC midnight,
-// which then displays as the PREVIOUS day once rendered in local time for a
-// Taiwan user — the same class of bug this file avoids above.
-function parseISOToLocalDate(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  if (!y || !m || !d) return new Date();
-  return new Date(y, m - 1, d);
-}
-
-function formatDisplayDate(s: string): string {
-  if (!s) return "選擇日期";
-  const d = parseISOToLocalDate(s);
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export default function DividendForm({
@@ -465,9 +427,9 @@ export default function DividendForm({
 
       <DatePickerModal
         visible={showDatePicker}
-        date={parseISOToLocalDate(payDate)}
+        date={parseISODate(payDate)}
         onConfirm={(picked) => {
-          setPayDate(dateToISO(picked));
+          setPayDate(toISODate(picked));
           setError(null);
         }}
         onClose={() => setShowDatePicker(false)}
