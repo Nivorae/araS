@@ -71,14 +71,15 @@ enum InsuranceType {
 }
 
 model EntryHistory {
-  id        String   @id @default(cuid())
-  entryId   String
-  entry     Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  delta     Decimal
-  balance   Decimal
-  units     Decimal?
-  note      String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  entryId        String
+  entry          Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  delta          Decimal
+  balance        Decimal
+  units          Decimal?
+  pricePerShare  Decimal?
+  note           String?
+  createdAt      DateTime @default(now())
 
   @@index([entryId, createdAt])
 }

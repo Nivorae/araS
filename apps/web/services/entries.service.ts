@@ -21,10 +21,17 @@ function serializeHistory(h: {
   delta: import("@prisma/client").Prisma.Decimal;
   balance: import("@prisma/client").Prisma.Decimal;
   units: import("@prisma/client").Prisma.Decimal | null;
+  pricePerShare: import("@prisma/client").Prisma.Decimal | null;
   note: string | null;
   createdAt: Date;
 }) {
-  return { ...h, delta: d(h.delta), balance: d(h.balance), units: dn(h.units) };
+  return {
+    ...h,
+    delta: d(h.delta),
+    balance: d(h.balance),
+    units: dn(h.units),
+    pricePerShare: dn(h.pricePerShare),
+  };
 }
 
 function serializeLoan(loan: {
@@ -216,7 +223,8 @@ export class EntriesService {
       if (count >= FREE_ENTRY_LIMIT) throw new EntryLimitError();
     }
 
-    const { units, stockCode, bankCode, createdAt, note, includeInChart, ...rest } = data;
+    const { units, pricePerShare, stockCode, bankCode, createdAt, note, includeInChart, ...rest } =
+      data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
     const entry = await prisma.entry.create({
@@ -237,6 +245,7 @@ export class EntriesService {
         delta: entry.value,
         balance: entry.value,
         units: units ?? null,
+        pricePerShare: pricePerShare ?? null,
         ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
       },
     });
@@ -250,7 +259,7 @@ export class EntriesService {
     // `createdAt` is not an entry-column edit here — it dates the appended
     // history line (e.g. back-dating an added record), so pull it out of the
     // entry update payload.
-    const { units, createdAt, ...updateData } = data;
+    const { units, pricePerShare, createdAt, ...updateData } = data;
     const cleaned = Object.fromEntries(
       Object.entries(updateData).filter(([, v]) => v !== undefined)
     ) as Parameters<typeof prisma.entry.update>[0]["data"];
@@ -263,6 +272,7 @@ export class EntriesService {
           delta,
           balance: d(entry.value),
           units: units ?? null,
+          pricePerShare: pricePerShare ?? null,
           note: data.note ?? null,
           ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
         },
@@ -298,6 +308,8 @@ export class EntriesService {
         note: data.note !== undefined ? data.note : existing.note,
         createdAt: data.createdAt !== undefined ? new Date(data.createdAt) : existing.createdAt,
         units: data.units !== undefined ? data.units : dn(existing.units),
+        pricePerShare:
+          data.pricePerShare !== undefined ? data.pricePerShare : dn(existing.pricePerShare),
         delta: newDelta,
         balance: existingBalance + deltaDiff,
       },
@@ -355,13 +367,21 @@ export class EntriesService {
 
   async createHistory(
     entryId: string,
-    data: { delta: number; balance: number; units?: number | null; note?: string; createdAt?: Date }
+    data: {
+      delta: number;
+      balance: number;
+      units?: number | null;
+      pricePerShare?: number | null;
+      note?: string;
+      createdAt?: Date;
+    }
   ) {
     const payload: Parameters<typeof prisma.entryHistory.create>[0]["data"] = {
       entryId,
       delta: data.delta,
       balance: data.balance,
       units: data.units ?? null,
+      pricePerShare: data.pricePerShare ?? null,
       note: data.note ?? null,
     };
     if (data.createdAt) payload.createdAt = data.createdAt;

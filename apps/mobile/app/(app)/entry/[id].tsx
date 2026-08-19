@@ -165,7 +165,19 @@ export default function EntryDetailScreen() {
   // the first frame; the focus refetch below then refreshes them in place.
   const history =
     useFinanceStore((state) => (id ? state.historyByEntry[id] : undefined)) ?? NO_HISTORY;
+  // `currentPrice` is the raw quote in the stock's own currency (shown as-is
+  // in the 當日股價 label). `currentPriceTWD` is that price converted to TWD —
+  // every P&L number (totalPnL, per-record recordPnL) must use this one,
+  // because the cost basis stored in EntryHistory.delta is always TWD. Mixing
+  // a native-currency price into a TWD-cost subtraction silently produces
+  // garbage for every non-TWD holding (美股/加密貨幣/貴金屬) — 台股 only looked
+  // correct because its native currency already is TWD.
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [currentPriceTWD, setCurrentPriceTWD] = useState<number | null>(null);
+  // Shown next to 當日股價 so a non-TWD quote (美股/加密貨幣/貴金屬) doesn't
+  // read as if it were the TWD amount above it. Null for TWD (台股) — no
+  // label needed when the currency already matches the rest of the screen.
+  const [currentPriceCurrency, setCurrentPriceCurrency] = useState<string | null>(null);
 
   // Edit modal state
   const [editingHistory, setEditingHistory] = useState<EntryHistory | null>(null);
@@ -173,6 +185,7 @@ export default function EntryDetailScreen() {
   const [editDate, setEditDate] = useState("");
   const [editDelta, setEditDelta] = useState("");
   const [editUnits, setEditUnits] = useState("");
+  const [editPricePerShare, setEditPricePerShare] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editDeleting, setEditDeleting] = useState(false);
   const [confirmDeleteHistory, setConfirmDeleteHistory] = useState(false);
@@ -221,12 +234,36 @@ export default function EntryDetailScreen() {
     if (!isStockEntry || !stockCode || !subCategory) return;
     const yfSymbol = buildYfSymbol(subCategory, stockCode);
     if (!yfSymbol) return;
-    apiRef.current
-      .rawGet<{ price: number }>(`/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`)
-      .then((data) => {
-        if (typeof data.price === "number") setCurrentPrice(data.price);
-      })
-      .catch(() => {});
+    let active = true;
+    (async () => {
+      try {
+        const data = await apiRef.current.rawGet<{ price: number; currency?: string }>(
+          `/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`
+        );
+        if (typeof data.price !== "number") return;
+        const currency = data.currency ?? "TWD";
+        let rate = 1;
+        if (currency !== "TWD") {
+          const fx = await apiRef.current
+            .rawGet<{
+              price: number;
+            }>(`/api/stocks/price?symbol=${encodeURIComponent(currency + "TWD=X")}`)
+            .catch(() => null);
+          rate = fx && typeof fx.price === "number" ? fx.price : 1;
+        }
+        if (active) {
+          setCurrentPrice(data.price);
+          setCurrentPriceTWD(data.price * rate);
+          setCurrentPriceCurrency(currency !== "TWD" ? currency : null);
+        }
+      } catch {
+        // Keep whatever price was already on screen — a failed refresh
+        // shouldn't blank out the P&L.
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [isStockEntry, stockCode, subCategory]); // primitive deps only
 
   // P&L — memoized on `history` (a stable store reference) so typing in the edit
@@ -238,7 +275,7 @@ export default function EntryDetailScreen() {
       totalCost: investmentRecords.reduce((sum, h) => sum + h.delta, 0),
     };
   }, [history]);
-  const currentMarketValue = currentPrice != null ? totalUnits * currentPrice : null;
+  const currentMarketValue = currentPriceTWD != null ? totalUnits * currentPriceTWD : null;
   const totalPnL = currentMarketValue != null ? currentMarketValue - totalCost : null;
   const totalPnLPct = totalCost > 0 && totalPnL != null ? (totalPnL / totalCost) * 100 : null;
 
@@ -251,6 +288,7 @@ export default function EntryDetailScreen() {
     // 變動金額 is integer-only — round away any stored decimal remainder.
     setEditDelta(toIntegerDigits(String(Math.round(h.delta))));
     setEditUnits(h.units != null ? String(h.units) : "");
+    setEditPricePerShare(h.pricePerShare != null ? String(h.pricePerShare) : "");
     setConfirmDeleteHistory(false);
     setEditingHistory(h);
   }
@@ -265,6 +303,7 @@ export default function EntryDetailScreen() {
         createdAt: editDate,
         delta: parseInt(editDelta, 10),
         units: editUnits !== "" ? parseFloat(editUnits) : null,
+        pricePerShare: editPricePerShare !== "" ? parseFloat(editPricePerShare) : null,
       });
       setEditingHistory(null);
       const rows = await fetchHistory({ force: true });
@@ -428,7 +467,8 @@ export default function EntryDetailScreen() {
           {isStockEntry && currentPrice != null && (
             <View style={s.pnlRow}>
               <Text style={s.priceLabel}>
-                當日股價 {currentPrice.toLocaleString("zh-TW", { maximumFractionDigits: 4 })}
+                當日股價 {currentPriceCurrency ? `${currentPriceCurrency} ` : ""}
+                {currentPrice.toLocaleString("zh-TW", { maximumFractionDigits: 4 })}
               </Text>
               {totalPnL != null && (
                 <Text style={[s.pnlText, { color: pnlColor(totalPnL) }]}>
@@ -477,7 +517,7 @@ export default function EntryDetailScreen() {
                       key={h.id}
                       h={h}
                       isLiability={isLiability}
-                      currentPrice={currentPrice}
+                      currentPrice={currentPriceTWD}
                       onPress={() => openEdit(h)}
                       isFirst={i === 0}
                     />
@@ -543,6 +583,18 @@ export default function EntryDetailScreen() {
                         value={editUnits}
                         onChangeText={setEditUnits}
                         keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#c7c7cc"
+                        style={s.formInput}
+                      />
+                    </View>
+                    <View style={s.formDivider} />
+                    <View style={s.formRow}>
+                      <Text style={s.formLabel}>單股成交價</Text>
+                      <TextInput
+                        value={editPricePerShare}
+                        onChangeText={setEditPricePerShare}
+                        keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor="#c7c7cc"
                         style={s.formInput}

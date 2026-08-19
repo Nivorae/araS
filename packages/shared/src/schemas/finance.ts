@@ -13,6 +13,10 @@ export const EntryHistorySchema = z.object({
   delta: z.number(),
   balance: z.number(),
   units: z.number().nullable().optional(),
+  // Per-share price paid at the time of this record — stored as entered
+  // (or manually overridden), not derived from delta/units at read time.
+  // Null for non-investment entries and for pre-migration rows with no units.
+  pricePerShare: z.number().nullable().optional(),
   note: z.string().nullable(),
   createdAt: z.string(),
 });
@@ -106,6 +110,9 @@ export const CreateEntrySchema = z.object({
   stockCode: z.string().optional(),
   bankCode: z.string().optional(),
   units: z.number().optional(),
+  // Per-share price for this purchase — stored on the resulting EntryHistory
+  // row alongside `units`/`value`, not derived from them.
+  pricePerShare: z.number().positive().optional(),
   note: z.string().max(200).optional(),
   value: z.number().positive("金額必須大於 0"),
   includeInChart: z.boolean().optional(),
@@ -144,6 +151,7 @@ export const UpdateEntryHistorySchema = z.object({
   createdAt: z.string().optional(),
   delta: z.number().optional(),
   units: z.number().nullable().optional(),
+  pricePerShare: z.number().nullable().optional(),
 });
 export type UpdateEntryHistory = z.infer<typeof UpdateEntryHistorySchema>;
 

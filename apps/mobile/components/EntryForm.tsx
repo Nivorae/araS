@@ -373,6 +373,10 @@ export function EntryForm({
         // In amount mode `units` is derived from the cost amount ÷ price so the
         // holding's share count (and P&L) stays correct.
         const unitsParsed = hasStockPicker ? derivedUnits || undefined : undefined;
+        // `priceTWD` is already computed for the total-cost math above (manual
+        // override or fetched × FX) — send it through so the backend stores the
+        // actual per-share price paid instead of it being lost after this screen.
+        const pricePerShareParsed = hasStockPicker && priceTWD > 0 ? priceTWD : undefined;
 
         if (isEdit && entryId) {
           await updateEntry(entryId, {
@@ -384,6 +388,7 @@ export function EntryForm({
             note: note.trim() || undefined,
             ...(hasStockPicker && selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
+            ...(pricePerShareParsed != null ? { pricePerShare: pricePerShareParsed } : {}),
             ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
             // Back-date the appended record when adding to an existing holding.
             ...(addRecord ? { createdAt: date } : {}),
@@ -398,6 +403,7 @@ export function EntryForm({
             note: note.trim() || undefined,
             ...(hasStockPicker && selectedStock ? { stockCode: selectedStock.code } : {}),
             ...(unitsParsed != null ? { units: unitsParsed } : {}),
+            ...(pricePerShareParsed != null ? { pricePerShare: pricePerShareParsed } : {}),
             ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
             createdAt: date,
           });
