@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { NetWorthRange } from "@repo/shared";
 import { useFinanceStore } from "../../../store/useFinanceStore";
 import { InvestmentChart } from "../../../components/finance/InvestmentChart";
-import { aggregateSnapshots, getRangeDisplayLabel } from "../../../lib/chartAggregation";
+import { AssetAllocationView } from "../../../components/finance/AssetAllocationView";
+import { DividendOverview } from "../../../components/finance/DividendOverview";
 import { formatCurrency } from "../../../lib/format";
+import { api } from "../../../lib/api-client";
+import { promptMobileApp } from "../../../lib/mobileAppPrompt";
+
+const RANGES: { key: NetWorthRange; label: string }[] = [
+  { key: "6m", label: "6M" },
+  { key: "1y", label: "1Y" },
+  { key: "all", label: "全部" },
+];
 
 function BalanceScale({ assets, liabilities }: { assets: number; liabilities: number }) {
   const total = assets + liabilities;
@@ -149,19 +159,88 @@ function BalanceScale({ assets, liabilities }: { assets: number; liabilities: nu
 }
 
 export default function TransactionsPage() {
-  const { valueSnapshots, entries } = useFinanceStore();
+  const entries = useFinanceStore((s) => s.entries);
+  const netWorthHistory = useFinanceStore((s) => s.netWorthHistory);
+  const fetchNetWorthHistory = useFinanceStore((s) => s.fetchNetWorthHistory);
+
+  const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
+  const [range, setRange] = useState<NetWorthRange>("6m");
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // Fetched once on mount — web has no in-app purchase path, so this only
+  // gates the fast-path UX (see CLAUDE.md "No web premium/paywall UI"); the
+  // server independently returns 403 PREMIUM_REQUIRED on every write.
+  const [isPremium, setIsPremium] = useState(false);
+  const [premiumLoading, setPremiumLoading] = useState(true);
+  // Mounted-once-then-kept-alive: switching `view` only toggles which pane is
+  // visible, so a tab's component never unmounts once visited and doesn't
+  // refetch on every switch back to it.
+  const [everVisitedAllocation, setEverVisitedAllocation] = useState(false);
+  const [everVisitedDividends, setEverVisitedDividends] = useState(false);
+  const requestTokenRef = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<{ isPremium: boolean }>("/entitlements")
+      .then((res) => {
+        if (active && res.success) setIsPremium(res.data.isPremium);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setPremiumLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // 這兩個數字就印在走勢圖正上方，描述的是圖表所呈現的那份資產，所以要跟折線
+  // 用同一組項目 —— 折線是伺服器算的、已經濾掉「納入圖表」關閉的項目，這裡漏濾
+  // 的話關掉開關後數字不動，看起來就像設定沒生效。
+  const charted = useMemo(() => entries.filter((e) => e.includeInChart !== false), [entries]);
 
   const totalAssets = useMemo(
-    () => entries.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0),
-    [entries]
+    () => charted.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0),
+    [charted]
   );
   const totalLiabilities = useMemo(
-    () => entries.filter((e) => e.topCategory === "負債").reduce((s, e) => s + e.value, 0),
-    [entries]
+    () => charted.filter((e) => e.topCategory === "負債").reduce((s, e) => s + e.value, 0),
+    [charted]
   );
 
-  const investmentData = useMemo(() => aggregateSnapshots(valueSnapshots, "5m"), [valueSnapshots]);
-  const periodLabel = useMemo(() => getRangeDisplayLabel("5m"), []);
+  // Only the selected range is fetched, and only once — the store caches it
+  // and clears the cache whenever an entry changes. Loading only shows for an
+  // uncached range so switching back to an already-fetched range is instant.
+  useEffect(() => {
+    if (netWorthHistory[range]) {
+      setIsHistoryLoading(false);
+      return;
+    }
+    const token = ++requestTokenRef.current;
+    setIsHistoryLoading(true);
+    void fetchNetWorthHistory(range).finally(() => {
+      if (requestTokenRef.current === token) setIsHistoryLoading(false);
+    });
+  }, [fetchNetWorthHistory, range, netWorthHistory]);
+
+  const points = useMemo(() => netWorthHistory[range] ?? [], [netWorthHistory, range]);
+  const periodLabel = useMemo(() => {
+    if (points.length === 0) return "";
+    const first = points[0]!.period;
+    const last = points[points.length - 1]!.period;
+    return first === last ? first : `${first} – ${last}`;
+  }, [points]);
+
+  function selectGatedView(target: "allocation" | "dividends") {
+    if (premiumLoading) return;
+    if (!isPremium) {
+      promptMobileApp();
+      return;
+    }
+    if (target === "allocation") setEverVisitedAllocation(true);
+    else setEverVisitedDividends(true);
+    setView(target);
+  }
 
   return (
     <div
@@ -202,12 +281,82 @@ export default function TransactionsPage() {
           </div>
         </div>
 
-        <p className="text-[11px] text-[#c7c7cc]">{periodLabel}</p>
+        {view === "trend" && <p className="text-[11px] text-[#c7c7cc]">{periodLabel}</p>}
+
+        {/* 走勢 / 配置 / 股息 toggle. Free users tapping 配置 or 股息 get the
+            mobile-app prompt instead of switching — web has no IAP paywall
+            (CLAUDE.md "No web premium/paywall UI"), so this is the web
+            equivalent of mobile's router.push("/paywall") fast path. The
+            server independently returns 403 PREMIUM_REQUIRED on every write,
+            so this is UX only, not the real gate. */}
+        <div className="flex gap-[3px] rounded-[20px] bg-[#e5e5ea] p-[3px]">
+          <button
+            onClick={() => setView("trend")}
+            className={`rounded-[17px] px-[18px] py-1.5 text-[13px] font-semibold ${
+              view === "trend" ? "bg-white text-[#1c1c1e]" : "text-[#8e8e93]"
+            }`}
+          >
+            走勢
+          </button>
+          <button
+            onClick={() => selectGatedView("allocation")}
+            className={`rounded-[17px] px-[18px] py-1.5 text-[13px] font-semibold ${
+              view === "allocation" ? "bg-white text-[#1c1c1e]" : "text-[#8e8e93]"
+            }`}
+          >
+            配置
+          </button>
+          <button
+            onClick={() => selectGatedView("dividends")}
+            className={`rounded-[17px] px-[18px] py-1.5 text-[13px] font-semibold ${
+              view === "dividends" ? "bg-white text-[#1c1c1e]" : "text-[#8e8e93]"
+            }`}
+          >
+            股息
+          </button>
+        </div>
       </div>
 
-      {/* Chart zone — fills remaining height */}
+      {/* Content zone — fills remaining height. All visited panes stay
+          mounted; hiding via `hidden` removes them from layout without
+          unmounting, so switching tabs never re-triggers their fetch. */}
       <div className="min-h-0 flex-1 px-4 pb-4">
-        <InvestmentChart data={investmentData} height="100%" />
+        <div className={`flex h-full flex-col ${view !== "trend" ? "hidden" : ""}`}>
+          <div className="mb-2 flex shrink-0 justify-end gap-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                disabled={isHistoryLoading}
+                onClick={() => setRange(r.key)}
+                className={`rounded-xl px-3 py-1 text-[11px] font-semibold ${
+                  range === r.key ? "bg-[#e5e5ea] text-[#1c1c1e]" : "text-[#c7c7cc]"
+                } ${isHistoryLoading ? "opacity-40" : ""}`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          {isHistoryLoading ? (
+            <div className="flex flex-1 items-center justify-center">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#e5e5ea] border-t-[#8e8e93]" />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1">
+              <InvestmentChart data={points} height="100%" />
+            </div>
+          )}
+        </div>
+
+        {everVisitedAllocation && (
+          <div className={`h-full overflow-y-auto ${view !== "allocation" ? "hidden" : ""}`}>
+            <AssetAllocationView />
+          </div>
+        )}
+        {everVisitedDividends && (
+          <div className={`h-full ${view !== "dividends" ? "hidden" : ""}`}>
+            <DividendOverview />
+          </div>
+        )}
       </div>
     </div>
   );

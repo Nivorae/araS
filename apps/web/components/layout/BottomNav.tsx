@@ -2,12 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, BarChart3, Loader2, PiggyBank, Plus, Home, Settings } from "lucide-react";
+import {
+  GalleryVerticalEnd,
+  BarChart3,
+  Loader2,
+  PiggyBank,
+  Plus,
+  Home,
+  Settings,
+} from "lucide-react";
 import { useNavContext } from "../../app/(finance)/nav-context";
 import { useAuth } from "@clerk/nextjs";
 
 const tabs = [
-  { href: "/assets", icon: Building2, label: "資產" },
+  { href: "/assets", icon: GalleryVerticalEnd, label: "資產" },
   { href: "/transactions", icon: BarChart3, label: "收支" },
   { href: "/retirement", icon: PiggyBank, label: "退休金" },
 ];
