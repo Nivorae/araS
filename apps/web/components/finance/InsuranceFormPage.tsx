@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Check, X } from "lucide-react";
 import { Spinner } from "../ui/Spinner";
+import { promptMobileApp } from "../../lib/mobileAppPrompt";
 import {
   INSURANCE_TYPES,
   INSURANCE_TYPE_LABELS,
@@ -172,7 +173,7 @@ export function InsuranceFormPage({ open, onClose, onSaved, categoryColor, editI
       const json = await res.json();
       if (!json.success) {
         if (json.error?.code === "PREMIUM_REQUIRED") {
-          window.alert("保單管理是 Premium 功能。請於 araS App 內升級 Premium 解鎖無限保單管理。");
+          promptMobileApp("保單管理是 Premium 功能，如果要使用該功能，請下載手機版本。");
           return;
         }
         throw new Error(json.error?.message ?? "儲存失敗，請重試");

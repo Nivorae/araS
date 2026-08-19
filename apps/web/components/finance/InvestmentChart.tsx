@@ -1,7 +1,15 @@
 "use client";
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
-import type { InvestmentPoint } from "../../lib/chartAggregation";
+
+// Structurally compatible with both `InvestmentPoint` (local aggregation) and
+// `NetWorthPoint` (server-backed range fetch, which also carries `date` and
+// `totalLiabilities`) — either can be passed in as-is.
+export interface ChartPoint {
+  period: string;
+  totalAssets: number;
+  netWorth: number;
+}
 
 function formatY(value: number): string {
   if (value >= 1000) return `${Math.round(value / 1000)}k`;
@@ -12,9 +20,18 @@ export function InvestmentChart({
   data,
   height = 220,
 }: {
-  data: InvestmentPoint[];
+  data: ChartPoint[];
   height?: number | `${number}%`;
 }) {
+  if (data.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-1 px-6 text-center">
+        <p className="text-[14px] font-semibold text-[#8e8e93]">尚無足夠的歷史資料</p>
+        <p className="text-[11px] text-[#c7c7cc]">新增或更新資產後，這裡會畫出淨資產的變化</p>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{

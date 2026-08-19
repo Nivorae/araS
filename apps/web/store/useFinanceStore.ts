@@ -14,6 +14,10 @@ import type {
   Recurrence,
   CreateRecurrence,
   UpdateRecurrence,
+  NetWorthPoint,
+  NetWorthRange,
+  NetWorthHistory,
+  TransferEntry,
 } from "@repo/shared";
 
 function uuid() {
@@ -53,15 +57,21 @@ interface FinanceState {
   portfolio: PortfolioItem[];
   recurrences: Recurrence[];
   valueSnapshots: ValueSnapshot[];
+  // Net-worth history keyed by range, filled on demand by fetchNetWorthHistory.
+  // Cleared whenever an entry mutation lands, since every mutation writes a
+  // fresh EntryHistory row server-side and makes the cached points stale.
+  netWorthHistory: Partial<Record<NetWorthRange, NetWorthPoint[]>>;
   loading: boolean;
   error: string | null;
   lastFetchedAt: number | null;
   isGuest: boolean;
   fetchAll: (isSignedIn?: boolean) => Promise<void>;
   refreshEntries: () => Promise<void>;
+  fetchNetWorthHistory: (range: NetWorthRange) => Promise<void>;
   addEntry: (data: CreateEntry) => Promise<void>;
   updateEntry: (id: string, data: UpdateEntry) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
+  transferEntry: (data: TransferEntry) => Promise<void>;
   addTransaction: (data: CreateTransaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addPortfolioItem: (data: CreatePortfolioItem) => Promise<void>;
@@ -79,6 +89,7 @@ export const useFinanceStore = create<FinanceState>()(
       portfolio: [],
       recurrences: [],
       valueSnapshots: [],
+      netWorthHistory: {},
       loading: true,
       error: null,
       lastFetchedAt: null,
@@ -161,6 +172,17 @@ export const useFinanceStore = create<FinanceState>()(
         set({ entries });
       },
 
+      // Cached per range — the server rebuilds these points from EntryHistory,
+      // so an already-fetched range doesn't change until an entry mutation
+      // clears the whole cache (see addEntry/updateEntry/deleteEntry below).
+      fetchNetWorthHistory: async (range) => {
+        if (get().netWorthHistory[range]) return;
+        const history = await apiFetch<NetWorthHistory>(
+          `/api/entries/net-worth-history?range=${range}`
+        );
+        set((s) => ({ netWorthHistory: { ...s.netWorthHistory, [range]: history.points } }));
+      },
+
       addEntry: async (data) => {
         if (get().isGuest) {
           const fakeEntry = {
@@ -200,6 +222,7 @@ export const useFinanceStore = create<FinanceState>()(
             return {
               entries: newEntries,
               valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+              netWorthHistory: {},
             };
           });
           return;
@@ -214,6 +237,7 @@ export const useFinanceStore = create<FinanceState>()(
           return {
             entries: newEntries,
             valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+            netWorthHistory: {},
           };
         });
       },
@@ -237,6 +261,7 @@ export const useFinanceStore = create<FinanceState>()(
           return {
             entries: newEntries,
             valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+            netWorthHistory: {},
           };
         });
       },
@@ -253,8 +278,52 @@ export const useFinanceStore = create<FinanceState>()(
           return {
             entries: newEntries,
             valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+            netWorthHistory: {},
           };
         });
+      },
+
+      transferEntry: async (data) => {
+        if (get().isGuest) {
+          set((s) => {
+            const from = s.entries.find((e) => e.id === data.fromEntryId);
+            const to = s.entries.find((e) => e.id === data.toEntryId);
+            if (!from || !to) return s;
+            const fee = data.fee ?? 0;
+            const newEntries = s.entries.map((e) => {
+              if (e.id === from.id) return { ...e, value: e.value - data.amount - fee };
+              if (e.id === to.id) return { ...e, value: e.value + data.amount };
+              return e;
+            });
+            return {
+              entries: newEntries,
+              valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+            };
+          });
+          return;
+        }
+
+        // Not routed through apiFetch — the caller needs the error `code`
+        // (e.g. INSUFFICIENT_BALANCE) to show a specific message, and
+        // apiFetch's thrown Error only carries the message text.
+        const res = await fetch("/api/entries/transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const json = await res.json();
+        if (!json.success) {
+          throw Object.assign(new Error(json.error?.message ?? "轉帳失敗"), {
+            code: json.error?.code as string | undefined,
+          });
+        }
+
+        const entries = await apiFetch<Entry[]>("/api/entries");
+        set((s) => ({
+          entries,
+          valueSnapshots: [...s.valueSnapshots, makeSnapshot(entries)],
+          netWorthHistory: {},
+        }));
       },
 
       addTransaction: async (data) => {

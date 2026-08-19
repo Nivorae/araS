@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Pencil, Trash2, Plus } from "lucide-react";
+import { X, Pencil, Trash2, Plus, ArrowLeftRight } from "lucide-react";
 import { Spinner } from "../ui/Spinner";
 import type { Entry, EntryHistory } from "@repo/shared";
+import { TRANSFER_TOP_CATEGORIES } from "@repo/shared";
 import { formatCurrency } from "../../lib/format";
 import { CATEGORIES } from "./categoryConfig";
+import { TransferEntryPage } from "./TransferEntryPage";
+import { DividendSection } from "./DividendSection";
 
 interface Props {
   open: boolean;
@@ -61,6 +64,7 @@ export function EntryDetailPage({
   const [priceLoading, setPriceLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
 
   // Dividend state
   const [dividendRate, setDividendRate] = useState<number | null>(null);
@@ -253,6 +257,14 @@ export function EntryDetailPage({
             >
               <Plus size={18} className="text-[#1c1c1e]" />
             </button>
+            {TRANSFER_TOP_CATEGORIES.includes(entry.topCategory) && (
+              <button
+                onClick={() => setShowTransfer(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
+              >
+                <ArrowLeftRight size={16} className="text-[#1c1c1e]" />
+              </button>
+            )}
             <button
               onClick={onAdjust}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
@@ -450,6 +462,19 @@ export function EntryDetailPage({
               })}
             </div>
           )}
+
+          {/* Dividend tracking — stock entries only, mirrors the mobile
+              entry detail screen's condition. */}
+          {isStockEntry && entry.stockCode && (
+            <DividendSection
+              entryId={entry.id}
+              entryName={entry.name}
+              subCategory={entry.subCategory}
+              stockCode={entry.stockCode}
+              currentShares={totalUnits > 0 ? totalUnits : null}
+              costBasis={totalCost}
+            />
+          )}
         </div>
       </div>
 
@@ -610,6 +635,18 @@ export function EntryDetailPage({
           </div>
         </>
       )}
+
+      {/* Transfer sheet */}
+      <TransferEntryPage
+        open={showTransfer}
+        entry={entry}
+        onClose={() => setShowTransfer(false)}
+        onDone={() => {
+          setShowTransfer(false);
+          onEntryUpdated?.();
+          refetchHistory();
+        }}
+      />
     </div>
   );
 }
