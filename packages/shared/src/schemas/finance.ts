@@ -116,6 +116,29 @@ export type CreateEntry = z.infer<typeof CreateEntrySchema>;
 export const UpdateEntrySchema = CreateEntrySchema.partial();
 export type UpdateEntry = z.infer<typeof UpdateEntrySchema>;
 
+// Transfer — moves a balance between two entries (流動資金/負債/應收款 only),
+// writing one EntryHistory row on each side. `fee`, when set, is deducted
+// from the source on top of `amount` — the target always receives `amount`.
+export const TransferEntrySchema = z
+  .object({
+    fromEntryId: z.string().min(1),
+    toEntryId: z.string().min(1),
+    amount: z.number().positive("金額必須大於 0"),
+    fee: z.number().nonnegative("手續費不能為負數").optional(),
+    note: z.string().max(200).optional(),
+    createdAt: z.string().optional(),
+  })
+  .refine((data) => data.fromEntryId !== data.toEntryId, {
+    message: "來源與目標項目不能相同",
+    path: ["toEntryId"],
+  });
+export type TransferEntry = z.infer<typeof TransferEntrySchema>;
+
+// Not a Zod schema — nothing parses a response through it (the route returns
+// the service's result as-is), so it's a plain type used only for the
+// client's `api.post<TransferResult>` annotation.
+export type TransferResult = { from: Entry; to: Entry };
+
 export const UpdateEntryHistorySchema = z.object({
   note: z.string().max(200).nullable().optional(),
   createdAt: z.string().optional(),

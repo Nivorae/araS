@@ -42,6 +42,7 @@ export interface FinanceState {
 
   addEntryLocal: (entry: Entry) => void;
   updateEntryLocal: (id: string, entry: Entry) => void;
+  updateEntriesLocal: (entries: Entry[]) => void;
   deleteEntryLocal: (id: string) => void;
 
   addTransactionLocal: (tx: Transaction) => void;
@@ -94,6 +95,19 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
       netWorthHistory: {},
       netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
     })),
+
+  // Same as updateEntryLocal but for several entries at once (e.g. a 轉帳
+  // that touches both the source and target entry) — one array pass and one
+  // `set()`/epoch bump instead of one per entry.
+  updateEntriesLocal: (updated) =>
+    set((s) => {
+      const byId = new Map(updated.map((e) => [e.id, e]));
+      return {
+        entries: s.entries.map((e) => byId.get(e.id) ?? e),
+        netWorthHistory: {},
+        netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
+      };
+    }),
 
   deleteEntryLocal: (id) =>
     set((s) => {

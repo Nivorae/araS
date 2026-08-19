@@ -15,9 +15,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react-native";
+import { ArrowLeft, ArrowLeftRight, Pencil, Plus, Trash2 } from "lucide-react-native";
 import * as Sentry from "@sentry/react-native";
-import type { EntryHistory } from "@repo/shared";
+import { TRANSFER_TOP_CATEGORIES, type EntryHistory } from "@repo/shared";
 import { BankLogo } from "@/components/BankLogo";
 import DividendSection from "@/components/DividendSection";
 import { useFinanceStore } from "@/store/financeStore";
@@ -26,7 +26,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
 import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { useApi, ApiError } from "@/lib/api";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, toIntegerDigits, formatThousands } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 
 import { STOCK_CATS, buildYfSymbol as _buildYfSymbol } from "@/lib/stockConstants";
@@ -68,25 +68,6 @@ const buildYfSymbol = _buildYfSymbol;
 // Stable empty reference for entries with no cached history yet, so `history`
 // keeps one identity across renders and the useMemo hooks below stay valid.
 const NO_HISTORY: EntryHistory[] = [];
-
-// ─── Integer-with-thousands input (變動金額) ───────────────────────────────────
-// Strips decimals and non-digit characters as the user types, keeping at most
-// one leading "-" for negative adjustments, so the underlying value is always a
-// clean integer string ready for parseInt.
-function toIntegerDigits(raw: string): string {
-  const negative = raw.trim().startsWith("-");
-  const digits = raw.replace(/[^0-9]/g, "");
-  return (negative ? "-" : "") + digits;
-}
-// Renders an integer digit string (from toIntegerDigits) with comma separators
-// for display, e.g. "1234567" -> "1,234,567".
-function formatThousands(digits: string): string {
-  if (!digits) return "";
-  const negative = digits.startsWith("-");
-  const abs = negative ? digits.slice(1) : digits;
-  const withCommas = abs.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return (negative ? "-" : "") + withCommas;
-}
 
 // ─── Error handling for fire-and-forget onPress handlers ──────────────────────
 // These async functions are invoked from `onPress` without being awaited by the
@@ -384,6 +365,14 @@ export default function EntryDetailScreen() {
             >
               <Plus size={18} color="#1c1c1e" />
             </TouchableOpacity>
+            {TRANSFER_TOP_CATEGORIES.includes(entry.topCategory) && (
+              <TouchableOpacity
+                onPress={() => router.push(`/entry/${id}/transfer`)}
+                style={s.iconBtn}
+              >
+                <ArrowLeftRight size={16} color="#1c1c1e" />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => router.push(`/entry/${id}/edit`)} style={s.iconBtn}>
               <Pencil size={16} color="#1c1c1e" />
             </TouchableOpacity>

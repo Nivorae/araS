@@ -10,6 +10,8 @@ import type {
   Insurance,
   CreateEntry,
   UpdateEntry,
+  TransferEntry,
+  TransferResult,
   CreateTransaction,
   CreatePortfolioItem,
   UpdatePortfolioItem,
@@ -162,6 +164,15 @@ export function useFinanceActions() {
       const entry = await api.put<Entry>(`/api/entries/${id}`, data);
       useFinanceStore.getState().updateEntryLocal(id, entry);
       return entry;
+    },
+    [api]
+  );
+
+  const transferEntry = useCallback(
+    async (data: TransferEntry) => {
+      const result = await api.post<TransferResult>("/api/entries/transfer", data);
+      useFinanceStore.getState().updateEntriesLocal([result.from, result.to]);
+      return result;
     },
     [api]
   );
@@ -337,6 +348,7 @@ export function useFinanceActions() {
     fetchNetWorthHistory,
     addEntry,
     updateEntry,
+    transferEntry,
     deleteEntry,
     addTransaction,
     deleteTransaction,

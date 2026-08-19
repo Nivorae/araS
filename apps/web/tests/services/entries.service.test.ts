@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+const txMock = {
+  entry: { findFirst: vi.fn(), update: vi.fn() },
+  entryHistory: { create: vi.fn() },
+};
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: vi.fn(async (arg) => arg(txMock)),
     entry: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
@@ -34,7 +40,12 @@ vi.mock("@/services/entitlements.service", () => ({
 import { prisma } from "@/lib/prisma";
 import { entriesService } from "../../services/entries.service";
 import { entitlementsService } from "../../services/entitlements.service";
-import { EntryLimitError } from "../../services/entries.service";
+import {
+  EntryLimitError,
+  EntryNotFoundError,
+  InvalidTransferError,
+  InsufficientBalanceError,
+} from "../../services/entries.service";
 import { FREE_ENTRY_LIMIT } from "@repo/shared";
 
 const USER_ID = "user_test123";
@@ -183,6 +194,98 @@ describe("EntriesService.delete", () => {
     expect(prisma.entry.deleteMany).toHaveBeenCalledWith({
       where: { id: "entry-1", userId: USER_ID },
     });
+  });
+});
+
+describe("EntriesService.transfer", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function mockEntries(from: Record<string, unknown>, to: Record<string, unknown>) {
+    txMock.entry.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === "from-1" ? from : where.id === "to-1" ? to : null
+    );
+    txMock.entry.update.mockImplementation(
+      async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => ({
+        ...(where.id === "from-1" ? from : to),
+        ...data,
+      })
+    );
+  }
+
+  const CASH_FROM = {
+    id: "from-1",
+    userId: USER_ID,
+    name: "現金",
+    topCategory: "流動資金",
+    value: 1000,
+  };
+  const CASH_TO = {
+    id: "to-1",
+    userId: USER_ID,
+    name: "另一帳戶",
+    topCategory: "流動資金",
+    value: 200,
+  };
+
+  it("debits the source and credits the target by the same amount", async () => {
+    mockEntries(CASH_FROM, CASH_TO);
+
+    const result = await entriesService.transfer(
+      { fromEntryId: "from-1", toEntryId: "to-1", amount: 300 },
+      USER_ID
+    );
+
+    expect(result.from.value).toBe(700);
+    expect(result.to.value).toBe(500);
+    expect(txMock.entryHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ entryId: "from-1", delta: -300 }) })
+    );
+    expect(txMock.entryHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ entryId: "to-1", delta: 300 }) })
+    );
+  });
+
+  it("debits amount + fee from the source while the target only gets amount", async () => {
+    mockEntries(CASH_FROM, CASH_TO);
+
+    const result = await entriesService.transfer(
+      { fromEntryId: "from-1", toEntryId: "to-1", amount: 300, fee: 15 },
+      USER_ID
+    );
+
+    expect(result.from.value).toBe(685);
+    expect(result.to.value).toBe(500);
+    expect(txMock.entryHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ entryId: "from-1", delta: -315 }) })
+    );
+  });
+
+  it("throws InsufficientBalanceError when amount + fee would push the source negative", async () => {
+    mockEntries(CASH_FROM, CASH_TO);
+
+    await expect(
+      entriesService.transfer(
+        { fromEntryId: "from-1", toEntryId: "to-1", amount: 990, fee: 20 },
+        USER_ID
+      )
+    ).rejects.toBeInstanceOf(InsufficientBalanceError);
+    expect(txMock.entryHistory.create).not.toHaveBeenCalled();
+  });
+
+  it("throws EntryNotFoundError when either entry is missing or not owned by the user", async () => {
+    mockEntries(CASH_FROM, CASH_TO);
+
+    await expect(
+      entriesService.transfer({ fromEntryId: "missing", toEntryId: "to-1", amount: 100 }, USER_ID)
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+  });
+
+  it("throws InvalidTransferError when either entry is outside the transferable categories", async () => {
+    mockEntries(CASH_FROM, { ...CASH_TO, topCategory: "投資" });
+
+    await expect(
+      entriesService.transfer({ fromEntryId: "from-1", toEntryId: "to-1", amount: 100 }, USER_ID)
+    ).rejects.toBeInstanceOf(InvalidTransferError);
   });
 });
 

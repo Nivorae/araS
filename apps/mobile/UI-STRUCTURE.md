@@ -26,7 +26,8 @@ app/
     │   ├── new.tsx                  新增帳戶：分類選擇器   → /entry/new
     │   ├── form.tsx                 新增帳戶：填寫表單     → /entry/form
     │   ├── [id].tsx                 資產項目詳情          → /entry/:id
-    │   └── [id]/edit.tsx            編輯項目 / 新增一筆記錄 → /entry/:id/edit
+    │   ├── [id]/edit.tsx            編輯項目 / 新增一筆記錄 → /entry/:id/edit
+    │   └── [id]/transfer.tsx        轉帳（流動資金/負債/應收款）→ /entry/:id/transfer
     │
     ├── insurance/
     │   ├── overview.tsx             保單總覽（3D 翻卡）    → /insurance/overview
@@ -116,15 +117,28 @@ app/
 
 ### 2.6 資產項目詳情 — `app/(app)/entry/[id].tsx`
 
-| 區塊     | 內容                                                                      |
-| -------- | ------------------------------------------------------------------------- |
-| 標題卡   | 名稱、分類色、銀行 logo、目前金額；股票類另顯示損益（紅漲綠跌）           |
-| 動作鈕   | ＋ 新增一筆記錄 → `/entry/:id/edit?mode=add`；✏️ 編輯 → `/entry/:id/edit` |
-| 股息     | `components/DividendSection.tsx`（僅股票類）                              |
-| 交易記錄 | 依「年月」分組的歷史清單，可編輯／刪除                                    |
-| 彈窗     | 編輯記錄 Sheet（日期、變動金額、股數）                                    |
+| 區塊     | 內容                                                                                                                               |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 標題卡   | 名稱、分類色、銀行 logo、目前金額；股票類另顯示損益（紅漲綠跌）                                                                    |
+| 動作鈕   | ＋ 新增一筆記錄 → `/entry/:id/edit?mode=add`；⇄ 轉帳（僅流動資金/負債/應收款）→ `/entry/:id/transfer`；✏️ 編輯 → `/entry/:id/edit` |
+| 股息     | `components/DividendSection.tsx`（僅股票類）                                                                                       |
+| 交易記錄 | 依「年月」分組的歷史清單，可編輯／刪除                                                                                             |
+| 彈窗     | 編輯記錄 Sheet（日期、變動金額、股數）                                                                                             |
 
 `DividendSection` 底下再開兩個 Sheet：`components/DividendForm.tsx`（登錄股息）與 `components/ReinvestSheet.tsx`（股息再投入）。
+
+### 2.6a 轉帳 — `app/(app)/entry/[id]/transfer.tsx`
+
+從資產項目詳情頁的 ⇄ 鈕進入，僅流動資金／負債／應收款三種分類可用（免費功能，不綁
+Premium）。單頁表單：
+
+- 來源：唯讀，顯示當前項目名稱與餘額
+- 轉入項目：同三分類、排除自己的項目清單，點選即選定
+- 金額／手續費（選填）／日期（`DatePickerModal`）／備註（選填）
+- 手續費由來源多扣：來源扣 `金額+手續費`，轉入項目仍收到完整 `金額`
+- 送出打 `POST /api/entries/transfer`（`useFinanceActions.transferEntry`），成功後
+  直接更新 store 內兩個項目的餘額，`router.back()` 回到詳情頁；餘額不足會擋在後端
+  （`INSUFFICIENT_BALANCE`）並跳提示
 
 ### 2.7 編輯項目 — `app/(app)/entry/[id]/edit.tsx`
 
@@ -161,21 +175,21 @@ app/
 
 ## 3. 共用元件對照表
 
-| 元件                                                                            | 被誰用                                                         |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `TopGlassNav`                                                                   | 三個 tab、`insurance/overview`                                 |
-| `FloatingCardsBackground`                                                       | `welcome`、`paywall`                                           |
-| `CategoryCardStack`                                                             | 首頁                                                           |
-| `BalanceScale` / `InvestmentChart` / `AssetAllocationView` / `DividendOverview` | 投資損益                                                       |
-| `ProjectionChart` / `InfoModal`                                                 | 退休計劃                                                       |
-| `EntryForm`                                                                     | `entry/form`、`entry/[id]/edit`                                |
-| `InsuranceForm`                                                                 | `insurance/new`、`insurance/overview`                          |
-| `DividendSection` → `DividendForm` / `ReinvestSheet`                            | `entry/[id]`                                                   |
-| `StockPickerModal`                                                              | `EntryForm`、`DividendForm`                                    |
-| `BankPickerModal` / `BankLogo`                                                  | `EntryForm`、`entry/[id]`                                      |
-| `DatePickerModal`                                                               | `EntryForm`、`InsuranceForm`、`DividendForm`、`LoanFormFields` |
-| `LoanFormFields`                                                                | `EntryForm`（負債類）                                          |
-| `InsurerPickerModal` / `CoverageItemPicker`                                     | `InsuranceForm`                                                |
+| 元件                                                                            | 被誰用                                                                                |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `TopGlassNav`                                                                   | 三個 tab、`insurance/overview`                                                        |
+| `FloatingCardsBackground`                                                       | `welcome`、`paywall`                                                                  |
+| `CategoryCardStack`                                                             | 首頁                                                                                  |
+| `BalanceScale` / `InvestmentChart` / `AssetAllocationView` / `DividendOverview` | 投資損益                                                                              |
+| `ProjectionChart` / `InfoModal`                                                 | 退休計劃                                                                              |
+| `EntryForm`                                                                     | `entry/form`、`entry/[id]/edit`                                                       |
+| `InsuranceForm`                                                                 | `insurance/new`、`insurance/overview`                                                 |
+| `DividendSection` → `DividendForm` / `ReinvestSheet`                            | `entry/[id]`                                                                          |
+| `StockPickerModal`                                                              | `EntryForm`、`DividendForm`                                                           |
+| `BankPickerModal` / `BankLogo`                                                  | `EntryForm`、`entry/[id]`                                                             |
+| `DatePickerModal`                                                               | `EntryForm`、`InsuranceForm`、`DividendForm`、`LoanFormFields`、`entry/[id]/transfer` |
+| `LoanFormFields`                                                                | `EntryForm`（負債類）                                                                 |
+| `InsurerPickerModal` / `CoverageItemPicker`                                     | `InsuranceForm`                                                                       |
 
 ## 4. 狀態與資料層
 
