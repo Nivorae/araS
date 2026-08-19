@@ -30,6 +30,11 @@ interface Props {
   onEntryClick: (entry: Entry) => void;
   onExpandChange: (expanded: boolean) => void;
   onAddClick?: (categoryName: string) => void;
+  /** How far below the top of the zone the resting (collapsed) deck sits. The
+   *  zone is sized for the EXPANDED state and never resizes, so this offset —
+   *  a transform, carried by the same native-driven springs as the cards — is
+   *  what makes the deck look lower while nothing is open. */
+  collapsedOffset?: number;
   /** Fired while a scrub gesture is active so the parent can pause its
    *  pull-to-refresh scroll and avoid a gesture tug-of-war. */
   onScrubActiveChange?: (active: boolean) => void;
@@ -53,8 +58,20 @@ const SCRUB_THRESHOLD = 8;
 // card opens. On collapse the cards return UP and slot back behind the top card;
 // an underdamped overshoot would momentarily over-cover the topmost card and look
 // "clipped", so collapse uses a near-critical damping (no overshoot).
-const SPRING_OPEN = { stiffness: 220, damping: 25, mass: 1, useNativeDriver: true } as const;
-const SPRING_CLOSE = { stiffness: 220, damping: 30, mass: 1, useNativeDriver: true } as const;
+// Exported so anything that has to travel WITH the deck (the net-worth block
+// above it) moves on the same curve instead of drifting against it.
+export const STACK_SPRING_OPEN = {
+  stiffness: 220,
+  damping: 25,
+  mass: 1,
+  useNativeDriver: true,
+} as const;
+export const STACK_SPRING_CLOSE = {
+  stiffness: 220,
+  damping: 30,
+  mass: 1,
+  useNativeDriver: true,
+} as const;
 // Content fades in shortly after the card opens. On collapse the fade-out is
 // stretched to span the whole re-stack: the incoming cards wipe up over the list
 // while it dims, so there's never a "solid colour, no content" ghost window.
@@ -72,6 +89,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       onEntryClick,
       onExpandChange,
       onAddClick,
+      collapsedOffset = 0,
       onScrubActiveChange,
     },
     ref
@@ -84,8 +102,9 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
     const getSortDir = (name: string): "asc" | "desc" => sortDirs[name] ?? "desc";
     const toggleSort = (name: string) =>
       setSortDirs((prev) => ({ ...prev, [name]: getSortDir(name) === "desc" ? "asc" : "desc" }));
-    // Measured ONCE. Never updated per-frame, so the top-zone resize animation
-    // can't feed back and restart the card springs (the source of the stutter).
+    // Measured ONCE. The zone is sized for the expanded state and never
+    // resizes, so a second measurement would only ever re-report the same
+    // number — and restart the card springs for nothing if it didn't.
     const [zoneHeight, setZoneHeight] = useState(0);
     const measured = useRef(false);
 
@@ -104,11 +123,15 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
     });
 
     const total = categories.length;
+    // The fan only gets what is left below the resting offset: the deck starts
+    // `collapsedOffset` down, and the bottom card's header still has to clear
+    // the zone's bottom edge or it gets sliced by overflow:hidden.
+    const fanHeight = zoneHeight - collapsedOffset;
     const spacing =
       total > 1
         ? Math.min(
             MAX_STACK_SPACING,
-            Math.floor((zoneHeight - FRONT_CARD_HEADER_HEIGHT - TOP_INSET) / (total - 1))
+            Math.floor((fanHeight - FRONT_CARD_HEADER_HEIGHT - TOP_INSET) / (total - 1))
           )
         : 0;
 
@@ -126,12 +149,12 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       const selectionValid =
         selectedName !== null && categories.some((c) => c.name === selectedName);
       const collapsing = !selectionValid;
-      // Just below the zone — guaranteed off-screen even while the zone is
-      // expanded (~1.2×), without the huge travel that amplifies overshoot.
+      // Just below the zone — clear of its bottom edge without the huge travel
+      // that amplifies overshoot.
       const offScreenY = Math.round(zoneHeight * 1.3);
       const anims: Animated.CompositeAnimation[] = [];
       categories.forEach((cat, index) => {
-        const defaultY = TOP_INSET + (total - 1 - index) * spacing;
+        const defaultY = collapsedOffset + TOP_INSET + (total - 1 - index) * spacing;
         let target: number;
         if (collapsing) target = defaultY;
         else if (selectedName === cat.name) target = 0;
@@ -140,13 +163,13 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
           // place cards instantly on first measure — no intro fan-out
           yMap.current[cat.name]!.setValue(target);
         } else {
-          const cfg = collapsing ? SPRING_CLOSE : SPRING_OPEN;
+          const cfg = collapsing ? STACK_SPRING_CLOSE : STACK_SPRING_OPEN;
           anims.push(Animated.spring(yMap.current[cat.name]!, { toValue: target, ...cfg }));
         }
       });
       if (anims.length) Animated.parallel(anims).start();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedName, zoneHeight, total]);
+    }, [selectedName, zoneHeight, total, collapsedOffset]);
 
     const clearTimers = () => {
       if (openTimer.current) clearTimeout(openTimer.current);
@@ -222,12 +245,14 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
     categoriesRef.current = categories;
     const selectedRef = useRef(selectedName);
     selectedRef.current = selectedName;
+    const collapsedOffsetRef = useRef(collapsedOffset);
+    collapsedOffsetRef.current = collapsedOffset;
     const onScrubActiveChangeRef = useRef(onScrubActiveChange);
     onScrubActiveChangeRef.current = onScrubActiveChange;
 
     const springPeek = (name: string, to: number) => {
       const v = peekMap.current[name];
-      if (v) Animated.spring(v, { toValue: to, ...SPRING_OPEN }).start();
+      if (v) Animated.spring(v, { toValue: to, ...STACK_SPRING_OPEN }).start();
     };
 
     // Lift `name` (null = lift none), dropping whichever card was lifted before.
@@ -244,7 +269,9 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       const tot = totalRef.current;
       if (tot === 0) return null;
       if (tot === 1) return cats[0]?.name ?? null;
-      const fingerY = pageY - zoneTopRef.current;
+      // The resting deck starts `collapsedOffset` below the zone top, so the
+      // bands are measured from there, not from the zone itself.
+      const fingerY = pageY - zoneTopRef.current - collapsedOffsetRef.current;
       const sp = spacingRef.current || 1;
       // Cards fan top→bottom with the last index on top; map the band to an index.
       const band = Math.max(0, Math.min(tot - 1, Math.floor(fingerY / sp)));

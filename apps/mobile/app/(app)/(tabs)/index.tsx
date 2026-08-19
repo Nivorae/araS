@@ -22,6 +22,8 @@ import { formatCurrency } from "@/lib/format";
 import { CATEGORIES, getNodeIcon } from "@/lib/categoryConfig";
 import {
   CategoryCardStack,
+  STACK_SPRING_CLOSE,
+  STACK_SPRING_OPEN,
   type CategoryCardStackHandle,
   type StackCategory,
 } from "@/components/CategoryCardStack";
@@ -31,6 +33,24 @@ import { useResponsive } from "@/hooks/useResponsive";
 // Deck order, bottom card → top card. In CategoryCardStack the LAST name renders
 // at the very top of the stack, so 保險 is forced to the end to sit above 應收款.
 const CARD_ORDER = [...CATEGORIES.map((c) => c.name).filter((n) => n !== "保險"), "保險"];
+
+// The two zones are sized ONCE, for the expanded state, and never resize. What
+// used to be a 40%→28% spring on the top zone's `height` is now a translate of
+// the deck (and of the net-worth block riding above it) by the same 12%.
+//
+// The height animation had to run with useNativeDriver:false, so every frame
+// re-laid out the whole subtree on the JS thread — and because each card is
+// height:"100%" with a 26pt radius and a 12pt shadow, iOS also re-rasterised
+// every card's shadow each frame. Meanwhile the card springs themselves run on
+// the UI thread. The two clocks drifted apart and the card edges visibly
+// juddered; on an iPad, where the shadow passes cover far more pixels, it read
+// as a flicker. Transforms keep the whole transition on the UI thread with zero
+// layout passes.
+const TOP_ZONE_RATIO = 0.28;
+const COLLAPSED_DROP_RATIO = 0.12;
+// Half the drop, so the net-worth block stays centred in the taller space the
+// collapsed deck leaves above it — visually identical to the old 40% zone.
+const NET_SHIFT_RATIO = COLLAPSED_DROP_RATIO / 2;
 
 export default function AssetsScreen() {
   const router = useRouter();
@@ -67,7 +87,7 @@ export default function AssetsScreen() {
   }, [fetchAll]);
 
   const [containerH, setContainerH] = useState(0);
-  const topH = useRef(new Animated.Value(0)).current;
+  const netShift = useRef(new Animated.Value(0)).current;
 
   // net worth
   const netWorth = useMemo(() => {
@@ -103,22 +123,21 @@ export default function AssetsScreen() {
     });
   }, [displayEntries]);
 
-  // animate top zone height (40% collapsed → 28% expanded)
+  // Ride the net-worth block down with the resting deck, on the deck's own
+  // spring so the two never drift apart mid-transition.
   useEffect(() => {
     if (containerH === 0) return;
-    Animated.spring(topH, {
-      toValue: containerH * (isCardExpanded ? 0.28 : 0.4),
-      stiffness: 200,
-      damping: 28,
-      mass: 1,
-      useNativeDriver: false,
+    Animated.spring(netShift, {
+      toValue: isCardExpanded ? 0 : containerH * NET_SHIFT_RATIO,
+      ...(isCardExpanded ? STACK_SPRING_OPEN : STACK_SPRING_CLOSE),
     }).start();
-  }, [isCardExpanded, containerH, topH]);
+  }, [isCardExpanded, containerH, netShift]);
 
   const onContainerLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
+    if (h === containerH) return;
     setContainerH(h);
-    topH.setValue(h * (isCardExpanded ? 0.28 : 0.4));
+    netShift.setValue(isCardExpanded ? 0 : h * NET_SHIFT_RATIO);
   };
 
   if (loading && entries.length === 0) {
@@ -136,7 +155,12 @@ export default function AssetsScreen() {
             Pressable ancestor, so the pull gesture is never intercepted. Both
             scrolling and the refresh control itself are locked while a card is
             expanded, so pulling down there can't trigger a refresh underneath. */}
-        <Animated.View style={[s.topZone, { height: topH }]}>
+        <Animated.View
+          style={[
+            s.topZone,
+            { height: containerH * TOP_ZONE_RATIO, transform: [{ translateY: netShift }] },
+          ]}
+        >
           <ScrollView
             style={s.flex}
             contentContainerStyle={s.netScroll}
@@ -197,11 +221,16 @@ export default function AssetsScreen() {
             if (isCardExpanded) cardStackRef.current?.collapse();
           }}
         >
-          {stackCategories.length > 0 ? (
+          {/* Held back until the body has been measured: the stack measures its
+              own height exactly once to lay the fan out, and before `containerH`
+              is known the top zone is 0-tall, so it would measure the full body
+              and space the deck too far apart for good. */}
+          {containerH === 0 ? null : stackCategories.length > 0 ? (
             <CategoryCardStack
               ref={cardStackRef}
               categories={stackCategories}
               hideBalance={hideBalance}
+              collapsedOffset={containerH * COLLAPSED_DROP_RATIO}
               getEntryIcon={(topCategory, subCategory) => getNodeIcon(topCategory, subCategory)}
               onEntryClick={(entry) =>
                 // 保險走總攬頁（3D 翻轉＋發票預覽），focus 定位到點選的那張保單。
