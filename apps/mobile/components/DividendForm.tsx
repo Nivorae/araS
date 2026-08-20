@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import type { Dividend } from "@repo/shared";
 import { Calendar } from "lucide-react-native";
 import { useApi } from "@/lib/api";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
@@ -29,6 +30,13 @@ interface DividendFormProps {
   subCategory: string;
   stockCode: string;
   currentShares: number | null;
+  /**
+   * 有值就是編輯模式。後端 UpdateDividendSchema 只收
+   * payDate/amount/note/bankEntryId，所以編輯時只開放這四個欄位 ——
+   * 每股股利／股數與「同步記為收入」在編輯模式下不顯示，改不了。
+   * 已再投資的股利後端一律拒絕修改，入口在 DividendSection 就先擋掉。
+   */
+  editing?: Dividend | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -40,14 +48,16 @@ export default function DividendForm({
   subCategory,
   stockCode,
   currentShares,
+  editing = null,
   onClose,
   onSaved,
 }: DividendFormProps) {
+  const isEdit = editing !== null;
   const { isTablet } = useResponsive();
   const bottomPad = useSheetBottomPadding();
   const api = useApi();
   const router = useRouter();
-  const { addDividend, fetchAll } = useFinanceActions();
+  const { addDividend, updateDividend, fetchAll } = useFinanceActions();
   const { isPremium, loading: premiumLoading } = useIsPremium();
 
   // 入帳帳戶只能是流動資金。從 store 讀，不再打一次 API。
@@ -94,16 +104,27 @@ export default function DividendForm({
   // despite both being declared with `visible` in their deps.
   useEffect(() => {
     if (!visible) return;
+    // 編輯只走「依總金額」：perShare/shares 不在 UpdateDividendSchema 裡，
+    // 給了也不會存，讓使用者以為改得動反而更糟。
     setMode("amount");
-    setPayDate(todayISO());
     setPerShareStr("");
     setSharesStr(currentShares != null ? String(currentShares) : "");
+    setError(null);
+    if (editing) {
+      setPayDate(editing.payDate.slice(0, 10));
+      setAmountStr(String(editing.amount));
+      setBankEntryId(editing.bankEntryId);
+      setNote(editing.note ?? "");
+      // recordIncome 在編輯時不顯示也不送出 —— 後端以既有的 transactionId
+      // 判斷要不要重放收入，前端傳什麼都不會被採用。
+      return;
+    }
+    setPayDate(todayISO());
     setAmountStr("");
     setBankEntryId(null);
     setRecordIncome(true);
     setNote("");
-    setError(null);
-  }, [visible, entryId, currentShares]);
+  }, [visible, entryId, currentShares, editing]);
 
   // 非台股的 perShare 以報價幣別輸入，換算成 TWD 才送出（設計文件「幣別處理」）。
   //
@@ -128,7 +149,9 @@ export default function DividendForm({
   // submission isn't blocked forever — the existing UI hint below tells the
   // user to switch to 依總金額 and enter TWD directly in that case.
   useEffect(() => {
-    if (!visible || isTWD) {
+    // 編輯模式的金額欄位本來就是 TWD（讀回來的 amount 已換算過），不需要匯率，
+    // 也就不該讓 fxLoading 擋住儲存。
+    if (!visible || isTWD || isEdit) {
       setFxRate(1);
       setFxLoading(false);
       return;
@@ -160,7 +183,7 @@ export default function DividendForm({
     return () => {
       active = false;
     };
-  }, [visible, isTWD, subCategory, stockCode, api]);
+  }, [visible, isTWD, isEdit, subCategory, stockCode, api]);
 
   // 每股股利預填。抓不到就留空，絕不阻擋輸入。
   //
@@ -176,7 +199,8 @@ export default function DividendForm({
   // fires. Net effect: one extra render, but the new stock's real rate is
   // always fetched — never the stale one.
   useEffect(() => {
-    if (!visible || perShareStr !== "") return;
+    // 編輯模式看不到每股股利欄位，預填只是白打一次 API。
+    if (!visible || isEdit || perShareStr !== "") return;
     let active = true;
     (async () => {
       try {
@@ -194,7 +218,7 @@ export default function DividendForm({
     return () => {
       active = false;
     };
-  }, [visible, subCategory, stockCode, api, perShareStr]);
+  }, [visible, isEdit, subCategory, stockCode, api, perShareStr]);
 
   const amountTWD = useMemo(() => {
     if (mode === "amount") return parseFloat(amountStr) || 0;
@@ -236,7 +260,32 @@ export default function DividendForm({
       setError("請輸入大於 0 的股利金額");
       return;
     }
+    if (editing) {
+      setError(null);
+      setSubmitting(true);
+      try {
+        await updateDividend(editing.id, {
+          payDate,
+          amount: roundedAmount,
+          // 空字串要送 null 才會清掉備註；undefined 在後端是「不動」。
+          note: note.trim() ? note.trim() : null,
+          bankEntryId,
+        });
+        // 後端是「整筆沖銷再重放」，入帳帳戶與金額都可能變，Entry.value 一定要重抓。
+        await fetchAll();
+        onSaved();
+        onClose();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "儲存失敗，請稍後再試");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     // 前端只是提前攔截讓 free 使用者立刻看到 paywall；後端才是權威。
+    // 編輯既有紀錄不擋 —— 那筆股利當初就是 premium 才建得出來，後端的 PATCH
+    // 也沒有 premium 閘門，這裡再擋只會把已付費過的使用者鎖在自己的資料外面。
     if (!premiumLoading && !isPremium) {
       promptPremiumUpgrade();
       return;
@@ -275,26 +324,30 @@ export default function DividendForm({
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
           <View style={s.handle} />
-          <Text style={s.title}>新增股利 · {entryName}</Text>
+          <Text style={s.title}>
+            {isEdit ? "編輯股利" : "新增股利"} · {entryName}
+          </Text>
 
           <ScrollView style={s.body}>
-            <View style={s.segment}>
-              {[
-                { m: "amount" as const, label: "依總金額" },
-                { m: "perShare" as const, label: "依每股股利" },
-              ].map(({ m, label }) => (
-                <Pressable
-                  key={m}
-                  onPress={() => {
-                    setMode(m);
-                    setError(null);
-                  }}
-                  style={[s.segmentBtn, mode === m && s.segmentBtnActive]}
-                >
-                  <Text style={[s.segmentText, mode === m && s.segmentTextActive]}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {!isEdit && (
+              <View style={s.segment}>
+                {[
+                  { m: "amount" as const, label: "依總金額" },
+                  { m: "perShare" as const, label: "依每股股利" },
+                ].map(({ m, label }) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => {
+                      setMode(m);
+                      setError(null);
+                    }}
+                    style={[s.segmentBtn, mode === m && s.segmentBtnActive]}
+                  >
+                    <Text style={[s.segmentText, mode === m && s.segmentTextActive]}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
             <Text style={s.label}>發放日</Text>
             {/* FIX FOR FINDING 5 — a bare TextInput accepted any free-text
@@ -348,7 +401,13 @@ export default function DividendForm({
               </>
             )}
 
-            <Text style={s.computed}>換算後入帳：NT$ {amountTWD.toLocaleString()}</Text>
+            {isEdit ? (
+              <Text style={s.editHint}>
+                每股股利、股數與「同步記為收入」建立後不可修改，需要調整請刪除後重新建立。
+              </Text>
+            ) : (
+              <Text style={s.computed}>換算後入帳：NT$ {amountTWD.toLocaleString()}</Text>
+            )}
             {/* FIX FOR FINDING 3 — surface the in-flight FX fetch so the user
                 knows why 儲存 is disabled, instead of it silently sending an
                 understated amount. */}
@@ -383,16 +442,18 @@ export default function DividendForm({
               ))}
             </View>
 
-            <View style={s.switchRow}>
-              <Text style={s.label}>同步記為收入</Text>
-              <Switch
-                value={recordIncome}
-                onValueChange={(v) => {
-                  setRecordIncome(v);
-                  setError(null);
-                }}
-              />
-            </View>
+            {!isEdit && (
+              <View style={s.switchRow}>
+                <Text style={s.label}>同步記為收入</Text>
+                <Switch
+                  value={recordIncome}
+                  onValueChange={(v) => {
+                    setRecordIncome(v);
+                    setError(null);
+                  }}
+                />
+              </View>
+            )}
 
             <Text style={s.label}>備註</Text>
             <TextInput
@@ -418,7 +479,7 @@ export default function DividendForm({
               style={[s.btn, s.btnPrimary, (submitting || fxLoading) && s.btnDisabled]}
             >
               <Text style={s.btnPrimaryText}>
-                {submitting ? "儲存中…" : fxLoading ? "匯率讀取中…" : "儲存"}
+                {submitting ? "儲存中…" : fxLoading ? "匯率讀取中…" : isEdit ? "更新" : "儲存"}
               </Text>
             </Pressable>
           </View>
@@ -488,6 +549,7 @@ const s = StyleSheet.create({
   },
   computed: { fontSize: 14, fontWeight: "600", color: "#66788E", marginTop: 14 },
   fxHint: { fontSize: 12, color: "#8e8e93", marginTop: 4 },
+  editHint: { fontSize: 12, color: "#8e8e93", marginTop: 14, lineHeight: 17 },
   dateRow: {
     flexDirection: "row",
     alignItems: "center",

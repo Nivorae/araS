@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { Dividend } from "@repo/shared";
 import { Spinner } from "../ui/Spinner";
 import { useFinanceStore } from "../../store/useFinanceStore";
 import { buildYfSymbol } from "../../lib/stockSymbol";
@@ -13,6 +14,14 @@ interface DividendFormProps {
   subCategory: string;
   stockCode: string;
   currentShares: number | null;
+  /**
+   * 有值就是編輯模式。後端 UpdateDividendSchema 只收
+   * payDate/amount/note/bankEntryId，所以編輯時只開放這四個欄位 ——
+   * 每股股利／股數與「同步記為收入」在編輯模式下不顯示，改不了。
+   * 已再投資的股利後端一律拒絕修改，入口在 DividendSection 就先擋掉。
+   * 與 apps/mobile/components/DividendForm.tsx 的 `editing` 行為一致。
+   */
+  editing?: Dividend | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -24,9 +33,11 @@ export function DividendForm({
   subCategory,
   stockCode,
   currentShares,
+  editing = null,
   onClose,
   onSaved,
 }: DividendFormProps) {
+  const isEdit = editing !== null;
   const entries = useFinanceStore((s) => s.entries);
   const refreshEntries = useFinanceStore((s) => s.refreshEntries);
   const cashEntries = useMemo(() => entries.filter((e) => e.topCategory === "流動資金"), [entries]);
@@ -50,21 +61,34 @@ export function DividendForm({
   // component stays mounted between opens, only `open` toggles visibility.
   useEffect(() => {
     if (!open) return;
+    // 編輯只走「依總金額」：perShare/shares 不在 UpdateDividendSchema 裡，
+    // 給了也不會存，讓使用者以為改得動反而更糟。
     setMode("amount");
-    setPayDate(new Date().toISOString().slice(0, 10));
     setPerShareStr("");
     setSharesStr(currentShares != null ? String(currentShares) : "");
+    setError(null);
+    if (editing) {
+      setPayDate(editing.payDate.slice(0, 10));
+      setAmountStr(String(editing.amount));
+      setBankEntryId(editing.bankEntryId);
+      setNote(editing.note ?? "");
+      // recordIncome 在編輯時不顯示也不送出 —— 後端以既有的 transactionId
+      // 判斷要不要重放收入，前端傳什麼都不會被採用。
+      return;
+    }
+    setPayDate(new Date().toISOString().slice(0, 10));
     setAmountStr("");
     setBankEntryId(null);
     setRecordIncome(true);
     setNote("");
-    setError(null);
-  }, [open, entryId, currentShares]);
+  }, [open, entryId, currentShares, editing]);
 
   // Non-TWD holdings quote perShare in the stock's own currency; convert to
   // TWD before submitting (amount is always TWD server-side).
   useEffect(() => {
-    if (!open || isTWD) {
+    // 編輯模式的金額欄位本來就是 TWD（讀回來的 amount 已換算過），不需要匯率，
+    // 也就不該讓 fxLoading 擋住儲存。
+    if (!open || isTWD || isEdit) {
       setFxRate(1);
       setFxLoading(false);
       return;
@@ -96,11 +120,12 @@ export function DividendForm({
     return () => {
       active = false;
     };
-  }, [open, isTWD, subCategory, stockCode]);
+  }, [open, isTWD, isEdit, subCategory, stockCode]);
 
   // 每股股利預填，抓不到就留空。
   useEffect(() => {
-    if (!open || perShareStr !== "") return;
+    // 編輯模式看不到每股股利欄位，預填只是白打一次 API。
+    if (!open || isEdit || perShareStr !== "") return;
     let active = true;
     (async () => {
       try {
@@ -116,7 +141,7 @@ export function DividendForm({
     return () => {
       active = false;
     };
-  }, [open, subCategory, stockCode, perShareStr]);
+  }, [open, isEdit, subCategory, stockCode, perShareStr]);
 
   const amountTWD = useMemo(() => {
     if (mode === "amount") return parseFloat(amountStr) || 0;
@@ -138,6 +163,34 @@ export function DividendForm({
 
     setError(null);
     setSubmitting(true);
+
+    if (editing) {
+      try {
+        const res = await fetch(`/api/dividends/${editing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            payDate,
+            amount: roundedAmount,
+            // 空字串要送 null 才會清掉備註；undefined 在後端是「不動」。
+            note: note.trim() ? note.trim() : null,
+            bankEntryId,
+          }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error?.message ?? "更新失敗，請重試");
+        // 後端是「整筆沖銷再重放」，入帳帳戶與金額都可能變，Entry.value 一定要重抓。
+        await refreshEntries();
+        onSaved();
+        onClose();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "更新失敗，請稍後再試");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     try {
       const body: Record<string, unknown> = {
         entryId,
@@ -184,31 +237,33 @@ export function DividendForm({
       <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-h-[88vh] max-w-md flex-col rounded-t-2xl bg-white px-5 pt-4 pb-10 md:max-w-xl lg:max-w-2xl">
         <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-[#e5e5ea]" />
         <p className="mb-5 shrink-0 text-center text-[16px] font-semibold text-[#1c1c1e]">
-          新增股利 · {entryName}
+          {isEdit ? "編輯股利" : "新增股利"} · {entryName}
         </p>
 
         <div className="overflow-y-auto">
-          <div className="mb-4 flex rounded-[10px] bg-[#f2f2f7] p-[3px]">
-            {(
-              [
-                { m: "amount" as const, label: "依總金額" },
-                { m: "perShare" as const, label: "依每股股利" },
-              ] as const
-            ).map(({ m, label }) => (
-              <button
-                key={m}
-                onClick={() => {
-                  setMode(m);
-                  setError(null);
-                }}
-                className={`flex-1 rounded-lg py-2 text-[13px] font-semibold ${
-                  mode === m ? "bg-white text-[#1c1c1e]" : "text-[#8e8e93]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {!isEdit && (
+            <div className="mb-4 flex rounded-[10px] bg-[#f2f2f7] p-[3px]">
+              {(
+                [
+                  { m: "amount" as const, label: "依總金額" },
+                  { m: "perShare" as const, label: "依每股股利" },
+                ] as const
+              ).map(({ m, label }) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setMode(m);
+                    setError(null);
+                  }}
+                  className={`flex-1 rounded-lg py-2 text-[13px] font-semibold ${
+                    mode === m ? "bg-white text-[#1c1c1e]" : "text-[#8e8e93]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">發放日</label>
           <input
@@ -264,9 +319,15 @@ export function DividendForm({
             </>
           )}
 
-          <p className="mt-3.5 text-[14px] font-semibold text-[#66788E]">
-            換算後入帳：NT$ {amountTWD.toLocaleString()}
-          </p>
+          {isEdit ? (
+            <p className="mt-3.5 text-[12px] leading-[17px] text-[#8e8e93]">
+              每股股利、股數與「同步記為收入」建立後不可修改，需要調整請刪除後重新建立。
+            </p>
+          ) : (
+            <p className="mt-3.5 text-[14px] font-semibold text-[#66788E]">
+              換算後入帳：NT$ {amountTWD.toLocaleString()}
+            </p>
+          )}
           {!isTWD && fxLoading && <p className="mt-1 text-[12px] text-[#8e8e93]">正在讀取匯率…</p>}
 
           <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">入帳帳戶</label>
@@ -298,7 +359,7 @@ export function DividendForm({
             ))}
           </div>
 
-          <div className="mt-3 flex items-center justify-between">
+          <div className={`mt-3 flex items-center justify-between ${isEdit ? "hidden" : ""}`}>
             <p className="text-[13px] text-[#8e8e93]">同步記為收入</p>
             <button
               role="switch"
@@ -347,7 +408,7 @@ export function DividendForm({
             className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#66788E] py-3 text-[15px] font-semibold text-white active:opacity-80 disabled:opacity-40"
           >
             {submitting && <Spinner size={14} />}
-            {submitting ? "儲存中..." : fxLoading ? "匯率讀取中…" : "儲存"}
+            {submitting ? "儲存中..." : fxLoading ? "匯率讀取中…" : isEdit ? "更新" : "儲存"}
           </button>
         </div>
       </div>
