@@ -27,7 +27,25 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
   所以排程上適合跟下一次上架版本綁在一起做。
 
-### 3. 基金淨值更新（含境內外）— 設計階段
+### 3. 股利編輯 + 長按觸覺回饋 — 已實作，**未經裝置驗證、且已擋住 OTA**
+
+分支 `feature/ui-polish`，尚未 commit。mobile + web 都做了（依 2026-08-20 的新
+規則，web 一律跟著一起改）。
+
+- 股利每一筆現在可編輯：mobile 短按該列、web 點鉛筆圖示。只開放
+  `payDate` / `amount` / `note` / `bankEntryId`，因為後端 `UpdateDividendSchema`
+  就只收這四項；已再投資的紀錄在入口就擋掉（後端一律回 409）。
+- mobile 長按加了 iOS 風格互動：按下微縮 0.97 → 長按門檻彈到 1.03 + Taptic。
+
+- [x] 已在裝置上（Expo Go）確認：編輯流程與長按手感正常 — 2026-08-20
+- [ ] ⚠️ **在 native rebuild 之前不可以發 OTA。** 這次裝了 `expo-haptics`
+      （原生模組），runtimeVersion policy 是 `appVersion`，OTA 會把含它的 bundle
+      推到沒有該模組的 1.2 binary 上，一震動就爆。要出必須：bump version →
+      native rebuild → 送審。**現在還不要 bump `app.json` 的 version** ——
+      一 bump 就等於封死所有還能送到 1.2 的 OTA。
+- 建議跟上面第 2 項（每月提醒通知，同樣需要 rebuild）綁在同一次上架。
+
+### 4. 基金淨值更新（含境內外）— 設計階段
 
 - [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
       `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，
