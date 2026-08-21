@@ -18,18 +18,19 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
   所以排程上適合跟下一次上架版本綁在一起做。
 
-### 2. 1.3 native 上架 — build 已送出，等 Apple 審查
+### 2. 1.3 native 上架 — 已送出審查，等 Apple 核准
 
-`app.json` 已 bump 到 1.3（build 9），`eas submit` 完成，Apple 正在處理中。
-含股利編輯（mobile + web，`expo-haptics` 長按觸覺回饋）+ 上個 session 的 UI
-調整（設定頁鈴鐺、新增紀錄預覽卡、分類選擇器重設計、資產配置台股/美股比例）。
+`app.json` 已 bump 到 1.3（build 9），TestFlight 測過、ASC 已送出審查
+（2026-08-21）。含股利編輯（mobile + web，`expo-haptics` 長按觸覺回饋）+
+上個 session 的 UI 調整（設定頁鈴鐺、新增紀錄預覽卡、分類選擇器重設計、
+資產配置台股/美股比例）。App Store 名稱同時改為「araS資產紀錄」。
 
-- [x] `eas build --profile production --platform ios` 完成，build number 9
-- [x] `eas submit --platform ios --latest` 完成，已上傳 App Store Connect
-- [ ] 在 ASC 手動：新增版本 1.3 → 順便改 App 名稱為「araS資產紀錄」→ 貼上
-      `CHANGELOG.md` 1.3 的文案 → 選 build 9 → 送出審查
-- [ ] 每月記帳提醒通知（上面第 1 項）若還沒做，這次沒一起上——下次原生打包
-      再排。
+- [x] `eas build` + `eas submit` 完成，build 9 上傳 App Store Connect
+- [x] TestFlight 驗證過
+- [x] ASC 新增版本 1.3、改名稱、貼文案、選 build 9、送出審查
+- [ ] 等 Apple 核准（通常 1-3 天）—— 核准後 `CHANGELOG.md` 的 1.3 標記
+      要從「審核中」改成「已上架」
+- [ ] 每月記帳提醒通知（上面第 1 項）這次沒一起上——下次原生打包再排。
 
 ### 3. 基金淨值更新（含境內外）— 設計階段
 
