@@ -112,13 +112,26 @@ export default function NewEntryScreen() {
     stackHeight > 0 ? Math.max(MIN_BAND, (stackHeight - expandedExtra) / CATEGORIES.length) : 0;
 
   /**
-   * 量過的子項目區高度，以分類名稱為 key。
+   * 每個分類的子項目區高度，key 是分類名稱。由下面的隱形量測層在掛載時一次
+   * 填滿，之後每次 press 都能在當下就給出最終高度。
    *
-   * 存在的理由是動畫而不是效能：第一次展開某張卡時 subHeight 還不知道，必須
-   * 先畫一次才量得到，於是要跑兩個 layout pass。有了快取，同一張卡再次展開就
-   * 能在 press 的當下直接給出最終高度，一個 pass 完成，動畫最順。
+   * 為什麼非要預先量：不知道高度時，一次展開要跑兩個 layout pass —— pass 1
+   * 做視覺上最大的那段變化（舊卡的子項目卸載、新卡的掛載、六張 band 重算），
+   * pass 2 才把 band 修正到最終值。而 pass 2 的 `configureNext` 是在 pass 1
+   * 的 300ms 動畫還在跑的時候呼叫的，RN 遇到這種情況會把進行中的動畫直接中止、
+   * 瞬間跳到結束狀態。結果就是「展開中的卡片馬上點另一張」時，收合與展開都
+   * 看不到動畫 —— 最大的那段變化被切掉了，只剩幅度很小的修正在動。
+   *
+   * 預先量完，每次 press 都是單一 pass，沒有第二次 configureNext 去打斷它。
    */
   const subHeightCache = useRef<Record<string, number>>({});
+  // 六張都量到之後就把量測層拆掉，不留在樹上。
+  const [measured, setMeasured] = useState(false);
+
+  const onMeasureLayout = (name: string, h: number) => {
+    subHeightCache.current[name] = h;
+    if (Object.keys(subHeightCache.current).length === CATEGORIES.length) setMeasured(true);
+  };
 
   const onSubLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
@@ -126,9 +139,9 @@ export default function NewEntryScreen() {
     if (state.level === "root" && state.expanded) {
       subHeightCache.current[state.expanded] = h;
     }
-    // 關鍵：press 時排的那次動畫已經被第一個 layout pass 用掉了。這裡是第二個
-    // pass —— 真正把所有卡片縮到最終高度的那一次 —— 不再排一次的話，展開就會
-    // 是硬跳的，而收合因為只有一個 pass 所以看起來有動畫。
+    // 有量測層之後，正常情況這裡的 guard 會提早 return（快取值就是實際值），
+    // 走到這行只剩「量測層量完後版面寬度又變了」之類的情況 —— 例如 iPad 旋轉
+    // 讓 chip 換行行數改變。那時仍要修正，並補排一次動畫。
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSubHeight(h);
   };
@@ -137,6 +150,33 @@ export default function NewEntryScreen() {
     const h = e.nativeEvent.layout.height;
     // 只在真的變了才 setState，否則每次 layout 都觸發一次 re-render。
     setStackHeight((prev) => (Math.abs(prev - h) > 0.5 ? h : prev));
+  };
+
+  /**
+   * 子項目 chip 的唯一來源 —— 隱形量測層與真實卡片共用同一份 JSX，否則兩邊
+   * 只要有一點差異（少一個 icon、padding 不同），量到的高度就不是真的高度。
+   */
+  const chipsFor = (topCat: TopCategory) => {
+    const isDark = topCat.textColor === "#ffffff";
+    // 卡片自己就是底色，所以 chip 用同色系的透明疊層，而不是另外挑一個會跟
+    // 六種底色打架的固定色。
+    const chipBg = isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.06)";
+    return topCat.children.map((node) => {
+      const SubIcon = node.icon;
+      const hasChildren = !!(node.children && node.children.length > 0);
+      return (
+        <TouchableOpacity
+          key={node.name}
+          onPress={() => handleSubItemClick(node, topCat)}
+          style={[s.subChip, { backgroundColor: chipBg }]}
+          activeOpacity={0.7}
+        >
+          <SubIcon size={16} color={topCat.textColor} />
+          <Text style={[s.subChipText, { color: topCat.textColor }]}>{node.name}</Text>
+          {hasChildren && <ChevronRight size={13} color={topCat.textColor} opacity={0.6} />}
+        </TouchableOpacity>
+      );
+    });
   };
 
   const pushToForm = (topCat: TopCategory, subName: string) => {
@@ -262,11 +302,7 @@ export default function NewEntryScreen() {
               // 最後一張沒有下一張壓上來，所以不需要那段被蓋住的下緣補償，
               // 並補圓下緣兩角讓整疊有明確的結尾。
               const isLast = idx === CATEGORIES.length - 1;
-              const isDark = topCat.textColor === "#ffffff";
               const pale = isPaleColor(topCat.color);
-              // 卡片自己就是底色，所以子項目 chip 用同色系的透明疊層，
-              // 而不是另外挑一個會跟六種底色打架的固定色。
-              const chipBg = isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.06)";
               // 被下一張蓋住的那段要額外撐出來，卡片的「可見高度」才等於 band。
               const hiddenPad = isLast ? 0 : CARD_OVERLAP;
               return (
@@ -298,26 +334,7 @@ export default function NewEntryScreen() {
 
                   {isExpanded && (
                     <View style={s.subWrap} onLayout={onSubLayout}>
-                      {topCat.children.map((node) => {
-                        const SubIcon = node.icon;
-                        const hasChildren = !!(node.children && node.children.length > 0);
-                        return (
-                          <TouchableOpacity
-                            key={node.name}
-                            onPress={() => handleSubItemClick(node, topCat)}
-                            style={[s.subChip, { backgroundColor: chipBg }]}
-                            activeOpacity={0.7}
-                          >
-                            <SubIcon size={16} color={topCat.textColor} />
-                            <Text style={[s.subChipText, { color: topCat.textColor }]}>
-                              {node.name}
-                            </Text>
-                            {hasChildren && (
-                              <ChevronRight size={13} color={topCat.textColor} opacity={0.6} />
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
+                      {chipsFor(topCat)}
                     </View>
                   )}
                 </View>
@@ -326,6 +343,29 @@ export default function NewEntryScreen() {
           </ScrollView>
         )}
       </View>
+
+      {/*
+        隱形量測層：把六張卡的子項目用「和真實卡片完全相同的寬度與 padding」
+        排一次，量到高度就寫進 subHeightCache，六張都齊了就整層拆掉。
+
+        opacity 0 + pointerEvents none，不會被看到也不會擋到觸控；width 取
+        contentWidth（手機上就是螢幕寬）確保 chip 的換行行數與真實卡片一致 ——
+        寬度不一樣的話量到的高度就沒有意義。
+      */}
+      {!measured && (
+        <View style={[s.measureLayer, { width: contentWidth }]} pointerEvents="none">
+          {CATEGORIES.map((topCat) => (
+            <View key={topCat.name} style={s.measureCard}>
+              <View
+                style={s.subWrap}
+                onLayout={(e) => onMeasureLayout(topCat.name, e.nativeEvent.layout.height)}
+              >
+                {chipsFor(topCat)}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -398,6 +438,10 @@ const s = StyleSheet.create({
   },
 
   subWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  // 量測層疊在畫面上但完全透明；measureCard 的左右內距必須和 card 一致，
+  // 否則 chip 可用寬度不同，換行行數就會跟真實卡片對不上。
+  measureLayer: { position: "absolute", top: 0, opacity: 0 },
+  measureCard: { paddingHorizontal: 20 },
   subChip: {
     flexDirection: "row",
     alignItems: "center",
