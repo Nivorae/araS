@@ -5,19 +5,22 @@ import {
   Animated,
   Image,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import {
   ArrowLeft,
+  Bell,
   Check,
   CreditCard,
   LogOut,
@@ -28,6 +31,7 @@ import {
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { useResponsive } from "@/hooks/useResponsive";
+import { parseWhatsNew } from "@/lib/whatsNew";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -36,6 +40,44 @@ import { useResponsive } from "@/hooks/useResponsive";
 const CARD_RADIUS = 26;
 
 const SPRING_PRESS = { stiffness: 220, damping: 25, mass: 1, useNativeDriver: true } as const;
+
+const AVATAR_SIZE = 40;
+
+/**
+ * The soft blue blobs behind the page.
+ *
+ * `expo-blur` is not a dependency, and a BlurView over a solid colour would be
+ * an expensive way to fake this anyway — a radial gradient that fades to fully
+ * transparent already *is* a blurred circle, and it renders on the GPU with no
+ * per-frame cost. Three of them (top-left, upper-right, bottom) give the same
+ * off-centre glow as the reference without any of them showing a hard edge.
+ */
+function BlueBlobs({ width, height }: { width: number; height: number }) {
+  return (
+    <Svg style={StyleSheet.absoluteFill} width={width} height={height} pointerEvents="none">
+      <Defs>
+        <RadialGradient id="blobA" cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor="#4C7DF0" stopOpacity="0.34" />
+          <Stop offset="0.55" stopColor="#4C7DF0" stopOpacity="0.14" />
+          <Stop offset="1" stopColor="#4C7DF0" stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id="blobB" cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor="#7EA6F5" stopOpacity="0.30" />
+          <Stop offset="0.55" stopColor="#7EA6F5" stopOpacity="0.12" />
+          <Stop offset="1" stopColor="#7EA6F5" stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id="blobC" cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor="#374254" stopOpacity="0.18" />
+          <Stop offset="0.6" stopColor="#374254" stopOpacity="0.07" />
+          <Stop offset="1" stopColor="#374254" stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      <Circle cx={width * 0.1} cy={height * 0.12} r={width * 0.62} fill="url(#blobA)" />
+      <Circle cx={width * 0.95} cy={height * 0.3} r={width * 0.5} fill="url(#blobB)" />
+      <Circle cx={width * 0.3} cy={height * 0.92} r={width * 0.66} fill="url(#blobC)" />
+    </Svg>
+  );
+}
 
 /**
  * Build lines for the version footer.
@@ -134,7 +176,8 @@ function SettingCard({
 }
 
 export default function SettingsScreen() {
-  const { isTablet, contentWidth } = useResponsive();
+  const { isTablet, contentWidth, width, height } = useResponsive();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signOut } = useAuth();
   const { user } = useUser();
@@ -142,6 +185,14 @@ export default function SettingsScreen() {
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const [deleting, setDeleting] = useState(false);
   const [devToggling, setDevToggling] = useState(false);
+  // The avatar is now the only entry point to 登出, so the menu it opens is
+  // what makes that action reachable at all — hence a real Modal (it captures
+  // the outside tap to dismiss) rather than an absolutely positioned view.
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Update-notes modal, opened from the bell button. Content is app.json's
+  // `extra.whatsNew`, not fetched — it ships with the bundle already.
+  const [notesOpen, setNotesOpen] = useState(false);
+  const whatsNew = parseWhatsNew(Constants.expoConfig?.extra?.whatsNew);
   // Live OTA state for the version footer — 「下載完成了沒」 answered in place.
   const { isDownloading, downloadProgress, isUpdatePending } = Updates.useUpdates();
   const updateStatus = { isDownloading, downloadProgress, isUpdatePending };
@@ -163,6 +214,8 @@ export default function SettingsScreen() {
   const email =
     user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? "—";
   const name = user?.fullName ?? "";
+  const greetingName = user?.firstName ?? name;
+  const initial = (name || email).charAt(0).toUpperCase();
 
   // Apple's canonical deep link for subscription management. Cancelling is
   // handled entirely by the App Store — we never see or control it — so this
@@ -203,16 +256,46 @@ export default function SettingsScreen() {
     }
   }
 
+  // Rendered twice (header button + menu header), so it is built once here.
+  function avatar() {
+    return user?.imageUrl ? (
+      <Image source={{ uri: user.imageUrl }} style={s.avatar} />
+    ) : (
+      <View style={[s.avatar, s.avatarFallback]}>
+        <Text style={s.avatarInitial}>{initial}</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={s.root}>
+      <BlueBlobs width={width} height={height} />
       <SafeAreaView edges={["top", "bottom"]} style={s.safe}>
-        {/* Header */}
+        {/* Header: back on the left, bell + account avatar on the right. */}
         <View style={s.header}>
           <Pressable onPress={() => router.back()} hitSlop={8} style={s.backBtn}>
             <ArrowLeft size={24} color="#1c1c1e" />
           </Pressable>
-          <Text style={s.headerTitle}>設定</Text>
-          <View style={s.headerSpacer} />
+          <View style={s.headerRight}>
+            <Pressable
+              onPress={() => setNotesOpen(true)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="更新內容"
+              style={({ pressed }) => [s.bellBtn, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Bell size={20} color="#1c1c1e" />
+            </Pressable>
+            <Pressable
+              onPress={() => setMenuOpen(true)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="帳號選單"
+              style={({ pressed }) => [s.avatarBtn, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              {avatar()}
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView
@@ -221,18 +304,11 @@ export default function SettingsScreen() {
             isTablet && { width: contentWidth, alignSelf: "center" },
           ]}
         >
-          {/* Profile — the page's title block, deliberately outside the deck so
-              the cards read as the one piece of content. */}
-          <View style={s.profile}>
-            {user?.imageUrl ? (
-              <Image source={{ uri: user.imageUrl }} style={s.avatar} />
-            ) : (
-              <View style={[s.avatar, s.avatarFallback]}>
-                <Text style={s.avatarInitial}>{(name || email).charAt(0).toUpperCase()}</Text>
-              </View>
-            )}
-            {name ? <Text style={s.name}>{name}</Text> : null}
-            <Text style={s.email}>{email}</Text>
+          {/* Greeting — the page's title block, replacing the centred profile
+              card now that the identity lives in the avatar. */}
+          <View style={s.greeting}>
+            <Text style={s.greetingHello}>{greetingName ? `Hi, ${greetingName}` : "Hi"}</Text>
+            <Text style={s.greetingSub}>今天離你的目標又更進一步囉</Text>
           </View>
 
           {/* Actions */}
@@ -284,13 +360,6 @@ export default function SettingsScreen() {
               </>
             ) : null}
             <SettingCard
-              icon={LogOut}
-              label="登出"
-              color="#C7C7D4"
-              textColor="#1c1c1e"
-              onPress={() => signOut()}
-            />
-            <SettingCard
               icon={Trash2}
               label={deleting ? "刪除中…" : "刪除帳號"}
               color="#FFFFFF"
@@ -312,12 +381,86 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Avatar menu: identity + 登出, anchored just under the avatar — hence
+          the same safe-area inset the header sits on. */}
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuOpen(false)}
+      >
+        <Pressable style={s.backdrop} onPress={() => setMenuOpen(false)}>
+          {/* Swallows the tap so pressing inside the menu does not close it. */}
+          <Pressable
+            style={[s.menu, { marginTop: insets.top + AVATAR_SIZE + 20 }]}
+            onPress={() => {}}
+          >
+            <View style={s.menuHeader}>
+              {avatar()}
+              <View style={s.menuIdentity}>
+                {name ? (
+                  <Text style={s.menuName} numberOfLines={1}>
+                    {name}
+                  </Text>
+                ) : null}
+                <Text style={s.menuEmail} numberOfLines={1}>
+                  {email}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => {
+                setMenuOpen(false);
+                signOut();
+              }}
+              style={({ pressed }) => [s.menuAction, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <LogOut size={18} color="#1c1c1e" />
+              <Text style={s.menuActionLabel}>登出</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Update-notes modal: read-only display of app.json's whatsNew. */}
+      <Modal
+        visible={notesOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNotesOpen(false)}
+      >
+        <Pressable style={s.backdrop} onPress={() => setNotesOpen(false)}>
+          <Pressable
+            style={[s.notesCard, { marginTop: insets.top + AVATAR_SIZE + 20 }]}
+            onPress={() => {}}
+          >
+            <Text style={s.notesTitle}>更新內容</Text>
+            <ScrollView style={s.notesScroll}>
+              {whatsNew ? (
+                whatsNew.sections.map((section) => (
+                  <View key={section.title} style={s.notesSection}>
+                    <Text style={s.notesSectionTitle}>{section.title}</Text>
+                    {section.items.map((item) => (
+                      <Text key={item} style={s.notesItem}>
+                        ・{item}
+                      </Text>
+                    ))}
+                  </View>
+                ))
+              ) : (
+                <Text style={s.notesItem}>目前沒有更新內容</Text>
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#f2f2f7" },
+  root: { flex: 1, backgroundColor: "#f4f6fb" },
   safe: { flex: 1 },
   header: {
     flexDirection: "row",
@@ -327,16 +470,38 @@ const s = StyleSheet.create({
     paddingVertical: 12,
   },
   backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#1c1c1e" },
-  headerSpacer: { width: 32 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  bellBtn: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarBtn: {
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+    shadowColor: "#1c1c1e",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
 
-  profile: { alignItems: "center", paddingTop: 12, paddingBottom: 32, gap: 4 },
-  avatar: { width: 64, height: 64, borderRadius: 32, marginBottom: 8 },
+  greeting: { paddingTop: 20, paddingBottom: 36 },
+  greetingHello: { fontSize: 32, fontWeight: "700", color: "#1c1c1e", letterSpacing: -0.5 },
+  greetingSub: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#8e8e93",
+    letterSpacing: -0.5,
+    marginTop: 4,
+  },
+
+  avatar: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 },
   avatarFallback: { backgroundColor: "#C7C7D4", alignItems: "center", justifyContent: "center" },
-  avatarInitial: { fontSize: 26, fontWeight: "700", color: "#1c1c1e" },
-  name: { fontSize: 17, fontWeight: "700", color: "#1c1c1e" },
-  email: { fontSize: 14, color: "#8e8e93" },
+  avatarInitial: { fontSize: 17, fontWeight: "700", color: "#1c1c1e" },
 
   stack: { gap: 12 },
   card: {
@@ -359,5 +524,58 @@ const s = StyleSheet.create({
   dangerHint: { fontSize: 13, color: "#8e8e93", marginTop: 16, textAlign: "center" },
 
   versionBlock: { alignItems: "center", marginTop: 32, gap: 2 },
-  versionText: { fontSize: 12, color: "#c7c7cc" },
+  versionText: { fontSize: 12, color: "#8e8e93" },
+
+  backdrop: { flex: 1, alignItems: "flex-end", paddingHorizontal: 16 },
+  menu: {
+    minWidth: 220,
+    maxWidth: 300,
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  menuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e5e5ea",
+  },
+  menuIdentity: { flexShrink: 1 },
+  menuName: { fontSize: 15, fontWeight: "700", color: "#1c1c1e" },
+  menuEmail: { fontSize: 13, color: "#8e8e93" },
+  menuAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  menuActionLabel: { fontSize: 15, fontWeight: "600", color: "#1c1c1e" },
+
+  notesCard: {
+    width: 280,
+    maxHeight: "70%",
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  notesTitle: { fontSize: 17, fontWeight: "700", color: "#1c1c1e", marginBottom: 10 },
+  notesScroll: { flexGrow: 0 },
+  notesSection: { marginBottom: 14 },
+  notesSectionTitle: { fontSize: 14, fontWeight: "700", color: "#374254", marginBottom: 6 },
+  notesItem: { fontSize: 14, color: "#3c3c43", lineHeight: 20 },
 });

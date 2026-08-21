@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { Dividend } from "@repo/shared";
 import { useFinanceStore } from "../../store/useFinanceStore";
 import { DividendForm } from "./DividendForm";
@@ -28,6 +28,9 @@ export function DividendSection({
 
   const [rows, setRows] = useState<Dividend[]>([]);
   const [formOpen, setFormOpen] = useState(false);
+  // 編輯與新增共用同一個 DividendForm 實例。
+  // editTarget 有值就是編輯模式，null + formOpen 就是新增。
+  const [editTarget, setEditTarget] = useState<Dividend | null>(null);
   const [reinvestTarget, setReinvestTarget] = useState<Dividend | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -56,6 +59,20 @@ export function DividendSection({
 
   const bankNameOf = (d: Dividend) =>
     d.bankEntryId ? (entries.find((e) => e.id === d.bankEntryId)?.name ?? null) : null;
+
+  // 後端 DividendsService.update 對「已再投資」一律回 409，連只改備註都擋
+  // （沖銷重放會連帶刪掉再投資的兩筆 history）。與其讓使用者填完才吃錯誤，
+  // 不如在入口就說清楚。
+  function openEdit(d: Dividend) {
+    if (deletingId) return;
+    if (d.reinvestedAt) {
+      window.alert(
+        "已再投資的股利不可修改。再投資是另一筆既成事實，改金額或帳戶會讓兩者對不上 —— 請刪除這筆紀錄後重新建立。"
+      );
+      return;
+    }
+    setEditTarget(d);
+  }
 
   async function handleDelete(d: Dividend) {
     if (deletingId) return;
@@ -138,8 +155,17 @@ export function DividendSection({
                       )}
                     </div>
                     <button
+                      onClick={() => openEdit(d)}
+                      disabled={isDeleting}
+                      aria-label="編輯這筆股利"
+                      className="shrink-0 text-[#c7c7cc] hover:text-[#66788E] disabled:opacity-40"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
                       onClick={() => handleDelete(d)}
                       disabled={isDeleting}
+                      aria-label="刪除這筆股利"
                       className="shrink-0 text-[#c7c7cc] hover:text-[#ff3b30] disabled:opacity-40"
                     >
                       <Trash2 size={15} />
@@ -153,13 +179,17 @@ export function DividendSection({
       </div>
 
       <DividendForm
-        open={formOpen}
+        open={formOpen || editTarget !== null}
+        editing={editTarget}
         entryId={entryId}
         entryName={entryName}
         subCategory={subCategory}
         stockCode={stockCode}
         currentShares={currentShares}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setFormOpen(false);
+          setEditTarget(null);
+        }}
         onSaved={load}
       />
 

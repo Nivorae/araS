@@ -1,10 +1,111 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { pressFeedback, longPressFeedback } from "@/lib/haptics";
 import type { Dividend } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useFinanceStore } from "@/store/financeStore";
 import DividendForm from "@/components/DividendForm";
 import ReinvestSheet from "@/components/ReinvestSheet";
+
+/**
+ * 一列股利。獨立成元件是為了讓每一列各自持有一個 Animated.Value —— 放在
+ * DividendSection 裡的話 rows.map 每次 render 都會重建，或者所有列共用同一個
+ * 值而一起縮放。
+ *
+ * 互動仿 iOS 的長按手勢：按下去先微縮（0.97），長按門檻觸發時「彈起來」到
+ * 1.03 並給一次 haptic，放開回到 1。所有動畫都走 useNativeDriver，不佔 JS thread。
+ */
+function DividendRow({
+  dividend,
+  isDeleting,
+  onPress,
+  onLongPress,
+  onReinvest,
+}: {
+  dividend: Dividend;
+  isDeleting: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+  onReinvest: () => void;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const animateTo = useCallback(
+    (to: number) => {
+      Animated.spring(scale, {
+        toValue: to,
+        useNativeDriver: true,
+        speed: 40,
+        bounciness: to > 1 ? 12 : 0,
+      }).start();
+    },
+    [scale]
+  );
+
+  const d = dividend;
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={() => {
+          pressFeedback();
+          onPress();
+        }}
+        onLongPress={() => {
+          longPressFeedback();
+          animateTo(1.03);
+          onLongPress();
+        }}
+        onPressIn={() => animateTo(0.97)}
+        onPressOut={() => animateTo(1)}
+        disabled={isDeleting}
+        style={[s.row, isDeleting && s.rowDeleting]}
+      >
+        <View>
+          <Text style={s.rowDate}>{d.payDate.slice(0, 10)}</Text>
+          {d.perShare != null && (
+            <Text style={s.rowMeta}>
+              每股 {d.perShare} × {d.shares ?? "—"} 股
+            </Text>
+          )}
+        </View>
+        {isDeleting ? (
+          <View style={s.rowRight}>
+            <ActivityIndicator size="small" color="#8e8e93" />
+            <Text style={s.reinvested}>刪除中…</Text>
+          </View>
+        ) : (
+          <View style={s.rowRight}>
+            <Text style={s.rowAmount}>+NT$ {d.amount.toLocaleString()}</Text>
+            {d.reinvestedAt ? (
+              <Text style={s.reinvested}>
+                已再投資 {d.reinvestUnits != null ? `${d.reinvestUnits.toFixed(2)} 股` : ""}
+              </Text>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  pressFeedback();
+                  onReinvest();
+                }}
+                hitSlop={6}
+              >
+                <Text style={s.reinvestBtn}>再投資</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 interface DividendSectionProps {
   entryId: string;
@@ -34,6 +135,9 @@ export default function DividendSection({
 
   const [rows, setRows] = useState<Dividend[]>([]);
   const [formOpen, setFormOpen] = useState(false);
+  // 編輯與新增共用同一個 DividendForm 實例（它從不 unmount，只切 visible）。
+  // editTarget 有值就是編輯模式，null + formOpen 就是新增。
+  const [editTarget, setEditTarget] = useState<Dividend | null>(null);
   const [reinvestTarget, setReinvestTarget] = useState<Dividend | null>(null);
   // 刪除是長按觸發的原生 Alert，一按「刪除」對話框就立刻關閉——沒有這個狀態的
   // 話，接下來的 API 呼叫與 fetchAll/load 這段完全沒有任何畫面回饋，使用者會
@@ -79,6 +183,21 @@ export default function DividendSection({
 
   const bankNameOf = (d: Dividend) =>
     d.bankEntryId ? (entries.find((e) => e.id === d.bankEntryId)?.name ?? null) : null;
+
+  // 後端 DividendsService.update 對「已再投資」一律回 409，連只改備註都擋
+  // （沖銷重放會連帶刪掉再投資的兩筆 history）。與其讓使用者填完才吃錯誤，
+  // 不如在入口就說清楚。
+  const openEdit = (d: Dividend) => {
+    if (deletingId) return;
+    if (d.reinvestedAt) {
+      Alert.alert(
+        "已再投資的股利不可修改",
+        "再投資是另一筆既成事實，改金額或帳戶會讓兩者對不上。請長按刪除這筆紀錄後重新建立。"
+      );
+      return;
+    }
+    setEditTarget(d);
+  };
 
   const confirmDelete = (d: Dividend) => {
     if (deletingId) return; // 已有一筆刪除進行中，避免重複觸發
@@ -127,60 +246,34 @@ export default function DividendSection({
         {rows.length === 0 ? (
           <Text style={s.empty}>還沒有股利紀錄</Text>
         ) : (
-          rows.map((d, i) => {
-            const isDeleting = deletingId === d.id;
-            return (
-              <View key={d.id}>
-                {i > 0 && <View style={s.separator} />}
-                <Pressable
-                  onLongPress={() => confirmDelete(d)}
-                  disabled={isDeleting}
-                  style={[s.row, isDeleting && s.rowDeleting]}
-                >
-                  <View>
-                    <Text style={s.rowDate}>{d.payDate.slice(0, 10)}</Text>
-                    {d.perShare != null && (
-                      <Text style={s.rowMeta}>
-                        每股 {d.perShare} × {d.shares ?? "—"} 股
-                      </Text>
-                    )}
-                  </View>
-                  {isDeleting ? (
-                    <View style={s.rowRight}>
-                      <ActivityIndicator size="small" color="#8e8e93" />
-                      <Text style={s.reinvested}>刪除中…</Text>
-                    </View>
-                  ) : (
-                    <View style={s.rowRight}>
-                      <Text style={s.rowAmount}>+NT$ {d.amount.toLocaleString()}</Text>
-                      {d.reinvestedAt ? (
-                        <Text style={s.reinvested}>
-                          已再投資{" "}
-                          {d.reinvestUnits != null ? `${d.reinvestUnits.toFixed(2)} 股` : ""}
-                        </Text>
-                      ) : (
-                        <Pressable onPress={() => setReinvestTarget(d)} hitSlop={6}>
-                          <Text style={s.reinvestBtn}>再投資</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  )}
-                </Pressable>
-              </View>
-            );
-          })
+          rows.map((d, i) => (
+            <View key={d.id}>
+              {i > 0 && <View style={s.separator} />}
+              <DividendRow
+                dividend={d}
+                isDeleting={deletingId === d.id}
+                onPress={() => openEdit(d)}
+                onLongPress={() => confirmDelete(d)}
+                onReinvest={() => setReinvestTarget(d)}
+              />
+            </View>
+          ))
         )}
       </View>
-      <Text style={s.hint}>長按一筆紀錄可刪除</Text>
+      <Text style={s.hint}>點一下可編輯，長按可刪除</Text>
 
       <DividendForm
-        visible={formOpen}
+        visible={formOpen || editTarget !== null}
+        editing={editTarget}
         entryId={entryId}
         entryName={entryName}
         subCategory={subCategory}
         stockCode={stockCode}
         currentShares={currentShares}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setFormOpen(false);
+          setEditTarget(null);
+        }}
         onSaved={load}
       />
 
