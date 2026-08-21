@@ -4,20 +4,11 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-08-18
+最後整理：2026-08-21
 
 ## 進行中
 
-### 1. iPad RWD 適配 — 已上線，**版面仍未經任何裝置檢視**
-
-PR #97 → develop → main（release PR #98）已合併，web 已部署，OTA 已發
-（group `fb81cd6e`，runtime 1.2，commit `aed9fbb`）。
-
-- [ ] **有空時在 iPad 或模擬器上看一次版面。** 上線前只做過靜態檢查（lint /
-      type-check / test 全綠），沒有人看過實際長相 —— 這是刻意接受的風險，
-      不是遺漏。要調的話純 JS，再發一次 OTA 即可。
-
-### 2. 每月記帳提醒通知 — 已設計，尚未實作
+### 1. 每月記帳提醒通知 — 已設計，尚未實作
 
 Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design.md`
 （PR #96 合入）。本機通知，`expo-notifications` calendar trigger 每月 1 號 9:00
@@ -27,7 +18,7 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
   所以排程上適合跟下一次上架版本綁在一起做。
 
-### 3. 基金淨值更新（含境內外）— 設計階段
+### 2. 基金淨值更新（含境內外）— 設計階段
 
 - [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
       `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，
@@ -53,6 +44,11 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
   `project_ci_never_runs_on_develop`）。
 - **Vercel Preview 部署 500**：已知，刻意不修（見記憶
   `project_preview_deploys_wontfix`）。
+- **強制更新閘門（非 OTA）＋ App 內更新紀錄畫面**：2026-08-21 設計完成後決定
+  不做。兩者都是使用者無感的基礎建設，現階段使用者規模小到「真的出事直接聯絡
+  本人」比擋板還快；更新紀錄則幾乎沒人會看。設計文件已刪除，內容留在 git
+  commit `0f37365`，若日後後端要做不相容變更再撿回來 —— 注意那時擋板已經來不及
+  發給舊 binary，這個時間差是當初唯一的論據。
 
 ## 如何使用這份文件
 
