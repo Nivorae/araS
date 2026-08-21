@@ -1,7 +1,12 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
+  Animated,
   LayoutAnimation,
   type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Image,
+  type ImageSourcePropType,
   Platform,
   Pressable,
   ScrollView,
@@ -11,11 +16,21 @@ import {
   UIManager,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { CATEGORIES, type CategoryNode, type TopCategory } from "@/lib/categoryConfig";
 import { useResponsive } from "@/hooks/useResponsive";
+// 這幾張卡面圖刻意是 PNG 而不是原始的 WebP，檔名也刻意全部 ASCII：
+//   - WebP：原檔是帶 ICC profile 的 VP8X 容器，在 Expo Go 上載不出來，卡片
+//     只剩白底（同一支 App 的 welcome 頁用一樣的寫法顯示 PNG 則正常）。
+//   - 中文檔名：RN 組 dev server 的圖片網址時是純字串相接、不做
+//     percent-encoding（AssetSourceResolver.assetServerURL），而 Android
+//     release 打包還會把檔名轉成非法的 drawable resource 名稱。
+import linePayCard from "../../../assets/wallet-line-pay.png";
+import applePayCard from "../../../assets/wallet-apple-pay.png";
+import jkoPayCard from "../../../assets/wallet-jko-pay.png";
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -80,6 +95,86 @@ function isPaleColor(hex: string): boolean {
 type PickerState =
   | { level: "root"; expanded: string | null }
   | { level: "drill"; topCat: TopCategory; items: CategoryNode[]; title: string };
+
+// ————————————————————————————————————————————————————————————————
+// 顏色工具：categoryConfig 的葉節點（例如台股／美股、Line Pay／Apple Pay）
+// 沒有自己的主題色，只有它們共同的大類（投資、流動資金…）才有。輪番卡需要
+// 每張各自不同的顏色，這裡從大類主色動態生成一組同色系但可分辨的顏色，
+// 而不是改 categoryConfig 的資料結構去手動指定每個葉節點的顏色。
+// ————————————————————————————————————————————————————————————————
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l: l * 100 };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h: number;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const hue = ((h % 360) + 360) % 360;
+  const sat = s / 100;
+  const lig = l / 100;
+  const c = (1 - Math.abs(2 * lig - 1)) * sat;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = lig - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hue < 60) [r, g, b] = [c, x, 0];
+  else if (hue < 120) [r, g, b] = [x, c, 0];
+  else if (hue < 180) [r, g, b] = [0, c, x];
+  else if (hue < 240) [r, g, b] = [0, x, c];
+  else if (hue < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const toHex = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/**
+ * 輪番卡的顏色。categoryConfig 的葉節點沒有自己的顏色，這裡不用色相環旋轉生成
+ * ——轉出來的紅、綠等顏色跟整個 App 的視覺語言不搭。改成直接循環使用 App 既有
+ * 的品牌色（在 entry 詳情頁、大類卡片、圖表等處都看得到的同一組），子項目多於
+ * 4 個時循環使用。
+ */
+const BRAND_PALETTE = ["#374254", "#0e1424", "#66788E", "#C7C7D4"];
+
+/**
+ * 部分子項目有現成的卡面圖（白底置中 logo，直式構圖），這裡直接鋪滿整張卡取代
+ * 生成色卡，比色塊更能一眼認出是哪個服務。key 對齊 categoryConfig 的節點
+ * 名稱，不需要改 categoryConfig 的資料結構。沒圖的項目（例如股票的台股／美股）
+ * 落回品牌色卡。
+ */
+const DRILL_CARD_IMAGES: Record<string, ImageSourcePropType> = {
+  "Line Pay": linePayCard,
+  "Apple Pay": applePayCard,
+  街口支付: jkoPayCard,
+};
+
+function subItemPalette(count: number): string[] {
+  return Array.from(
+    { length: count },
+    (_, i) => BRAND_PALETTE[i % BRAND_PALETTE.length] ?? "#374254"
+  );
+}
+
+/** 生成色不像 categoryConfig 那樣預先分配好深淺色，用亮度算文字該用深或淺。 */
+function contrastText(hex: string): string {
+  const { l } = hexToHsl(hex);
+  return l > 62 ? "#1c1c1e" : "#ffffff";
+}
 
 export default function NewEntryScreen() {
   const router = useRouter();
@@ -247,25 +342,18 @@ export default function NewEntryScreen() {
   if (state.level === "drill") {
     return (
       <SafeAreaView style={s.root}>
-        {headerBlock}
-        <ScrollView style={s.scroll} contentContainerStyle={[s.drillBody, centered]}>
-          {state.items.map((node) => {
-            const Icon = node.icon;
-            const isDark = state.topCat.textColor === "#ffffff";
-            const iconColor = isDark ? state.topCat.color : "#3c3c3e";
-            return (
-              <TouchableOpacity
-                key={node.name}
-                onPress={() => pushToForm(state.topCat, node.name)}
-                style={s.drillRow}
-                activeOpacity={0.7}
-              >
-                <Icon size={22} color={iconColor} />
-                <Text style={s.drillLabel}>{node.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* 跟根畫面同一套 topBlock/gapBlock 比例，返回鍵與標題的垂直位置才會
+            一致 —— 根畫面的 header 是被置中在 15% 區塊裡的，不是貼頂。 */}
+        <View style={s.topBlock}>{headerBlock}</View>
+        <View style={s.gapBlock} />
+        <View style={s.stackBlock}>
+          <DrillCarousel
+            topCat={state.topCat}
+            items={state.items}
+            contentWidth={contentWidth}
+            onSubmit={(node) => pushToForm(state.topCat, node.name)}
+          />
+        </View>
       </SafeAreaView>
     );
   }
@@ -370,6 +458,186 @@ export default function NewEntryScreen() {
   );
 }
 
+// ————————————————————————————————————————————————————————————————
+// 子類別選擇：一疊可左右拖動的全彩卡片（輪番卡），下方一排圓圈同步選取，
+// 底部固定新增按鈕。categoryConfig 的葉節點都是可以直接建立的項目（目前樹的
+// 深度到此為止，沒有第四層），所以這裡永遠是「選一個、送出」，不會再往下鑽。
+// ————————————————————————————————————————————————————————————————
+
+const CARD_GAP = 16;
+/** 卡片佔可視寬度的比例。留下的部分讓左右鄰卡各露出一截，才有輪番卡的堆疊感。 */
+const CARD_WIDTH_RATIO = 0.68;
+
+/**
+ * 卡片高度。刻意是常數而不是寫死在樣式裡：卡面圖必須拿到「明確的數值寬高」。
+ *
+ * 原本是 `StyleSheet.absoluteFillObject`（position:absolute + 四邊 0），實測在
+ * Expo Go 上 resizeMode="cover" 完全不生效 —— 圖以原始的 922×1254 尺寸從左上角
+ * 畫出去，卡片只框到左上角那片白邊，logo 落在畫面外，看起來就是一張全白的卡。
+ * 用同一張圖、同樣的 cover、只是改成 100×136 這種明確尺寸就正常，所以差別在
+ * 「有沒有數值寬高」而不是 cover 或圖片本身。
+ */
+const CARD_HEIGHT = 360;
+
+interface DrillCarouselProps {
+  topCat: TopCategory;
+  items: CategoryNode[];
+  contentWidth: number;
+  onSubmit: (node: CategoryNode) => void;
+}
+
+function DrillCarousel({ topCat, items, contentWidth, onSubmit }: DrillCarouselProps) {
+  const cardWidth = contentWidth * CARD_WIDTH_RATIO;
+  const snap = cardWidth + CARD_GAP;
+  // 置中第一張與最後一張卡，左右露出的鄰卡寬度才會左右對稱。
+  const sidePad = (contentWidth - cardWidth) / 2;
+
+  const palette = useMemo(() => subItemPalette(items.length), [items.length]);
+
+  const [selected, setSelected] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  // 只用來驅動卡片的 scale/opacity 插值，走 native driver 不佔 JS thread；
+  // 真正決定「選到第幾張」的 selected state 另外由 onMomentumScrollEnd 更新，
+  // 兩者刻意分開 —— 每個 scroll frame 都 setState 會嚴重掉幀。
+  const scrollX = useRef(new Animated.Value(0)).current;
+
+  const syncFromOffset = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.min(
+      items.length - 1,
+      Math.max(0, Math.round(e.nativeEvent.contentOffset.x / snap))
+    );
+    setSelected(idx);
+  };
+
+  const selectIndex = (idx: number) => {
+    setSelected(idx);
+    scrollRef.current?.scrollTo({ x: idx * snap, animated: true });
+  };
+
+  return (
+    <View style={s.drillRoot}>
+      {/* 卡片與圓圈這組，在按鈕上方的剩餘空間裡置中；submitWrap 獨立在外面，
+          高度固定，永遠貼在畫面最底部，不受卡片／圓圈佔多少空間影響。 */}
+      <View style={s.drillMiddle}>
+        <Animated.ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={snap}
+          snapToAlignment="start"
+          contentContainerStyle={{ paddingHorizontal: sidePad }}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+            useNativeDriver: true,
+          })}
+          scrollEventThrottle={16}
+          onMomentumScrollEnd={syncFromOffset}
+          // 拖動幅度太小不會產生慣性、不會觸發 onMomentumScrollEnd，這裡補上
+          // 才不會出現「明明拖到下一張了，選取狀態卻沒跟上」。兩者算出同個 idx
+          // 時 setSelected 是 no-op，重複呼叫沒有副作用。
+          onScrollEndDrag={syncFromOffset}
+          style={s.carousel}
+        >
+          {items.map((node, i) => {
+            const image = DRILL_CARD_IMAGES[node.name];
+            const bg = palette[i] ?? topCat.color;
+            const textColor = contrastText(bg);
+            // 圖片卡是白底置中 logo，跟根畫面的淺色卡同一個問題（跟頁面底色
+            // #f2f2f7 幾乎同色），一律當淺色卡處理、補邊框。
+            const pale = image != null || isPaleColor(bg);
+            const { h, s: sat, l } = hexToHsl(bg);
+            const inputRange = [(i - 1) * snap, i * snap, (i + 1) * snap];
+            const scale = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.88, 1, 0.88],
+              extrapolate: "clamp",
+            });
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.55, 1, 0.55],
+              extrapolate: "clamp",
+            });
+            return (
+              <Animated.View
+                key={node.name}
+                style={[
+                  s.drillCard,
+                  pale && s.drillCardPale,
+                  {
+                    width: cardWidth,
+                    marginRight: i === items.length - 1 ? 0 : CARD_GAP,
+                    transform: [{ scale }],
+                    opacity,
+                  },
+                ]}
+              >
+                {image != null ? (
+                  // 有現成卡面圖的項目（例如 Line Pay／Apple Pay／街口支付）直接
+                  // 鋪滿卡片，比生成色塊更能一眼認出是哪個服務 —— logo 本身已經
+                  // 足夠識別，不再疊加直排文字。
+                  <Image
+                    source={image}
+                    style={{ width: cardWidth, height: CARD_HEIGHT }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <LinearGradient
+                    // 同一色相的深淺兩端，看起來像卡片材質的光澤，而不是純色一片。
+                    colors={[
+                      hslToHex(h, sat, Math.min(l + 12, 92)),
+                      bg,
+                      hslToHex(h, sat, Math.max(l - 10, 8)),
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.cardGradient}
+                  >
+                    <Text style={[s.cardName, { color: textColor }]}>{node.name}</Text>
+                  </LinearGradient>
+                )}
+              </Animated.View>
+            );
+          })}
+        </Animated.ScrollView>
+
+        <Text style={s.drillItemName}>{items[selected]?.name}</Text>
+
+        <View style={s.circleRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.circleRowContent}
+          >
+            {items.map((node, i) => (
+              <TouchableOpacity
+                key={node.name}
+                onPress={() => selectIndex(i)}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                style={[s.circleOuter, selected === i && s.circleOuterSelected]}
+              >
+                <View style={[s.circle, { backgroundColor: palette[i] ?? topCat.color }]} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+
+      <View style={s.submitWrap}>
+        <TouchableOpacity
+          onPress={() => {
+            const node = items[selected];
+            if (node) onSubmit(node);
+          }}
+          style={s.submitBtn}
+          activeOpacity={0.85}
+        >
+          <Text style={s.submitText}>新增</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#f2f2f7" },
 
@@ -452,15 +720,81 @@ const s = StyleSheet.create({
   },
   subChipText: { fontSize: 14, fontWeight: "600" },
 
-  drillBody: { paddingHorizontal: H_PADDING, paddingTop: 14, paddingBottom: 32, gap: 12 },
-  drillRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 18,
-    backgroundColor: "#fff",
+  // ———— 子類別輪番卡 ————
+  // middle 佔滿 submitWrap 以外的所有空間並置中卡片＋圓圈；submitWrap 高度
+  // 固定，兩者相加剛好是 drillRoot 的整個高度，按鈕因此永遠貼底。
+  drillRoot: { flex: 1 },
+  drillMiddle: { flex: 1, justifyContent: "center" },
+  carousel: { flexGrow: 0 },
+  drillCard: {
+    height: CARD_HEIGHT,
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
-  drillLabel: { fontSize: 16, fontWeight: "500", color: "#1c1c1e" },
+  // 卡片名稱靠這裡的 flex 置中，不是靠 Text 自己 —— 之前是絕對定位撐滿卡片
+  // 再用 textAlignVertical 置中，但那個屬性只有 Android 有效，iOS 上文字會貼在
+  // 頂端、再被 rotate 甩出卡片，畫面上就完全看不到名稱。
+  cardGradient: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 },
+  drillCardPale: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#d8d8de",
+  },
+  cardName: {
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: 4,
+    textAlign: "center",
+  },
+
+  // 卡片本身也有直排文字，這裡另外用一行橫排文字重複顯示同一個名稱 ——
+  // 直排在快速拖動時較難一眼讀出，這行才是使用者確認「目前選到哪個」的地方。
+  drillItemName: {
+    marginTop: 20,
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1c1c1e",
+    textAlign: "center",
+  },
+  circleRow: { marginTop: 12, height: 52 },
+  // flexGrow:1 讓 justifyContent 在「內容比可視寬度窄」時真的把它置中；
+  // 內容比較寬（子項目夠多）時 justifyContent 自動失效，照常從左邊開始捲動。
+  circleRowContent: {
+    flexGrow: 1,
+    paddingHorizontal: H_PADDING,
+    gap: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // 外圈尺寸固定，選取只切換 borderColor（透明 ↔ 深色）—— 兩種狀態的 box
+  // 大小完全相同，選取時整排不會跳動。
+  circleOuter: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  circleOuterSelected: { borderColor: "#1c1c1e" },
+  circle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+
+  submitWrap: { paddingHorizontal: H_PADDING, paddingTop: 28, paddingBottom: 8 },
+  submitBtn: {
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#1c1c1e",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  submitText: { fontSize: 17, fontWeight: "700", color: "#fff" },
 });
