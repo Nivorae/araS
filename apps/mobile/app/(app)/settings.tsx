@@ -31,6 +31,7 @@ import {
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { useResponsive } from "@/hooks/useResponsive";
+import { parseWhatsNew } from "@/lib/whatsNew";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -191,9 +192,7 @@ export default function SettingsScreen() {
   // Update-notes modal, opened from the bell button. Content is app.json's
   // `extra.whatsNew`, not fetched — it ships with the bundle already.
   const [notesOpen, setNotesOpen] = useState(false);
-  const whatsNew = Constants.expoConfig?.extra?.whatsNew as
-    | { id: string; sections: { title: string; items: string[] }[] }
-    | undefined;
+  const whatsNew = parseWhatsNew(Constants.expoConfig?.extra?.whatsNew);
   // Live OTA state for the version footer — 「下載完成了沒」 answered in place.
   const { isDownloading, downloadProgress, isUpdatePending } = Updates.useUpdates();
   const updateStatus = { isDownloading, downloadProgress, isUpdatePending };
