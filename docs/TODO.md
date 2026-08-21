@@ -18,23 +18,18 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
   所以排程上適合跟下一次上架版本綁在一起做。
 
-### 2. 股利編輯 + 長按觸覺回饋 — 已實作，**未經裝置驗證、且已擋住 OTA**
+### 2. 1.3 native 上架 — build 已送出，等 Apple 審查
 
-分支 `feature/ui-polish`。mobile + web 都做了（依 2026-08-20 的新
-規則，web 一律跟著一起改）。
+`app.json` 已 bump 到 1.3（build 9），`eas submit` 完成，Apple 正在處理中。
+含股利編輯（mobile + web，`expo-haptics` 長按觸覺回饋）+ 上個 session 的 UI
+調整（設定頁鈴鐺、新增紀錄預覽卡、分類選擇器重設計、資產配置台股/美股比例）。
 
-- 股利每一筆現在可編輯：mobile 短按該列、web 點鉛筆圖示。只開放
-  `payDate` / `amount` / `note` / `bankEntryId`，因為後端 `UpdateDividendSchema`
-  就只收這四項；已再投資的紀錄在入口就擋掉（後端一律回 409）。
-- mobile 長按加了 iOS 風格互動：按下微縮 0.97 → 長按門檻彈到 1.03 + Taptic。
-
-- [x] 已在裝置上（Expo Go）確認：編輯流程與長按手感正常 — 2026-08-20
-- [ ] ⚠️ **在 native rebuild 之前不可以發 OTA。** 這次裝了 `expo-haptics`
-      （原生模組），runtimeVersion policy 是 `appVersion`，OTA 會把含它的 bundle
-      推到沒有該模組的 1.2 binary 上，一震動就爆。要出必須：bump version →
-      native rebuild → 送審。**現在還不要 bump `app.json` 的 version** ——
-      一 bump 就等於封死所有還能送到 1.2 的 OTA。
-- 建議跟上面第 1 項（每月提醒通知，同樣需要 rebuild）綁在同一次上架。
+- [x] `eas build --profile production --platform ios` 完成，build number 9
+- [x] `eas submit --platform ios --latest` 完成，已上傳 App Store Connect
+- [ ] 在 ASC 手動：新增版本 1.3 → 順便改 App 名稱為「araS資產紀錄」→ 貼上
+      `CHANGELOG.md` 1.3 的文案 → 選 build 9 → 送出審查
+- [ ] 每月記帳提醒通知（上面第 1 項）若還沒做，這次沒一起上——下次原生打包
+      再排。
 
 ### 3. 基金淨值更新（含境內外）— 設計階段
 
