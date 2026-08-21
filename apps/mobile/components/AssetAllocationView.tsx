@@ -1,5 +1,8 @@
+import { useMemo } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useAssetAllocation } from "@/hooks/useAssetAllocation";
+import { useFinanceStore } from "@/store/financeStore";
+import { chartedEntries } from "@/lib/chartedEntries";
 import { formatCurrency } from "@/lib/format";
 import { getTopCategory } from "@/lib/categoryConfig";
 
@@ -7,6 +10,23 @@ const LIABILITY_COLOR = getTopCategory("負債")?.color ?? "#C7C7D4";
 
 export function AssetAllocationView() {
   const { data, loading, error } = useAssetAllocation();
+  // 台股／美股不在 /api/entries/allocation 的 topCategory breakdown 裡（只到
+  // 「投資」這層），所以跟 transactions.tsx 算 totalAssets 一樣，自己從
+  // entries 篩，維持跟折線圖同一組「納入圖表」項目。
+  const entries = useFinanceStore((s) => s.entries);
+  const { twValue, usValue } = useMemo(
+    () =>
+      chartedEntries(entries).reduce(
+        (acc, e) => {
+          if (e.subCategory === "台股") acc.twValue += e.value;
+          else if (e.subCategory === "美股") acc.usValue += e.value;
+          return acc;
+        },
+        { twValue: 0, usValue: 0 }
+      ),
+    [entries]
+  );
+  const stockTotal = twValue + usValue;
 
   if (error) {
     return (
@@ -61,6 +81,15 @@ export function AssetAllocationView() {
         </View>
         <Text style={s.ratioValue}>
           {data.debtToAssetRatio === null ? "尚無資料" : `${data.debtToAssetRatio.toFixed(1)}%`}
+        </Text>
+      </View>
+
+      <View style={s.ratioRow}>
+        <Text style={s.ratioLabel}>台股／美股比例</Text>
+        <Text style={s.ratioValue}>
+          {stockTotal === 0
+            ? "尚無資料"
+            : `台股 ${((twValue / stockTotal) * 100).toFixed(1)}% / 美股 ${((usValue / stockTotal) * 100).toFixed(1)}%`}
         </Text>
       </View>
     </View>

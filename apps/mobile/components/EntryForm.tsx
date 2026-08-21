@@ -20,7 +20,6 @@ import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useFinanceStore } from "@/store/financeStore";
 import { useApi, ApiError } from "@/lib/api";
-import { getNodeIcon } from "@/lib/categoryConfig";
 import {
   INVESTMENT_CATS,
   STOCK_CATS,
@@ -34,6 +33,7 @@ import { BankPickerModal, BANKS, type BankItem } from "./BankPickerModal";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import { DatePickerModal } from "./DatePickerModal";
 import { parseISODate, toISODate, todayISO, formatDisplayDate } from "@/lib/date";
+import { formatCurrency } from "@/lib/format";
 import type { RepaymentType } from "@repo/shared";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -331,6 +331,31 @@ export function EntryForm({
     return true;
   };
 
+  // ── Derived name/amount/date ────────────────────────────────────────────────────
+  // Single source of truth for what's about to be saved — used by both the
+  // preview card and handleSubmit, so the two can never drift apart.
+  const finalName = isLoan
+    ? loanValues.loanName.trim() || subCategory
+    : name.trim() || selectedStock?.name || subCategory;
+  const finalValue = useMemo(() => {
+    if (isLoan) return parseFloat(loanValues.totalAmount) || 0;
+    if (editBasicInfoOnly) return null;
+    const typedBalance = parseFloat(balance) || 0;
+    const entered = isInvestment ? computedValue : isExpenseRecord ? -typedBalance : typedBalance;
+    return addRecord ? baseValue + entered : entered;
+  }, [
+    isLoan,
+    loanValues.totalAmount,
+    editBasicInfoOnly,
+    balance,
+    isInvestment,
+    computedValue,
+    isExpenseRecord,
+    addRecord,
+    baseValue,
+  ]);
+  const finalDate = isLoan ? loanValues.startDate : date;
+
   // ── Submit ────────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (isLoan && !validateLoan()) return;
@@ -356,20 +381,13 @@ export function EntryForm({
         // Edit basic info only: update name + icon (金融卡). No `value` is sent,
         // so the backend creates no history line and the balance is untouched.
         await updateEntry(entryId, {
-          name: name.trim() || selectedStock?.name || subCategory,
+          name: finalName,
           includeInChart,
           ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
         });
       } else {
-        const typedBalance = parseFloat(balance) || 0;
-        const entered = isInvestment
-          ? computedValue
-          : isExpenseRecord
-            ? -typedBalance
-            : typedBalance;
-        // Add-record mode appends on top of the current value; edit/create replace.
-        const value = addRecord ? baseValue + entered : entered;
-        const finalName = name.trim() || selectedStock?.name || subCategory;
+        // finalValue is only null in the editBasicInfoOnly branch above.
+        const value = finalValue!;
         // In amount mode `units` is derived from the cost amount ÷ price so the
         // holding's share count (and P&L) stays correct.
         const unitsParsed = hasStockPicker ? derivedUnits || undefined : undefined;
@@ -429,7 +447,6 @@ export function EntryForm({
   };
 
   // ── Render ────────────────────────────────────────────────────────────────────
-  const Icon = getNodeIcon(topCategory, subCategory);
   const accentColor = color === "#FFFFFF" ? "#374254" : color;
   const stockLocked = isEdit || lockStockPicker;
 
@@ -444,7 +461,8 @@ export function EntryForm({
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Floating nav buttons ────────────────────────────────────── */}
+          {/* ── Nav row: back on the left, title centred, save moved into the
+              preview card below ──────────────────────────────────────── */}
           <View style={s.navRow}>
             <TouchableOpacity
               onPress={onBack}
@@ -453,30 +471,57 @@ export function EntryForm({
             >
               <ChevronLeft size={20} color="#1c1c1e" />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={submitting}
-              style={[s.navCircle, { opacity: submitting ? 0.4 : 1 }]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color={accentColor} />
-              ) : (
-                <Check size={20} color="#1c1c1e" strokeWidth={2.5} />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* ── Title row ───────────────────────────────────────────────── */}
-          <View style={s.titleRow}>
             <Text style={s.titleText}>
               {addRecord ? "新增記錄" : editBasicInfoOnly ? "編輯帳戶" : "帳戶"}
             </Text>
-            <View style={s.titleRight}>
-              <View style={[s.titleIcon, { backgroundColor: accentColor + "25" }]}>
-                <Icon size={20} color="#66788E" />
-              </View>
-              <Text style={s.titleSub}>{subCategory}</Text>
+            {/* Subcategory badge — same row as back/title, pinned far right. */}
+            <View style={s.badge}>
+              <Text style={s.badgeText}>{subCategory}</Text>
+            </View>
+          </View>
+
+          {/* ── Preview card: reflects the fields below as they're typed,
+              and carries the save action (was the checkmark in navRow) ── */}
+          <View style={[s.previewCard, { backgroundColor: accentColor }]}>
+            <View style={s.previewText}>
+              <Text style={s.previewName} numberOfLines={1}>
+                {finalName}
+              </Text>
+              {finalValue !== null && (
+                <Text style={s.previewAmount}>{formatCurrency(finalValue)}</Text>
+              )}
+              {hasStockPicker && (
+                <Text style={s.previewMeta}>
+                  {`${isCrypto ? "幣價" : "股價"} ${formatCurrency(priceTWD)} · ${getUnitsLabel(subCategory)} ${
+                    derivedUnits > 0
+                      ? derivedUnits.toLocaleString("zh-TW", { maximumFractionDigits: 4 })
+                      : "--"
+                  }`}
+                </Text>
+              )}
+              <Text style={s.previewDate}>{formatDisplayDate(finalDate)}</Text>
+            </View>
+            {/* Badge stacked directly above the save button, both centred as
+                one column on the card's right edge. */}
+            <View style={s.previewRight}>
+              {includeInChart && (
+                <View style={s.previewChartBadge}>
+                  <Text style={s.previewChartBadgeText}>圖表</Text>
+                  <Check size={12} color="#ffffff" strokeWidth={3} />
+                </View>
+              )}
+              <TouchableOpacity
+                onPress={handleSubmit}
+                disabled={submitting}
+                style={[s.previewSaveBtn, { opacity: submitting ? 0.4 : 1 }]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={s.previewSaveText}>新增</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -929,34 +974,46 @@ const s = StyleSheet.create({
   navCircle: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
   },
 
   // ── Title row ─────────────────────────────────────────────────────────────────
-  titleRow: {
+  titleText: { fontSize: 22, fontWeight: "700", color: "#1c1c1e" },
+
+  // ── Preview card ──────────────────────────────────────────────────────────────
+  previewCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    borderRadius: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
-  titleText: { fontSize: 22, fontWeight: "700", color: "#1c1c1e" },
-  titleRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  titleIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  previewText: { flex: 1, gap: 4 },
+  previewName: { fontSize: 17, fontWeight: "700", color: "#ffffff" },
+  previewAmount: { fontSize: 24, fontWeight: "800", color: "#ffffff" },
+  previewMeta: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.9)" },
+  previewDate: { fontSize: 12, color: "rgba(255,255,255,0.75)" },
+  previewRight: { alignItems: "center", gap: 6 },
+  previewChartBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    borderRadius: 100,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  previewChartBadgeText: { fontSize: 11, fontWeight: "700", color: "#ffffff" },
+  previewSaveBtn: {
+    minWidth: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  titleSub: { fontSize: 18, fontWeight: "600", color: "#1c1c1e" },
+  previewSaveText: { fontSize: 15, fontWeight: "700", color: "#ffffff" },
 
   // ── Card ──────────────────────────────────────────────────────────────────────
   card: {
@@ -1013,17 +1070,21 @@ const s = StyleSheet.create({
   },
   fieldLabel: { fontSize: 12, color: "#8e8e93", marginBottom: 6 },
 
-  // Input-mode toggle (依股數 / 依金額)
+  // Input-mode toggle (依股數 / 依金額) — the two buttons split the row exactly
+  // 50/50 with no gap; borderRadius+overflow on the row (not the buttons) is
+  // what still gives the pair rounded outer corners.
   modeRow: {
     flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 14,
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderRadius: 10,
+    overflow: "hidden",
   },
   modeBtn: {
-    borderRadius: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
     backgroundColor: "#f2f2f7",
   },
   modeBtnActive: { backgroundColor: "#374254" },

@@ -160,10 +160,13 @@ Premium）。單頁表單：
 
 ### 2.10 設定 — `app/(app)/settings.tsx`
 
+- 背景：藍色柔光圓形（`react-native-svg` 的 RadialGradient，非 blur）
+- 右上角頭像：點擊開啟選單（顯示姓名／Email ＋ **登出**）
+- 頭像左側鈴鐺圖示：點擊開啟 Modal，顯示 `app.json` 的 `extra.whatsNew` 更新內容
+- 上方問候語：`Hi, {firstName}` ／ 今天想調整什麼？
 - 升級 Premium ／ 已升級 Premium → `/paywall`
 - 管理訂閱（已訂閱時）
 - 模擬升級／模擬取消（**僅 `__DEV__`**）
-- 登出
 - 刪除帳號（危險區，永久刪除）
 - 版本資訊：`app.json` 的 version ＋ `Updates.createdAt`
 
