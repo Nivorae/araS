@@ -4,7 +4,7 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-08-19
+最後整理：2026-08-21
 
 ## 進行中
 
@@ -44,6 +44,11 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
   `project_ci_never_runs_on_develop`）。
 - **Vercel Preview 部署 500**：已知，刻意不修（見記憶
   `project_preview_deploys_wontfix`）。
+- **強制更新閘門（非 OTA）＋ App 內更新紀錄畫面**：2026-08-21 設計完成後決定
+  不做。兩者都是使用者無感的基礎建設，現階段使用者規模小到「真的出事直接聯絡
+  本人」比擋板還快；更新紀錄則幾乎沒人會看。設計文件已刪除，內容留在 git
+  commit `0f37365`，若日後後端要做不相容變更再撿回來 —— 注意那時擋板已經來不及
+  發給舊 binary，這個時間差是當初唯一的論據。
 
 ## 如何使用這份文件
 
