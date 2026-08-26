@@ -43,16 +43,18 @@ Apple 登入是原生流程、不開瀏覽器，不受影響 —— 與 8 月 OA
       冒充既有網站」。已把 Vercel Production 的 `NEXT_PUBLIC_APP_URL` 改為
       `https://arasasset.com` 並 redeploy，驗證 canonical/OG/robots/sitemap 全部
       指回自己且無雙斜線（細節見記憶 `project_web_seo_domain`）
-- [ ] **按下 Search Console 的「要求審查」**（說明文案在下方），送出後這裡打勾
-- [ ] 送審後到 Search Console 的 Sitemap 頁，替新的 `arasasset.com` 資源提交
-      `https://arasasset.com/sitemap.xml`（新資源不會繼承舊資源的提交紀錄）
+- [x] 2026-08-26 已按下 Search Console 的「要求審查」，附上下方的說明文案。
+      審查期間旗標仍在、警告照樣會閃，通常 1-3 天有結果
+- [x] 2026-08-26 已替新的 `arasasset.com` 資源提交
+      `https://arasasset.com/sitemap.xml`（純 SEO，與旗標解除無關）
 - [ ] 未確認、目前不阻塞：App 警告畫面按「Show Details」顯示的確切 URL。若申訴
       被駁回才需要 —— 顯示 `clerk.arasasset.com/...` = 對上上述證據；顯示
       `accounts.google.com/...` 的某個頁面 = 另一條線（見記憶
       `project_account_deletion_oauth_lockout`），處理方式不同
-- [ ] 併行送 Safe Browsing 誤判回報
-      `https://safebrowsing.google.com/safebrowsing/report_error/`，
-      `arasasset.com` 與 `clerk.arasasset.com` 各送一次
+- [x] 2026-08-26 已送 Safe Browsing 誤判回報表單
+      （`https://safebrowsing.google.com/safebrowsing/report_error/`），
+      `https://arasasset.com/` 與 `https://clerk.arasasset.com/` 各一次。
+      這條管道沒有回覆、沒有進度可查 —— 成功與否只能靠覆查狀態碼看出來
 - [ ] 每天用同一支 API 覆查狀態碼，回到 1 才算解除
 - 不做：**不改登入按鈕順序去推薦 Apple 登入**（2026-08-26 使用者否決，他自己
   就以 Google 登入為主）
@@ -121,8 +123,10 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
       地方：`apps/mobile/.env:9`、`.env.production:25`、`eas.json` 的 preview:15
       與 production:36。用 flags 端點驗證過金鑰有效（錯的 key 會回 401）
 - [x] 用 Expo Go 驗證過事件確實送達 PostHog（2026-08-26，Activity 頁看得到進來的事件）
-- [ ] 出貨：**可以走 OTA**（純 JS，沒有新的原生模組）。照慣例 OTA 前先 grep
-      `.hbc` 確認沒有第二份 React
+- [x] 已於 2026-08-26 走 OTA 出貨（runtime version 1.3，update group
+      `59f41b0a`）。出貨前驗證過：`posthog-react-native` 只有 `dist/`、無
+      podspec、需要原生模組的 optional peer 全部未安裝；bundle 內 React 內部
+      唯一標記只出現 1 次（單一份 React）、無 LAN IP
 - [ ] `subscribe_success` 只能在 TestFlight／正式版驗證（Expo Go 沒有
       RevenueCat 原生模組）
 
