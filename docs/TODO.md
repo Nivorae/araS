@@ -51,9 +51,10 @@ Apple 登入是原生流程、不開瀏覽器，不受影響 —— 與 8 月 OA
       被駁回才需要 —— 顯示 `clerk.arasasset.com/...` = 對上上述證據；顯示
       `accounts.google.com/...` 的某個頁面 = 另一條線（見記憶
       `project_account_deletion_oauth_lockout`），處理方式不同
-- [ ] 併行送 Safe Browsing 誤判回報
-      `https://safebrowsing.google.com/safebrowsing/report_error/`，
-      `arasasset.com` 與 `clerk.arasasset.com` 各送一次
+- [x] 2026-08-26 已送 Safe Browsing 誤判回報表單
+      （`https://safebrowsing.google.com/safebrowsing/report_error/`），
+      `https://arasasset.com/` 與 `https://clerk.arasasset.com/` 各一次。
+      這條管道沒有回覆、沒有進度可查 —— 成功與否只能靠覆查狀態碼看出來
 - [ ] 每天用同一支 API 覆查狀態碼，回到 1 才算解除
 - 不做：**不改登入按鈕順序去推薦 Apple 登入**（2026-08-26 使用者否決，他自己
   就以 Google 登入為主）
