@@ -28,6 +28,7 @@ import {
   type StackCategory,
 } from "@/components/CategoryCardStack";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
+import { EmptyAssetsVortex } from "@/components/EmptyAssetsVortex";
 import { useResponsive } from "@/hooks/useResponsive";
 
 // Deck order, bottom card → top card. In CategoryCardStack the LAST name renders
@@ -148,6 +149,22 @@ export default function AssetsScreen() {
     );
   }
 
+  // 空狀態：整個 body 讓給漩渦動畫，連 Net Worth 區塊一起收掉——沒有任何資料時
+  // 那個 $0 只是雜訊，畫面上唯一該存在的動作就是新增第一筆。頂部導覽仍由
+  // s.root 的 NAV_CLEARANCE 保留位置。
+  if (stackCategories.length === 0) {
+    return (
+      <SafeAreaView style={s.root} edges={["top"]}>
+        <View style={s.body}>
+          <EmptyAssetsVortex
+            onAdd={() => router.push("/entry/new")}
+            maxWidth={isTablet ? contentWidth : undefined}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.root} edges={["top"]}>
       <View style={s.body} onLayout={onContainerLayout}>
@@ -225,7 +242,7 @@ export default function AssetsScreen() {
               own height exactly once to lay the fan out, and before `containerH`
               is known the top zone is 0-tall, so it would measure the full body
               and space the deck too far apart for good. */}
-          {containerH === 0 ? null : stackCategories.length > 0 ? (
+          {containerH === 0 ? null : (
             <CategoryCardStack
               ref={cardStackRef}
               categories={stackCategories}
@@ -249,17 +266,6 @@ export default function AssetsScreen() {
                   : router.push(`/entry/new?topCategory=${encodeURIComponent(categoryName)}`)
               }
             />
-          ) : (
-            <View style={s.emptyWrap}>
-              <TouchableOpacity
-                style={[s.emptyCard, isTablet && { maxWidth: contentWidth }]}
-                onPress={() => router.push("/entry/new")}
-                activeOpacity={0.7}
-              >
-                <Text style={s.emptyTitle}>+ 新增第一筆資產</Text>
-                <Text style={s.emptySub}>記錄你的資產與負債</Text>
-              </TouchableOpacity>
-            </View>
           )}
         </Pressable>
       </View>
@@ -283,21 +289,4 @@ const s = StyleSheet.create({
   netLoading: { height: 48, alignItems: "center", justifyContent: "center" },
 
   bottomZone: { flex: 1 },
-
-  emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
-  emptyCard: {
-    width: "100%",
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 48,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  emptyTitle: { fontSize: 15, fontWeight: "500", color: "#374254" },
-  emptySub: { fontSize: 13, color: "#8e8e93", marginTop: 4 },
 });
