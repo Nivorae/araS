@@ -118,6 +118,9 @@ importers:
       nativewind:
         specifier: ^4.1.23
         version: 4.2.6(wvtowoirjo6nccusl4o7qfjkxe)
+      posthog-react-native:
+        specifier: ^4.64.1
+        version: 4.64.1(mwx7kmkpjugnlgydvo2n46j37q)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -3319,6 +3322,18 @@ packages:
       }
     engines: { node: ">=18" }
     hasBin: true
+
+  "@posthog/core@1.48.10":
+    resolution:
+      {
+        integrity: sha512-Y70zhdQFNMwHHZk9MW44MJUR1DyFm0Cn3DOtd+wQYnGv+kX+qc6CA+pBtEmZe2XD0K9uuOKiz2LJwzaq/wz0FA==,
+      }
+
+  "@posthog/types@1.405.3":
+    resolution:
+      {
+        integrity: sha512-HApKJSYfwo/z2KIVB98E/8XwEL3pTXawBp0AB7FKRVtStz9hizRlaO6n9RR7sjgXLnOLvqj++CGsZb8rQbOS2g==,
+      }
 
   "@prisma/client@6.19.2":
     resolution:
@@ -12039,6 +12054,54 @@ packages:
       }
     engines: { node: ^10 || ^12 || >=14 }
 
+  posthog-react-native@4.64.1:
+    resolution:
+      {
+        integrity: sha512-cuVos3AJiCPat40F8hLgyXVDkSWdAYtaTiuGAfcy89r1LE2UakMX7eYDttxx8SZNBasBRnRw1asMCUdsnlYfPg==,
+      }
+    hasBin: true
+    peerDependencies:
+      "@posthog/react-native-plugin": ">= 2.4.3"
+      "@react-native-async-storage/async-storage": ">=1.0.0"
+      "@react-navigation/native": ">= 5.0.0"
+      expo-application: ">= 4.0.0"
+      expo-device: ">= 4.0.0"
+      expo-file-system: ">= 13.0.0"
+      expo-localization: ">= 11.0.0"
+      posthog-react-native-session-replay: ">= 1.6.0"
+      react-native-device-info: ">= 10.0.0"
+      react-native-localize: ">= 3.0.0"
+      react-native-navigation: ">= 6.0.0"
+      react-native-safe-area-context: ">= 4.0.0"
+      react-native-svg: ">= 15.0.0"
+    peerDependenciesMeta:
+      "@posthog/react-native-plugin":
+        optional: true
+      "@react-native-async-storage/async-storage":
+        optional: true
+      "@react-navigation/native":
+        optional: true
+      expo-application:
+        optional: true
+      expo-device:
+        optional: true
+      expo-file-system:
+        optional: true
+      expo-localization:
+        optional: true
+      posthog-react-native-session-replay:
+        optional: true
+      react-native-device-info:
+        optional: true
+      react-native-localize:
+        optional: true
+      react-native-navigation:
+        optional: true
+      react-native-safe-area-context:
+        optional: true
+      react-native-svg:
+        optional: true
+
   preact@10.24.2:
     resolution:
       {
@@ -17072,6 +17135,12 @@ snapshots:
     dependencies:
       playwright: 1.58.2
     optional: true
+
+  "@posthog/core@1.48.10":
+    dependencies:
+      "@posthog/types": 1.405.3
+
+  "@posthog/types@1.405.3": {}
 
   "@prisma/client@6.19.2(prisma@6.19.2(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)":
     optionalDependencies:
@@ -23207,6 +23276,18 @@ snapshots:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  posthog-react-native@4.64.1(mwx7kmkpjugnlgydvo2n46j37q):
+    dependencies:
+      "@posthog/core": 1.48.10
+      "@posthog/types": 1.405.3
+    optionalDependencies:
+      "@react-native-async-storage/async-storage": 2.2.0(react-native@0.81.5(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@6.0.6))
+      "@react-navigation/native": 7.3.4(react-native@0.81.5(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@6.0.6))(react@19.1.0)
+      expo-application: 7.0.8(expo@54.0.37)
+      expo-file-system: 19.0.24(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@6.0.6))
+      react-native-safe-area-context: 5.6.2(react-native@0.81.5(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@6.0.6))(react@19.1.0)
+      react-native-svg: 15.12.1(react-native@0.81.5(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@6.0.6))(react@19.1.0)
 
   preact@10.24.2: {}
 

@@ -22,6 +22,7 @@ import { DatePickerModal } from "./DatePickerModal";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
 import { parseISODate, toISODate, todayISO, formatDisplayDate } from "@/lib/date";
+import { PAYWALL_SOURCES } from "@/lib/analytics";
 
 interface DividendFormProps {
   visible: boolean;
@@ -237,7 +238,7 @@ export default function DividendForm({
           // pushing /paywall on top of it would leave this sheet still visible
           // in front of the paywall screen. Close it first.
           onClose();
-          router.push("/paywall");
+          router.push(`/paywall?source=${PAYWALL_SOURCES.DIVIDEND_FORM}`);
         },
       },
     ]);

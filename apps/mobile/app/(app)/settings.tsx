@@ -32,6 +32,7 @@ import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { useResponsive } from "@/hooks/useResponsive";
 import { parseWhatsNew } from "@/lib/whatsNew";
+import { PAYWALL_SOURCES } from "@/lib/analytics";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -323,7 +324,7 @@ export default function SettingsScreen() {
               color="#374254"
               textColor="#ffffff"
               loading={premiumLoading}
-              onPress={() => router.push("/paywall")}
+              onPress={() => router.push(`/paywall?source=${PAYWALL_SOURCES.SETTINGS_CARD}`)}
             />
             {/* Only for subscribers — there is nothing to manage otherwise. A
                 user who has cancelled but is still inside the paid period is
