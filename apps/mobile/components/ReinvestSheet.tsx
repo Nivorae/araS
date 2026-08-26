@@ -7,6 +7,7 @@ import { useIsPremium } from "@/hooks/useIsPremium";
 import { buildYfSymbol } from "@/lib/stockConstants";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
+import { PAYWALL_SOURCES } from "@/lib/analytics";
 
 interface ReinvestSheetProps {
   visible: boolean;
@@ -150,7 +151,7 @@ export default function ReinvestSheet({
             // rendered above the navigator, so it must close before pushing
             // /paywall or it stays visible in front of that screen.
             onClose();
-            router.push("/paywall");
+            router.push(`/paywall?source=${PAYWALL_SOURCES.DIVIDEND_REINVEST}`);
           },
         },
       ]);

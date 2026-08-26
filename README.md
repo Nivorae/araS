@@ -33,10 +33,25 @@
 | **Apple Developer Program / App Store Connect** | iOS 上架、App Store Server Notifications webhook                   |
 | **RevenueCat**                                  | App 內購／訂閱（IAP）                                              |
 | **Sentry.io**                                   | 錯誤監控（crash reporting）                                        |
+| **PostHog**                                     | 行為分析（取得漏斗埋點，US Cloud）                                 |
 | **GitHub / GitHub Actions**                     | 原始碼託管 + CI（`.github/workflows/ci.yml`，`/fix-ci` 對象）      |
 
 > 各服務的登入帳號記在 `docs/ACCOUNTS.local.md`。**這個 repo 是公開的**，所以那個檔案
 > 被 `.gitignore` 排除、只存在本機 —— 帳號、密碼、金鑰一律不進版控。
+
+### 行為分析（PostHog）
+
+App Store Connect 只告訴我們「下載後 7 天內 0.6% 轉付費」，答不出那 99.4% 是在
+哪一步走掉的。PostHog 收 7 個事件把它拆成五段：`app_open` →
+`onboarding_complete` → `first_record_created`（activation）→ `paywall_viewed` →
+`subscribe_clicked` → `subscribe_success`。事件定義、參數與指標算法見
+[`docs/analytics.md`](docs/analytics.md)，事件名稱一律從
+`apps/mobile/lib/analytics/events.ts` 取，**程式碼裡不准出現字串字面量**。
+
+`EXPO_PUBLIC_POSTHOG_API_KEY` 是 write-only 的 project token，跟 Clerk publishable
+key、RevenueCat SDK key 同性質，可公開、可進版控。**留空 = 追蹤停用**（App 一切
+正常，dev 下事件只印在 console），所以忘了填不會報錯，只會沒有數據。要填的四個
+地方見下面「Mobile 發版」。
 
 ### Supabase dev 專案會自動暫停
 
@@ -221,6 +236,9 @@ sheet 是否顯示，取決於「bundle 帶的 `id`」與「AsyncStorage 存的�
 
 環境變數有兩套且**必須同步**：`eas.json` 的 `build.production.env` 給 `eas build` 用，
 `apps/mobile/.env.production` 給 `eas update` 用（`eas update` 不讀 `eas.json`）。
+`EXPO_PUBLIC_POSTHOG_API_KEY` 是這條規則的實例 —— 它一共要填四個地方：
+`apps/mobile/.env`（本機）、`.env.production`（OTA）、`eas.json` 的 `preview` 與
+`production`（build），四邊的值必須一致。
 發佈前可先本地乾跑確認打包內容：
 
 ```bash
@@ -304,11 +322,14 @@ Route Handlers（`apps/web/app/api/**/route.ts`）負責 HTTP 解析、呼叫 Cl
 - **REST Envelope**：一致的 `{ success, data|error, timestamp }` 回應格式（`@repo/shared`）
 - **行情代理**：股價、匯率、國泰人壽利率等 proxy 路由（`/api/stocks/*`、`/api/exchange-rate` 等）
 - **iOS App**：Expo + EAS，UI 與 web 視覺一致
+- **行為分析**：PostHog 七個事件組成的取得漏斗（見 [`docs/analytics.md`](docs/analytics.md)）
 
 ## 文件
 
 - **[CLAUDE.md](CLAUDE.md)** — 專案開發指南（架構、慣例、指令）
 - **[apps/mobile/RELEASE.md](apps/mobile/RELEASE.md)** — Mobile App 上架後的發版流程、訂閱制規劃、擴容判斷
+- **[apps/mobile/UI-STRUCTURE.md](apps/mobile/UI-STRUCTURE.md)** — 手機 App 的頁面地圖與共用元件對照
+- **[docs/analytics.md](docs/analytics.md)** — 行為分析：埋了哪些事件、為什麼是這些、怎麼算出核心指標
 
 ## License
 

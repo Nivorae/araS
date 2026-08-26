@@ -35,6 +35,7 @@ import { InsurerPickerModal } from "./InsurerPickerModal";
 import { CoverageItemPicker } from "./CoverageItemPicker";
 import { DatePickerModal } from "./DatePickerModal";
 import { parseISODate, toISODate, formatDisplayDate } from "@/lib/date";
+import { PAYWALL_SOURCES } from "@/lib/analytics";
 
 let _coverageKeySeq = 0;
 function generateCoverageKey(): string {
@@ -190,7 +191,10 @@ export function InsuranceForm({
   const promptPremiumUpgrade = () => {
     Alert.alert("保單管理是 Premium 功能", "升級 Premium 即可無限新增與管理保單。", [
       { text: "稍後再決定", style: "cancel" },
-      { text: "解鎖 Premium", onPress: () => router.push("/paywall") },
+      {
+        text: "解鎖 Premium",
+        onPress: () => router.push(`/paywall?source=${PAYWALL_SOURCES.INSURANCE_FORM}`),
+      },
     ]);
   };
 

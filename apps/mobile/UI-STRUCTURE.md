@@ -58,6 +58,18 @@ app/
 - 品牌區：`araS` ／ 個人資產管理工具
 - 登入方式：Google OAuth（`hooks/useOAuth.ts`）、LINE OAuth、Apple 登入（`hooks/useAppleAuth.ts`）
 - 錯誤訊息由 `lib/clerkError.ts` 轉成中文
+- 右上角 **? 按鈕** → `components/OnboardingSheet.tsx`（見 2.1a）
+
+#### 2.1a 新手說明 — `components/OnboardingSheet.tsx`
+
+「這是什麼？」三步說明的 bottom sheet，沿用 `WhatsNewSheet`／`ReinvestSheet` 的
+視覺。三頁固定內容：所有資產一個地方／看見淨值的走勢／掌握配置與現金流。
+
+- 刻意做成**使用者主動打開**，而不是首次啟動強制顯示 —— 登入頁本身就是第一個畫面
+- 分頁寬度量自 sheet 自己而非螢幕（平板上 sheet 有 `maxWidth`，用螢幕寬會對不準）
+- 分析埋點：`onboarding_complete` **只在滑到最後一頁並按下「開始使用」時送出**，
+  中途關掉不送。漏斗用「有 `app_open` 但沒有 `onboarding_complete`」來量測
+  （事件定義見 `docs/analytics.md`）
 
 ### 2.2 首頁 · 資產總覽 — `app/(app)/(tabs)/index.tsx`
 
@@ -65,11 +77,29 @@ app/
 | ----------- | ---------------------------------------------------------------------------------------- |
 | 上半（40%） | 淨資產金額、👁 隱藏餘額切換、下拉重新整理（僅此區可下拉）                                |
 | 下半        | `components/CategoryCardStack.tsx` —— 分類卡片堆疊，可滑動預覽、點擊展開該分類的項目清單 |
-| 空狀態      | 「＋ 新增第一筆資產」卡片 → `/entry/new`                                                 |
+| 空狀態      | `components/EmptyAssetsVortex.tsx` —— 漩渦動畫（見 2.2a），整個 body 讓給它              |
 
 - 投資類項目的金額以**市值**顯示（`hooks/useInvestmentMarketValues.ts`），首次載入時以 spinner 擋住總額，避免先閃成本價
 - 點項目：保險 → `/insurance/overview?focus=<id>`；其餘 → `/entry/:id`
 - 卡片上的「＋」：保險 → `/insurance/new`；其餘 → `/entry/new?topCategory=<分類>`
+
+#### 2.2a 空狀態 · 資產漩渦 — `components/EmptyAssetsVortex.tsx`
+
+一筆資產都沒有時，`index.tsx` 走 early return（`stackCategories.length === 0`），
+**連淨資產區塊一起收掉** —— 沒有資料時那個 $0 只是雜訊，畫面上唯一該存在的動作
+就是新增第一筆。注意它上面還有一個 early return 處理「載入中且無資料」，顯示的是
+`ActivityIndicator`，兩條路徑是分開的。
+
+- 12 張分類卡沿阿基米德螺線由外向內流動，愈靠中心愈小、愈淡，中心點放 CTA
+- 卡片內容取自 `lib/categoryConfig.ts` 的 `CATEGORIES`（顏色、圖示、名稱），
+  近白色的兩個分類會補一圈細邊框，跟卡片堆疊的處理一致
+- 全部動畫由**單一** `useSharedValue` 在 UI thread 的 worklet 裡推導 transform，
+  零 JS frame、零 layout pass —— 與隔壁 `CategoryCardStack` 同一套約束
+- 為了讓卡片間距視覺上均勻，模組載入時建一張弧長對照表做 reparameterization
+  （直接均勻推進螺線參數會讓卡片在中心擠成一團）
+- 離開分頁（`useIsFocused`）會停掉動畫；開啟「減少動態效果」則凍結成靜態扇形
+- Props 只有兩個：`onAdd`（導到 `/entry/new`）與 `maxWidth`（平板置中）。**需要資料
+  的話得從 `index.tsx` 那層往下傳**，元件本身不碰 store
 
 ### 2.3 投資損益 — `app/(app)/(tabs)/transactions.tsx`
 
@@ -182,7 +212,9 @@ Premium）。單頁表單：
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `TopGlassNav`                                                                   | 三個 tab、`insurance/overview`                                                        |
 | `FloatingCardsBackground`                                                       | `welcome`、`paywall`                                                                  |
+| `OnboardingSheet`                                                               | `welcome`（右上角 ?）                                                                 |
 | `CategoryCardStack`                                                             | 首頁                                                                                  |
+| `EmptyAssetsVortex`                                                             | 首頁（空狀態）                                                                        |
 | `BalanceScale` / `InvestmentChart` / `AssetAllocationView` / `DividendOverview` | 投資損益                                                                              |
 | `ProjectionChart` / `InfoModal`                                                 | 退休計劃                                                                              |
 | `EntryForm`                                                                     | `entry/form`、`entry/[id]/edit`                                                       |

@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/format";
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
+import { PAYWALL_SOURCES } from "@/lib/analytics";
 
 const RANGES: { key: NetWorthRange; label: string }[] = [
   { key: "6m", label: "6M" },
@@ -143,7 +144,7 @@ export default function TransactionsScreen() {
             style={[s.toggleBtn, view === "allocation" && s.toggleBtnActive]}
             onPress={() => {
               if (!isPremium) {
-                router.push("/paywall");
+                router.push(`/paywall?source=${PAYWALL_SOURCES.ALLOCATION_TAB}`);
                 return;
               }
               setEverVisitedAllocation(true);
@@ -156,7 +157,7 @@ export default function TransactionsScreen() {
             style={[s.toggleBtn, view === "dividends" && s.toggleBtnActive]}
             onPress={() => {
               if (!isPremium) {
-                router.push("/paywall");
+                router.push(`/paywall?source=${PAYWALL_SOURCES.DIVIDEND_TAB}`);
                 return;
               }
               setEverVisitedDividends(true);

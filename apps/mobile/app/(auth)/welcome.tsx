@@ -10,10 +10,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { HelpCircle } from "lucide-react-native";
 import { useOAuth } from "@/hooks/useOAuth";
 import { useAppleAuth } from "@/hooks/useAppleAuth";
 import { useResponsive } from "@/hooks/useResponsive";
 import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
+import { OnboardingSheet } from "@/components/OnboardingSheet";
 import iconPng from "../../assets/icon.png";
 
 // ─── OAuth provider icons ───────────────────────────────────────────────────────
@@ -116,6 +118,7 @@ export default function WelcomeScreen() {
   const { start, busy } = useOAuth();
   const { start: startApple, busy: appleBusy } = useAppleAuth();
   const [error, setError] = useState<string | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   const anyBusy = busy !== null || appleBusy;
 
@@ -123,6 +126,17 @@ export default function WelcomeScreen() {
     <View style={styles.root}>
       {/* Background depth cards */}
       <FloatingCardsBackground />
+
+      {/* 「這是什麼？」—— 三步說明。刻意是使用者主動打開的入口，不是首次啟動
+          就擋在前面的引導流程：這一頁本身就該是第一個畫面。 */}
+      <Pressable
+        onPress={() => setShowGuide(true)}
+        hitSlop={12}
+        accessibilityLabel="這是什麼"
+        style={[styles.helpBtn, { top: insets.top + 12 }]}
+      >
+        <HelpCircle size={20} color="#6b7280" />
+      </Pressable>
 
       {/* Center: icon + title + subtitle */}
       <View style={[styles.center, { top: height * 0.48 - 96 }]}>
@@ -162,12 +176,27 @@ export default function WelcomeScreen() {
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
+
+      <OnboardingSheet visible={showGuide} onClose={() => setShowGuide(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#f7f7fa", overflow: "hidden" },
+
+  // 右上角的說明入口。zIndex 要壓過背景卡片，否則點不到。
+  helpBtn: {
+    position: "absolute",
+    right: 20,
+    zIndex: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.72)",
+  },
 
   // Center block
   center: { position: "absolute", left: 0, right: 0, alignItems: "center", zIndex: 10 },
