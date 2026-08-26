@@ -43,6 +43,14 @@ const TURNS = 2.6;
 const SPREAD = 1.85;
 const SLOTS = 12; // cards alive at once, spaced evenly by ARC length
 const CYCLE_MS = 26000; // time for one card to travel the whole spiral
+// The driver counts whole cycles rather than looping 0->1 every CYCLE_MS. The
+// worklet takes `% 1` anyway, so the motion is identical — but `withRepeat`
+// tears down and restarts the underlying timing animation at every iteration
+// boundary, and that hand-off drops a frame. Positions match exactly across the
+// seam (t is periodic in 1), so the dropped frame reads as the whole vortex
+// snapping back to its starting layout. At 1000 cycles the restart moves to
+// once every ~7 hours, which no session reaches.
+const DRIVER_CYCLES = 1000;
 const FADE_IN = 0.2; // fraction of the path spent fading in at the outer end
 const FADE_OUT = 0.1; // ...and fading out into the centre
 const SIZE_ATTENUATION = 2; // >0 shrinks cards toward the centre
@@ -132,8 +140,17 @@ export function EmptyAssetsVortex({ onAdd, maxWidth }: Props) {
       cancelAnimation(progress);
       return;
     }
+    // Resume from the current phase, not from 0: `withTiming` animates from
+    // whatever the value currently is, so targeting a fixed number would both
+    // jump the layout and change the speed on every re-focus. The span stays
+    // exactly DRIVER_CYCLES, so `% 1` is unchanged across the repeat seam.
+    const from = progress.value % 1;
+    progress.value = from;
     progress.value = withRepeat(
-      withTiming(1, { duration: CYCLE_MS, easing: Easing.linear }),
+      withTiming(from + DRIVER_CYCLES, {
+        duration: CYCLE_MS * DRIVER_CYCLES,
+        easing: Easing.linear,
+      }),
       -1,
       false
     );
@@ -159,7 +176,6 @@ export function EmptyAssetsVortex({ onAdd, maxWidth }: Props) {
       >
         <Image source={iconPng} style={s.ctaLogo} />
         <Text style={s.ctaTitle}>＋ 新增第一筆資產</Text>
-        <Text style={s.ctaSub}>記錄你的資產與負債</Text>
       </TouchableOpacity>
     </View>
   );
@@ -174,7 +190,6 @@ interface CardProps {
 
 function VortexCard({ index, progress, w, h }: CardProps) {
   const cat = CATEGORIES[index % CATEGORIES.length]!;
-  const Icon = cat.icon;
   // Slots are offset by a fixed fraction of the path, so the stream stays
   // continuous no matter where `progress` happens to be.
   const offset = index / SLOTS;
@@ -223,7 +238,6 @@ function VortexCard({ index, progress, w, h }: CardProps) {
       ]}
       pointerEvents="none"
     >
-      <Icon size={24} color={cat.textColor} strokeWidth={2} />
       <Text style={[s.cardLabel, { color: cat.textColor }]} numberOfLines={1}>
         {cat.name}
       </Text>
@@ -243,7 +257,6 @@ const s = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.11,
@@ -251,14 +264,21 @@ const s = StyleSheet.create({
     elevation: 5,
   },
   cardBorder: { borderWidth: 1, borderColor: "rgba(28,28,30,0.12)" },
-  cardLabel: { fontSize: 14, fontWeight: "700" },
+  cardLabel: { fontSize: 24, fontWeight: "700" },
 
+  // 半透明而非實心白：卡片會從 CTA 底下飄過去，透出來的移動色塊就是玻璃感的
+  // 來源。上緣一道亮邊模擬光線打在玻璃邊緣，跟 TopGlassNav 的 addInner 同手法。
+  // 真正的背景模糊要 expo-blur（原生模組，OTA 送不了），這裡刻意不用。
   cta: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(255,255,255,0.62)",
     borderRadius: 22,
     paddingHorizontal: 32,
     paddingVertical: 22,
     alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.85)",
+    borderTopWidth: 1.5,
+    borderTopColor: "rgba(255,255,255,0.9)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -278,5 +298,4 @@ const s = StyleSheet.create({
     elevation: 6,
   },
   ctaTitle: { fontSize: 15, fontWeight: "600", color: "#374254" },
-  ctaSub: { fontSize: 13, color: "#8e8e93", marginTop: 4 },
 });
