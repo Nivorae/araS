@@ -121,8 +121,10 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
       地方：`apps/mobile/.env:9`、`.env.production:25`、`eas.json` 的 preview:15
       與 production:36。用 flags 端點驗證過金鑰有效（錯的 key 會回 401）
 - [x] 用 Expo Go 驗證過事件確實送達 PostHog（2026-08-26，Activity 頁看得到進來的事件）
-- [ ] 出貨：**可以走 OTA**（純 JS，沒有新的原生模組）。照慣例 OTA 前先 grep
-      `.hbc` 確認沒有第二份 React
+- [x] 已於 2026-08-26 走 OTA 出貨（runtime version 1.3，update group
+      `59f41b0a`）。出貨前驗證過：`posthog-react-native` 只有 `dist/`、無
+      podspec、需要原生模組的 optional peer 全部未安裝；bundle 內 React 內部
+      唯一標記只出現 1 次（單一份 React）、無 LAN IP
 - [ ] `subscribe_success` 只能在 TestFlight／正式版驗證（Expo Go 沒有
       RevenueCat 原生模組）
 
