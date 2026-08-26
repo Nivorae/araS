@@ -34,6 +34,7 @@ import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import { DatePickerModal } from "./DatePickerModal";
 import { parseISODate, toISODate, todayISO, formatDisplayDate } from "@/lib/date";
 import { formatCurrency } from "@/lib/format";
+import { PAYWALL_SOURCES, trackRecordCreated } from "@/lib/analytics";
 import type { RepaymentType } from "@repo/shared";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -377,6 +378,9 @@ export function EntryForm({
           repaymentType: loanValues.repaymentType,
         });
         await fetchAll();
+        // 貸款走的是 /api/loans，但對使用者來說一樣是「新增了一筆負債紀錄」，
+        // 所以跟 addEntry 算同一個事件。isEdit 時不算，那不是新增。
+        if (!isEdit) void trackRecordCreated(topCategory);
       } else if (editBasicInfoOnly && entryId) {
         // Edit basic info only: update name + icon (金融卡). No `value` is sent,
         // so the backend creates no history line and the balance is untouched.
@@ -425,6 +429,9 @@ export function EntryForm({
             ...(isBankCard && selectedBank ? { bankCode: selectedBank.code } : {}),
             createdAt: date,
           });
+          // 埋在 addEntry 成功之後、onSaved() 之前：只有真的寫進後端才算一筆。
+          // 不 await —— 送事件要讀 AsyncStorage，沒有理由讓使用者多等。
+          void trackRecordCreated(topCategory);
         }
       }
       onSaved();
@@ -435,7 +442,10 @@ export function EntryForm({
           "身為重度用戶，你值得更大的空間。免費版可記 20 筆，升級 Premium 解鎖無上限，輕鬆管理。",
           [
             { text: "稍後再決定", style: "cancel" },
-            { text: "解鎖無上限", onPress: () => router.push("/paywall") },
+            {
+              text: "解鎖無上限",
+              onPress: () => router.push(`/paywall?source=${PAYWALL_SOURCES.ENTRY_LIMIT}`),
+            },
           ]
         );
         return;

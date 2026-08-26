@@ -5,6 +5,7 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { tokenCache } from "@/lib/tokenCache";
+import { initAnalytics, useAppOpenTracking } from "@/lib/analytics";
 import UpdateBanner from "@/components/UpdateBanner";
 import WhatsNewSheet from "@/components/WhatsNewSheet";
 import { configurePurchases } from "@/lib/purchases";
@@ -20,6 +21,10 @@ Sentry.init({
   // which makes triaging a production report needlessly hard.
   environment: __DEV__ ? "development" : "production",
 });
+
+// 行為分析。跟上面的 Sentry 一樣在模組載入時就啟動，這樣任何畫面第一次
+// 呼叫 track() 之前 client 一定已經存在；沒有金鑰時它自己會靜默停用。
+initAnalytics();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -56,6 +61,11 @@ function InitialLayout() {
 }
 
 export default Sentry.wrap(function RootLayout() {
+  // 掛在 root 而不是 InitialLayout：InitialLayout 在 <ClerkLoaded> 裡面，Clerk
+  // 載入失敗時它根本不會 mount，`app_open` 就會跟著消失 —— 而那正是最需要看到
+  // 數據的時候。理由同下面 UpdateBanner 的註解。
+  useAppOpenTracking();
+
   if (!publishableKey) {
     throw new Error(
       "Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY. Copy .env.example to .env and set it."

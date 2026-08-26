@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Check, X } from "lucide-react-native";
 import Purchases, { PURCHASES_ERROR_CODE, type PurchasesPackage } from "react-native-purchases";
 import { FREE_ENTRY_LIMIT } from "@repo/shared";
@@ -18,6 +18,7 @@ import { isPurchasesConfigured } from "@/lib/purchases";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
 import { useResponsive } from "@/hooks/useResponsive";
+import { ANALYTICS_EVENTS, toPaywallSource, track } from "@/lib/analytics";
 
 const PREMIUM_FEATURES = [
   `資產／負債無限新增（免費版上限 ${FREE_ENTRY_LIMIT} 筆）`,
@@ -70,6 +71,9 @@ const RENEWAL_DISCLOSURE =
 export default function PaywallScreen() {
   const { isTablet, contentWidth } = useResponsive();
   const router = useRouter();
+  // 每個 router.push("/paywall") 都會帶 ?source=…（見 PAYWALL_SOURCES）。
+  // 沒帶或帶了不認得的值一律收斂成 "unknown"，事件不會因此漏掉。
+  const { source } = useLocalSearchParams<{ source?: string }>();
   const { isPremium, refresh } = useIsPremium();
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +85,14 @@ export default function PaywallScreen() {
   // load there. In that case we show preview plans instead of a dead-end
   // message, and the CTA explains purchases only work in a real build.
   const previewMode = !isPurchasesConfigured();
+
+  // paywall_viewed：這個畫面 mount 就等於它顯示在使用者眼前（expo-router 的
+  // Stack 是 push 才 mount）。空依賴陣列 = 一次 push 只送一次，回上一頁再進來
+  // 是新的 mount、也就是新的一次曝光，這正是我們要算的。
+  useEffect(() => {
+    track(ANALYTICS_EVENTS.PAYWALL_VIEWED, { trigger_source: toPaywallSource(source) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isPurchasesConfigured()) {
@@ -116,6 +128,14 @@ export default function PaywallScreen() {
   }, [plans, selectedId]);
 
   const handlePurchase = useCallback(async () => {
+    const pkgForPlan = packages.find((p) => p.identifier === selectedId);
+    // 方案名稱用 RevenueCat 的 packageType（"ANNUAL"／"MONTHLY"…），不用畫面上
+    // 的中文標籤：後台的漏斗不該因為改文案而斷掉。preview 模式沒有真的
+    // package，就退回選取的 id。
+    const plan = pkgForPlan ? String(pkgForPlan.packageType) : (selectedId ?? "unknown");
+    // 「不論後續成功與否」—— 所以放在最前面，preview 模式與稍後的取消都算。
+    track(ANALYTICS_EVENTS.SUBSCRIBE_CLICKED, { plan });
+
     // Preview mode has no real package to buy (Expo Go / unconfigured store).
     if (previewMode) {
       Alert.alert(
@@ -124,11 +144,17 @@ export default function PaywallScreen() {
       );
       return;
     }
-    const pkg = packages.find((p) => p.identifier === selectedId);
+    const pkg = pkgForPlan;
     if (!pkg) return;
     setPurchasing(true);
     try {
-      await Purchases.purchasePackage(pkg);
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      // 是不是試用期：看 RevenueCat 回傳的 entitlement periodType。這裡只用來
+      // 分析，權限判定仍然只認後端（下面的 refresh()）。
+      const isTrial = Object.values(customerInfo?.entitlements?.active ?? {}).some(
+        (entitlement) => String(entitlement.periodType) === "TRIAL"
+      );
+      track(ANALYTICS_EVENTS.SUBSCRIBE_SUCCESS, { plan, is_trial: isTrial });
       // The backend learns of the purchase via Apple's server notification, so
       // re-read entitlement status now rather than waiting for the next app
       // launch — otherwise the just-upgraded user still reads as free.
