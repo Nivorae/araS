@@ -43,9 +43,11 @@ Apple 登入是原生流程、不開瀏覽器，不受影響 —— 與 8 月 OA
       冒充既有網站」。已把 Vercel Production 的 `NEXT_PUBLIC_APP_URL` 改為
       `https://arasasset.com` 並 redeploy，驗證 canonical/OG/robots/sitemap 全部
       指回自己且無雙斜線（細節見記憶 `project_web_seo_domain`）
-- [ ] **按下 Search Console 的「要求審查」**（說明文案在下方），送出後這裡打勾
-- [ ] 送審後到 Search Console 的 Sitemap 頁，替新的 `arasasset.com` 資源提交
-      `https://arasasset.com/sitemap.xml`（新資源不會繼承舊資源的提交紀錄）
+- [x] 2026-08-26 已按下 Search Console 的「要求審查」，附上下方的說明文案。
+      審查期間旗標仍在、警告照樣會閃，通常 1-3 天有結果
+- [ ] 待確認：Search Console 的 Sitemap 頁是否已替新的 `arasasset.com` 資源提交
+      `https://arasasset.com/sitemap.xml`（新資源不會繼承舊資源的提交紀錄）。
+      **這件事與旗標解除無關，純 SEO**，不影響審查結果
 - [ ] 未確認、目前不阻塞：App 警告畫面按「Show Details」顯示的確切 URL。若申訴
       被駁回才需要 —— 顯示 `clerk.arasasset.com/...` = 對上上述證據；顯示
       `accounts.google.com/...` 的某個頁面 = 另一條線（見記憶
