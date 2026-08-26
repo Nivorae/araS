@@ -45,9 +45,8 @@ Apple 登入是原生流程、不開瀏覽器，不受影響 —— 與 8 月 OA
       指回自己且無雙斜線（細節見記憶 `project_web_seo_domain`）
 - [x] 2026-08-26 已按下 Search Console 的「要求審查」，附上下方的說明文案。
       審查期間旗標仍在、警告照樣會閃，通常 1-3 天有結果
-- [ ] 待確認：Search Console 的 Sitemap 頁是否已替新的 `arasasset.com` 資源提交
-      `https://arasasset.com/sitemap.xml`（新資源不會繼承舊資源的提交紀錄）。
-      **這件事與旗標解除無關，純 SEO**，不影響審查結果
+- [x] 2026-08-26 已替新的 `arasasset.com` 資源提交
+      `https://arasasset.com/sitemap.xml`（純 SEO，與旗標解除無關）
 - [ ] 未確認、目前不阻塞：App 警告畫面按「Show Details」顯示的確切 URL。若申訴
       被駁回才需要 —— 顯示 `clerk.arasasset.com/...` = 對上上述證據；顯示
       `accounts.google.com/...` 的某個頁面 = 另一條線（見記憶
