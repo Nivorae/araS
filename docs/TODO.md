@@ -4,11 +4,53 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-08-21
+最後整理：2026-08-26
 
 ## 進行中
 
-### 1. 每月記帳提醒通知 — 已設計，尚未實作
+### 1. `arasasset.com` 被 Google Safe Browsing 標記 — 最高優先
+
+**症狀**：全新安裝、Google 登入完成後，會閃出整頁紅色 Safari
+「Deceptive Website Warning」（網址列顯示 accounts.google.com），約兩秒後自動
+消失並正常進入主頁。登入本身沒壞，但使用者看到的是「這個理財 App 要騙我的
+密碼和信用卡」。
+
+**根因（2026-08-26 查證）**：Google Transparency Report 的 Safe Browsing 狀態
+查詢中，`arasasset.com` 與 `clerk.arasasset.com` 都回傳狀態碼 **2**（第 3 類
+旗標 true），判定時間戳凍結在 **2026-08-21T07:23Z**；對照組 20 幾個網域
+（含 `ara-s-web.vercel.app` 與 9 個別家 Clerk FAPI 子網域如 `clerk.cal.com`、
+`clerk.linear.app`）全部回 1（乾淨）或 4（大型平台白名單），官方惡意測試站回 3。
+只有我們的網域回 2。兩個 host 時間戳完全相同 → 旗標下在根網域、子網域繼承。
+
+誤判成因：網域 2026-07-28 才註冊（RDAP 查證，無前手歷史），四週大的新網域 +
+登入表單 + 理財字眼 + 一個攔截 Google OAuth callback 的子網域 = 釣魚站的
+教科書外型。
+
+為什麼是「閃兩秒」而不是擋死：登入重導鏈是 accounts.google.com →
+`clerk.arasasset.com/v1/oauth_callback` → `saraasset://sso-callback`。Safari 的
+Safe Browsing 查詢是非同步的，回報時 deep link 已經打回 App、`setActive` 已成功，
+警告是在正要被關掉的瀏覽器裡渲染出來的。
+
+App 的 API 走 `ara-s-web.vercel.app`（乾淨），所以只有登入這段瀏覽器流程中槍。
+Apple 登入是原生流程、不開瀏覽器，不受影響 —— 與 8 月 OAuth lockout 同樣的分界線。
+
+- [ ] **在警告畫面按「Show Details」記下被擋的確切 URL**。顯示
+      `clerk.arasasset.com/v1/oauth_callback` = 對上上述證據；顯示
+      `accounts.google.com/...` 的某個頁面 = 另一條線（見記憶
+      `project_account_deletion_oauth_lockout`），處理方式不同
+- [ ] Search Console 把 `arasasset.com` 加成 Domain 資源 →「安全性問題」看
+      Google 認定的類別 → 要求審查（唯一有官方回覆的管道，誤判通常 1-3 天解除）
+- [ ] 併行送 Safe Browsing 誤判回報
+      `https://safebrowsing.google.com/safebrowsing/report_error/`，
+      `arasasset.com` 與 `clerk.arasasset.com` 各送一次
+- [ ] 每天用同一支 API 覆查狀態碼，回到 1 才算解除
+- 不做：**不改登入按鈕順序去推薦 Apple 登入**（2026-08-26 使用者否決，他自己
+  就以 Google 登入為主）
+- 最後手段、先不要做：把 Clerk FAPI 換到別的網域 —— 會換掉 publishable key、
+  必須 native rebuild + 重新送審，等申訴結果再說
+- 順帶：`www.arasasset.com` 沒有 DNS 記錄（NXDOMAIN），與本案無關但輸入 www 會連不上
+
+### 2. 每月記帳提醒通知 — 已設計，尚未實作
 
 Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design.md`
 （PR #96 合入）。本機通知，`expo-notifications` calendar trigger 每月 1 號 9:00
@@ -17,20 +59,6 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - [ ] 尚未開始寫 plan、尚未實作
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
   所以排程上適合跟下一次上架版本綁在一起做。
-
-### 2. 1.3 native 上架 — 已送出審查，等 Apple 核准
-
-`app.json` 已 bump 到 1.3（build 9），TestFlight 測過、ASC 已送出審查
-（2026-08-21）。含股利編輯（mobile + web，`expo-haptics` 長按觸覺回饋）+
-上個 session 的 UI 調整（設定頁鈴鐺、新增紀錄預覽卡、分類選擇器重設計、
-資產配置台股/美股比例）。App Store 名稱同時改為「araS資產紀錄」。
-
-- [x] `eas build` + `eas submit` 完成，build 9 上傳 App Store Connect
-- [x] TestFlight 驗證過
-- [x] ASC 新增版本 1.3、改名稱、貼文案、選 build 9、送出審查
-- [ ] 等 Apple 核准（通常 1-3 天）—— 核准後 `CHANGELOG.md` 的 1.3 標記
-      要從「審核中」改成「已上架」
-- [ ] 每月記帳提醒通知（上面第 1 項）這次沒一起上——下次原生打包再排。
 
 ### 3. 基金淨值更新（含境內外）— 設計階段
 
@@ -46,6 +74,31 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
       使用者輸入的名稱去搜尋比對、綁定官方代碼寫回 `stockCode`，之後每次按
       直接用代碼查
 - [ ] 尚未開始寫 spec / plan
+
+### 4. 行為分析漏斗（PostHog）— 已實作，等金鑰與發版
+
+程式碼已完成，說明文件在 `docs/analytics.md`。目的是把「下載後 7 天內
+0.6% 轉付費」拆成可觀測的五段，回答流失發生在哪一步。
+
+新增 `posthog-react-native`（無必要的原生模組，optional peer 全部沒裝，
+儲存退回已在用的 AsyncStorage），埋 7 個事件：`app_open`、
+`onboarding_complete`、`first_record_created`、`record_created`、
+`paywall_viewed`、`subscribe_clicked`、`subscribe_success`。
+原本 App 沒有任何引導流程、`onboarding_complete` 沒有東西可埋，所以在登入頁
+右上角加了一顆 ? 按鈕，開啟三步說明的 bottom sheet
+（`components/OnboardingSheet.tsx`）。**刻意不是首次啟動強制顯示** —— 登入頁
+本身就是第一個畫面，說明只在使用者主動想看時才出現。
+
+- [x] analytics 模組、七個埋點、說明 sheet、`docs/analytics.md`
+- [x] `pnpm type-check` / `pnpm lint` 通過；`expo export` 打包驗證過
+- [ ] **申請 PostHog project 並把 key 填進三個地方**（`.env`、
+      `.env.production`、`eas.json` 的 preview + production）—— 現在全部留空，
+      追蹤等同停用
+- [ ] 用 Expo Go 走一次 `docs/analytics.md` 第 7 節的手動測試步驟
+- [ ] 出貨：**可以走 OTA**（純 JS，沒有新的原生模組）。照慣例 OTA 前先 grep
+      `.hbc` 確認沒有第二份 React
+- [ ] `subscribe_success` 只能在 TestFlight／正式版驗證（Expo Go 沒有
+      RevenueCat 原生模組）
 
 ## 已評估、暫不執行
 
