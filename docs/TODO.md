@@ -50,8 +50,13 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - [x] `app.json` 的 `plugins` 加入 `expo-notifications`；root layout 設定前景
       顯示 handler 與「點通知回首頁」的 response listener
 - [x] `pnpm lint` / `type-check` / `test`（225 tests）全數通過
-- [ ] Expo Go 實機驗證：把 trigger 暫時改成幾分鐘後，確認排程／取消／點擊導向，
-      驗完改回 `day: 1, hour: 9`
+- [x] 2026-08-28 Expo Go 實機驗證通過：通知確實跳出來（背景與滑掉都會響 ——
+      排程交給 iOS 通知中心，不歸 App 管）。常數已改回 `1 / 9 / 0`
+- [x] 驗證時發現的坑，已用開發模式的「查看已排程通知」卡片解掉：改了程式碼的
+      常數再 reload **不會生效** —— iOS 的重複排程歸系統管，`syncMonthlyReminder`
+      看到已經有一筆就不重排。要重排必須關開關再打開、或改一次時間
+- [ ] 剩下「點通知回首頁」這段：Expo Go 裡通知掛在 Expo Go 名下，完全滑掉時
+      點擊只會開 Expo Go 首頁，要等 TestFlight／正式版才驗得準
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，且 `app.json` 的
   `plugins` 已變更，OTA 送不了），所以要跟下一次上架版本綁在一起發。
 
