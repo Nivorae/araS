@@ -114,6 +114,39 @@ export async function syncMonthlyReminder(enabled: boolean, time: ReminderTime):
   await scheduleMonthlyReminder(time);
 }
 
+/**
+ * 開發模式用：把 OS 目前真正排了什麼講出來。
+ *
+ * 沒有這個東西時，「改了程式碼卻沒有通知」有兩種完全不同的原因看起來一模一樣：
+ * 排程根本沒被重建（舊的那筆還在，帶著舊的日期時間），或是排程建好了但下一次
+ * 觸發時間在未來很遠的地方。兩者都只能靠讀出實際排程來分辨。
+ */
+export async function describeScheduledReminders(): Promise<string> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  if (scheduled.length === 0) return "系統裡沒有任何已排程的通知。";
+
+  const lines = await Promise.all(
+    scheduled.map(async (request) => {
+      const trigger = request.trigger as unknown as Record<string, unknown> | null;
+      let next = "";
+      try {
+        // 這支在 trigger 形狀不受支援時會丟例外，所以包起來 —— 診斷工具本身
+        // 不該是壞掉的那一個。
+        const ms = trigger
+          ? await Notifications.getNextTriggerDateAsync(
+              request.trigger as Parameters<typeof Notifications.getNextTriggerDateAsync>[0]
+            )
+          : null;
+        if (typeof ms === "number") next = `\n下次觸發：${new Date(ms).toLocaleString("zh-TW")}`;
+      } catch {
+        next = "\n下次觸發：無法計算";
+      }
+      return `id: ${request.identifier}${next}\ntrigger: ${JSON.stringify(trigger)}`;
+    })
+  );
+  return lines.join("\n\n");
+}
+
 export type PermissionOutcome = "granted" | "denied" | "blocked";
 
 export async function getPermissionStatus(): Promise<PermissionOutcome> {

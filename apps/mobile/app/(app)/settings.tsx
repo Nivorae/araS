@@ -37,6 +37,7 @@ import { parseWhatsNew } from "@/lib/whatsNew";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
 import { useMonthlyReminder } from "@/hooks/useMonthlyReminder";
 import { TimePickerModal, formatTime } from "@/components/TimePickerModal";
+import { describeScheduledReminders } from "@/lib/notifications";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -260,6 +261,21 @@ export default function SettingsScreen() {
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const reminder = useMonthlyReminder();
   const [timePickerOpen, setTimePickerOpen] = useState(false);
+
+  /**
+   * 開發模式限定：把 OS 實際排了什麼印出來。
+   *
+   * 改了 `notifications.ts` 的常數卻沒收到通知，最常見的原因是排程根本沒被重建
+   * —— iOS 的重複排程會一直留著，`syncMonthlyReminder` 看到「已經有一筆」就不會
+   * 覆蓋。這顆按鈕能一眼分辨是「沒重排」還是「排到很遠的未來」。
+   */
+  async function showScheduledReminders() {
+    try {
+      Alert.alert("已排程的通知", await describeScheduledReminders());
+    } catch (e) {
+      Alert.alert("讀取失敗", e instanceof Error ? e.message : "請稍後再試");
+    }
+  }
   const [deleting, setDeleting] = useState(false);
   const [devToggling, setDevToggling] = useState(false);
   // The avatar is now the only entry point to 登出, so the menu it opens is
@@ -416,6 +432,13 @@ export default function SettingsScreen() {
             ) : null}
             {__DEV__ ? (
               <>
+                <SettingCard
+                  icon={BellRing}
+                  label="查看已排程通知（僅開發模式）"
+                  color="#5856D6"
+                  textColor="#ffffff"
+                  onPress={() => void showScheduledReminders()}
+                />
                 <SettingCard
                   icon={Check}
                   label="模擬升級（僅開發模式）"
