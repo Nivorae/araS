@@ -44,6 +44,9 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
       時開關會自動退回關閉，不會顯示「開」但永遠不響
 - [x] 設定頁新增 Switch 卡片變體（`SettingSwitchCard`），權限被永久拒絕時改跳
       App 內 Alert 引導去系統設定，開關留在關閉
+- [x] 2026-08-28 追加：提醒時間可調（點卡片上的時間開 `TimePickerModal`，
+      分鐘 5 分一級、純 JS 無新原生依賴）。日期仍固定每月 1 號。設計文件原本
+      寫「不做時間選擇器」，已標記推翻
 - [x] `app.json` 的 `plugins` 加入 `expo-notifications`；root layout 設定前景
       顯示 handler 與「點通知回首頁」的 response listener
 - [x] `pnpm lint` / `type-check` / `test`（225 tests）全數通過

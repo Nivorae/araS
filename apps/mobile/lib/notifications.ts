@@ -12,9 +12,19 @@ import { Platform } from "react-native";
 /** 固定的排程 id，讓「取消」不需要先查 id、重排也不會留下第二份。 */
 const IDENTIFIER = "monthly-record-reminder";
 
-/** 每月 1 號 9:00。時間刻意不開放自訂（見設計文件的 YAGNI 段）。 */
+/**
+ * 日期固定每月 1 號 —— 「回來記上個月的帳」只有月初有意義，開放選日期只是讓
+ * 使用者多做一個沒有正確答案的決定。時間則可調（預設 9:00），因為 9 點對上班
+ * 族與夜貓子的意義完全不同。
+ */
 const DAY_OF_MONTH = 1;
-const HOUR = 9;
+export const DEFAULT_HOUR = 9;
+export const DEFAULT_MINUTE = 0;
+
+export interface ReminderTime {
+  hour: number;
+  minute: number;
+}
 
 const CONTENT: Notifications.NotificationContentInput = {
   title: "該記錄本月資產了",
@@ -41,10 +51,10 @@ export function configureNotificationHandler() {
 }
 
 /**
- * 下一個「1 號 9:00」的絕對時間，給不支援月曆重複觸發的平台用。
+ * 下一個「1 號 hh:mm」的絕對時間，給不支援月曆重複觸發的平台用。
  */
-function nextOccurrence(from = new Date()): Date {
-  const next = new Date(from.getFullYear(), from.getMonth(), DAY_OF_MONTH, HOUR, 0, 0, 0);
+function nextOccurrence({ hour, minute }: ReminderTime, from = new Date()): Date {
+  const next = new Date(from.getFullYear(), from.getMonth(), DAY_OF_MONTH, hour, minute, 0, 0);
   if (next <= from) next.setMonth(next.getMonth() + 1);
   return next;
 }
@@ -56,29 +66,32 @@ function nextOccurrence(from = new Date()): Date {
  * Android 沒有等價的月曆觸發，只能排單一時間點，所以那邊改排「下一次」，
  * 並在每次 App 回到前景時由 `syncMonthlyReminder()` 重新續約。
  */
-function trigger(): Notifications.NotificationTriggerInput {
+function trigger(time: ReminderTime): Notifications.NotificationTriggerInput {
   if (Platform.OS === "ios") {
     return {
       type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
       day: DAY_OF_MONTH,
-      hour: HOUR,
-      minute: 0,
+      hour: time.hour,
+      minute: time.minute,
       repeats: true,
     };
   }
   return {
     type: Notifications.SchedulableTriggerInputTypes.DATE,
-    date: nextOccurrence(),
+    date: nextOccurrence(time),
   };
 }
 
-/** 排定提醒。重複呼叫是安全的 —— 同一個 id 會覆蓋掉舊的排程。 */
-export async function scheduleMonthlyReminder(): Promise<void> {
+/**
+ * 排定提醒。重複呼叫是安全的 —— 同一個 id 會覆蓋掉舊的排程，所以改時間就是
+ * 直接再排一次，不必先手動取消。
+ */
+export async function scheduleMonthlyReminder(time: ReminderTime): Promise<void> {
   await cancelMonthlyReminder();
   await Notifications.scheduleNotificationAsync({
     identifier: IDENTIFIER,
     content: CONTENT,
-    trigger: trigger(),
+    trigger: trigger(time),
   });
 }
 
@@ -95,10 +108,10 @@ export async function isMonthlyReminderScheduled(): Promise<boolean> {
  * Android 的續約：開關開著、但排程已經觸發過（或從未排過）就補排一次。
  * iOS 的重複排程不會消失，這裡自然什麼都不做。
  */
-export async function syncMonthlyReminder(enabled: boolean): Promise<void> {
+export async function syncMonthlyReminder(enabled: boolean, time: ReminderTime): Promise<void> {
   if (!enabled) return;
   if (await isMonthlyReminderScheduled()) return;
-  await scheduleMonthlyReminder();
+  await scheduleMonthlyReminder(time);
 }
 
 export type PermissionOutcome = "granted" | "denied" | "blocked";

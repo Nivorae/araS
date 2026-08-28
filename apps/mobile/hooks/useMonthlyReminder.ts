@@ -7,22 +7,46 @@ import {
   getPermissionStatus,
   scheduleMonthlyReminder,
   syncMonthlyReminder,
+  DEFAULT_HOUR,
+  DEFAULT_MINUTE,
+  type ReminderTime,
 } from "@/lib/notifications";
 
 const STORAGE_KEY = "settings.monthlyReminderEnabled";
+const TIME_KEY = "settings.monthlyReminderTime";
+
+const DEFAULT_TIME: ReminderTime = { hour: DEFAULT_HOUR, minute: DEFAULT_MINUTE };
+
+/** "09:00" → { hour: 9, minute: 0 }。存壞或沒存過都退回預設值。 */
+function parseTime(raw: string | null): ReminderTime {
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(raw ?? "");
+  if (!m) return DEFAULT_TIME;
+  const hour = Number(m[1]);
+  const minute = Number(m[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return DEFAULT_TIME;
+  return { hour, minute };
+}
+
+function serializeTime({ hour, minute }: ReminderTime): string {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
 
 /**
- * 設定頁那顆「每月記帳提醒」開關的狀態。
+ * 設定頁那顆「每月記帳提醒」開關與它的時間。
  *
  * 畫面狀態必須對齊 OS 的實際權限，不能只信任 AsyncStorage —— 使用者隨時可以
  * 在系統設定裡關掉通知，那時開關顯示「開」但其實永遠不會響，比沒有這個功能
  * 更糟。所以：載入時對一次、每次 App 回到前景再對一次。
+ *
+ * 日期固定每月 1 號，只有時間可調（見 `lib/notifications.ts` 的說明）。
  */
 export function useMonthlyReminder() {
   const [enabled, setEnabled] = useState(false);
+  const [time, setTimeState] = useState<ReminderTime>(DEFAULT_TIME);
   const [loading, setLoading] = useState(true);
   // 權限檢查是非同步的，AppState 的 callback 讀 state 會讀到閉包裡的舊值。
   const enabledRef = useRef(false);
+  const timeRef = useRef(DEFAULT_TIME);
 
   const apply = useCallback(async (next: boolean) => {
     enabledRef.current = next;
@@ -32,8 +56,15 @@ export function useMonthlyReminder() {
 
   /** 把畫面狀態拉回與 OS 權限一致，必要時順手續約 Android 的單次排程。 */
   const reconcile = useCallback(async () => {
-    const stored = (await AsyncStorage.getItem(STORAGE_KEY)) === "1";
-    if (!stored) {
+    const [storedEnabled, storedTime] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEY),
+      AsyncStorage.getItem(TIME_KEY),
+    ]);
+    const parsed = parseTime(storedTime);
+    timeRef.current = parsed;
+    setTimeState(parsed);
+
+    if (storedEnabled !== "1") {
       await apply(false);
       return;
     }
@@ -44,7 +75,7 @@ export function useMonthlyReminder() {
       return;
     }
     await apply(true);
-    await syncMonthlyReminder(true).catch(() => {});
+    await syncMonthlyReminder(true, parsed).catch(() => {});
   }, [apply]);
 
   useEffect(() => {
@@ -81,7 +112,7 @@ export function useMonthlyReminder() {
           return;
         }
 
-        await scheduleMonthlyReminder();
+        await scheduleMonthlyReminder(timeRef.current);
         await apply(true);
       } catch {
         // 排程/取消失敗很罕見（通常是系統層級問題），但不能 silent fail ——
@@ -95,5 +126,24 @@ export function useMonthlyReminder() {
     [apply, loading]
   );
 
-  return { enabled, loading, toggle };
+  /**
+   * 換時間。開關關著時只記下來（下次打開就用新時間），開著時立刻重排 ——
+   * 同一個排程 id 會覆蓋掉舊的，不會留下兩個提醒。
+   */
+  const setTime = useCallback(async (hour: number, minute: number) => {
+    const next: ReminderTime = { hour, minute };
+    const previous = timeRef.current;
+    timeRef.current = next;
+    setTimeState(next);
+    try {
+      await AsyncStorage.setItem(TIME_KEY, serializeTime(next));
+      if (enabledRef.current) await scheduleMonthlyReminder(next);
+    } catch {
+      timeRef.current = previous;
+      setTimeState(previous);
+      Alert.alert("設定失敗", "提醒時間沒有更新，請稍後再試。");
+    }
+  }, []);
+
+  return { enabled, loading, time, toggle, setTime };
 }

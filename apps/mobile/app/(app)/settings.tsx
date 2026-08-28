@@ -36,6 +36,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { parseWhatsNew } from "@/lib/whatsNew";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
 import { useMonthlyReminder } from "@/hooks/useMonthlyReminder";
+import { TimePickerModal, formatTime } from "@/components/TimePickerModal";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -184,6 +185,11 @@ function SettingCard({
  * differences are that the whole card toggles instead of navigating, and it
  * carries a second line of explanatory text, because "每月提醒" alone does not
  * say when the notification arrives.
+ *
+ * `onHintPress` turns that second line into its own tap target (the reminder's
+ * time). It sits inside the switch row rather than under it so the card stays
+ * one object: label and time read as a sentence, and the switch still owns the
+ * rest of the surface.
  */
 function SettingSwitchCard({
   icon: Icon,
@@ -194,6 +200,7 @@ function SettingSwitchCard({
   value,
   disabled,
   onValueChange,
+  onHintPress,
 }: {
   icon: LucideIcon;
   label: string;
@@ -203,6 +210,7 @@ function SettingSwitchCard({
   value: boolean;
   disabled?: boolean;
   onValueChange: (next: boolean) => void;
+  onHintPress?: () => void;
 }) {
   return (
     <View style={[s.card, { backgroundColor: color }]}>
@@ -216,7 +224,20 @@ function SettingSwitchCard({
         <Icon size={20} color={textColor} />
         <View style={s.switchText}>
           <Text style={[s.cardLabel, { color: textColor }]}>{label}</Text>
-          <Text style={[s.cardHint, { color: textColor }]}>{hint}</Text>
+          {onHintPress ? (
+            <Pressable
+              onPress={onHintPress}
+              disabled={disabled}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`${label}時間，目前 ${hint}`}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <Text style={[s.cardHint, s.cardHintLink, { color: textColor }]}>{hint}</Text>
+            </Pressable>
+          ) : (
+            <Text style={[s.cardHint, { color: textColor }]}>{hint}</Text>
+          )}
         </View>
         <Switch
           value={value}
@@ -238,6 +259,7 @@ export default function SettingsScreen() {
   const api = useApi();
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const reminder = useMonthlyReminder();
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [devToggling, setDevToggling] = useState(false);
   // The avatar is now the only entry point to 登出, so the menu it opens is
@@ -420,12 +442,13 @@ export default function SettingsScreen() {
             <SettingSwitchCard
               icon={BellRing}
               label="每月記帳提醒"
-              hint="每月 1 號 9:00 提醒你更新資產"
+              hint={`每月 1 號 ${formatTime(reminder.time.hour, reminder.time.minute)}・點這裡改時間`}
               color="#FFFFFF"
               textColor="#1c1c1e"
               value={reminder.enabled}
               disabled={reminder.loading}
               onValueChange={(next) => void reminder.toggle(next)}
+              onHintPress={() => setTimePickerOpen(true)}
             />
             <SettingCard
               icon={Trash2}
@@ -490,6 +513,15 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* 提醒時間。日期固定每月 1 號，所以只選時分。 */}
+      <TimePickerModal
+        visible={timePickerOpen}
+        hour={reminder.time.hour}
+        minute={reminder.time.minute}
+        onConfirm={(hour, minute) => void reminder.setTime(hour, minute)}
+        onClose={() => setTimePickerOpen(false)}
+      />
 
       {/* Update-notes modal: read-only display of app.json's whatsNew. */}
       <Modal
@@ -589,6 +621,7 @@ const s = StyleSheet.create({
   },
   cardLabel: { fontSize: 16, fontWeight: "700" },
   cardHint: { fontSize: 12, opacity: 0.6, marginTop: 2 },
+  cardHintLink: { textDecorationLine: "underline" },
   switchText: { flex: 1 },
 
   dangerHint: { fontSize: 13, color: "#8e8e93", marginTop: 16, textAlign: "center" },
