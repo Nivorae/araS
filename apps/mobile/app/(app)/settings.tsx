@@ -9,6 +9,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -21,6 +22,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import {
   ArrowLeft,
   Bell,
+  BellRing,
   Check,
   CreditCard,
   LogOut,
@@ -33,6 +35,7 @@ import { useIsPremium } from "@/hooks/useIsPremium";
 import { useResponsive } from "@/hooks/useResponsive";
 import { parseWhatsNew } from "@/lib/whatsNew";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
+import { useMonthlyReminder } from "@/hooks/useMonthlyReminder";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -176,6 +179,56 @@ function SettingCard({
   );
 }
 
+/**
+ * The on/off variant of the card above. Same geometry and shadow — the only
+ * differences are that the whole card toggles instead of navigating, and it
+ * carries a second line of explanatory text, because "每月提醒" alone does not
+ * say when the notification arrives.
+ */
+function SettingSwitchCard({
+  icon: Icon,
+  label,
+  hint,
+  color,
+  textColor,
+  value,
+  disabled,
+  onValueChange,
+}: {
+  icon: LucideIcon;
+  label: string;
+  hint: string;
+  color: string;
+  textColor: string;
+  value: boolean;
+  disabled?: boolean;
+  onValueChange: (next: boolean) => void;
+}) {
+  return (
+    <View style={[s.card, { backgroundColor: color }]}>
+      <Pressable
+        onPress={() => onValueChange(!value)}
+        disabled={disabled}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: value, disabled: !!disabled }}
+        style={({ pressed }) => [s.cardPress, { opacity: disabled ? 0.6 : pressed ? 0.85 : 1 }]}
+      >
+        <Icon size={20} color={textColor} />
+        <View style={s.switchText}>
+          <Text style={[s.cardLabel, { color: textColor }]}>{label}</Text>
+          <Text style={[s.cardHint, { color: textColor }]}>{hint}</Text>
+        </View>
+        <Switch
+          value={value}
+          disabled={disabled}
+          onValueChange={onValueChange}
+          trackColor={{ false: "#c7c7cc", true: "#34C759" }}
+        />
+      </Pressable>
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const { isTablet, contentWidth, width, height } = useResponsive();
   const insets = useSafeAreaInsets();
@@ -184,6 +237,7 @@ export default function SettingsScreen() {
   const { user } = useUser();
   const api = useApi();
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
+  const reminder = useMonthlyReminder();
   const [deleting, setDeleting] = useState(false);
   const [devToggling, setDevToggling] = useState(false);
   // The avatar is now the only entry point to 登出, so the menu it opens is
@@ -360,6 +414,19 @@ export default function SettingsScreen() {
                 />
               </>
             ) : null}
+            {/* Local scheduled notification, off by default — the permission
+                prompt only appears when the user reaches for it here, which is
+                Apple's recommended contextual request. */}
+            <SettingSwitchCard
+              icon={BellRing}
+              label="每月記帳提醒"
+              hint="每月 1 號 9:00 提醒你更新資產"
+              color="#FFFFFF"
+              textColor="#1c1c1e"
+              value={reminder.enabled}
+              disabled={reminder.loading}
+              onValueChange={(next) => void reminder.toggle(next)}
+            />
             <SettingCard
               icon={Trash2}
               label={deleting ? "刪除中…" : "刪除帳號"}
@@ -521,6 +588,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
   },
   cardLabel: { fontSize: 16, fontWeight: "700" },
+  cardHint: { fontSize: 12, opacity: 0.6, marginTop: 2 },
+  switchText: { flex: 1 },
 
   dangerHint: { fontSize: 13, color: "#8e8e93", marginTop: 16, textAlign: "center" },
 
