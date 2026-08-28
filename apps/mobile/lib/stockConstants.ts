@@ -14,6 +14,12 @@ export const INVESTMENT_CATS = [
 
 export const STOCK_CATS = ["台股", "美股", "加密貨幣", "貴金屬"] as const;
 
+/**
+ * 基金不在 STOCK_CATS 裡 —— 它的報價來源是官方每日淨值（/api/funds），不是
+ * Yahoo，`buildYfSymbol` 對它沒有意義。
+ */
+export const FUND_SUBCATEGORY = "投資基金";
+
 export const LOAN_SUBCATS = ["貸款"] as const;
 
 export const METAL_YF_SYMBOL: Record<string, string> = {

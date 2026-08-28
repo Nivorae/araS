@@ -52,20 +52,30 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，且 `app.json` 的
   `plugins` 已變更，OTA 送不了），所以要跟下一次上架版本綁在一起發。
 
-### 3. 基金淨值更新（含境內外）— 設計階段
+### 3. 基金淨值更新（含境內外）— 已實作，等實機驗證
 
-- [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
-      `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，
-      單次回應含基金代碼、名稱、淨值、淨值日期、計價幣別、ISIN（整包 dump，
-      5,990 檔，360KB，建議 server 端快取 12h 再讓 App 查單一檔）
-- [ ] 境內基金資料源尚未確認（TDCC 沒有，歸投信投顧公會 SITCA 管，其官網是
-      ASP.NET viewstate，還沒驗證是否有其他免費 JSON 源）
-- [ ] 定案：`Entry.stockCode` 存基金代碼（沿用既有多型欄位，不需 migration）；
-      淨值/幣別 on-demand 抓取、不落地存資料庫（跟美股現在的模式一致）
-- [ ] 使用情境已定案：entry 清單/詳情頁上的「獲取淨值」按鈕，第一次按時用
-      使用者輸入的名稱去搜尋比對、綁定官方代碼寫回 `stockCode`，之後每次按
-      直接用代碼查
-- [ ] 尚未開始寫 spec / plan
+設計與實測踩到的坑記在
+`docs/superpowers/specs/2026-08-28-fund-nav-design.md`。
+
+- [x] 境內資料源找到了：投信投顧公會 (SITCA) 每日淨值 CSV，掛在政府資料開放
+      平臺 dataset 11109 —— 不必爬那個 ASP.NET viewstate 網站。約 600KB／
+      4,244 檔。TDCC 只有境外與期信基金，沒有境內
+- [x] 境外：TDCC open data 3-4，約 8.5MB／5,975 檔
+- [x] `apps/web/services/funds.service.ts`：兩來源解析＋合併，模組層記憶體快取
+      12h（8.5MB 超過 Next Data Cache 單筆 2MB 上限），併發共用同一次下載，
+      單一來源掛掉仍然回得出另一邊
+- [x] `GET /api/funds/search`、`GET /api/funds/quote`，兩支都自我保護並列入
+      middleware 的 `auth.protect()` 名單
+- [x] `Entry.stockCode` 存官方代碼（境內用基金統編、境外用 TDCC 代碼，兩邊
+      代碼空間實測無交集），不需要 migration
+- [x] App：詳情頁「獲取淨值／更新淨值」按鈕 + `FundPickerSheet` 綁定流程 +
+      「重新選擇基金」；綁過的基金併入 `useInvestmentMarketValues`，清單與
+      總覽的市值跟著更新
+- [x] 15 個服務測試（含四個真實踩到的資料坑：基金代號跨投信重複、TDCC 的
+      -9999 哨兵值、空字串變 0、兩份檔案 BOM 位置不同）
+- [ ] 實機驗證：拿一檔真實持有的基金走一次「搜尋 → 綁定 → 更新淨值」，確認
+      市值與損益數字合理
+- 註：這部分是純 JS + 後端，可以 OTA；但會跟第 2 項的原生改動同一批發。
 
 ## 已評估、暫不執行
 

@@ -5,6 +5,7 @@ const isProtectedProxy = createRouteMatcher([
   "/api/exchange-rate(.*)",
   "/api/cathaylife-rates(.*)",
   "/api/quotes(.*)",
+  "/api/funds(.*)",
 ]);
 
 export default clerkMiddleware((auth, req) => {
