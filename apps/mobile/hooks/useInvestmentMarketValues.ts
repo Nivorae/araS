@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "@/lib/api";
 import { useFinanceStore } from "@/store/financeStore";
-import { STOCK_CATS, FUND_SUBCATEGORY, buildYfSymbol } from "@/lib/stockConstants";
+import {
+  STOCK_CATS,
+  FUND_SUBCATEGORY,
+  FUND_NAV_ENABLED,
+  buildYfSymbol,
+} from "@/lib/stockConstants";
 import { fetchFundQuote } from "@/lib/funds";
 
 const STOCK_SET: readonly string[] = STOCK_CATS;
@@ -12,7 +17,8 @@ const STOCK_SET: readonly string[] = STOCK_CATS;
  * 沒綁的基金就沿用成本，跟抓不到報價的股票同樣處理。
  */
 function isPriceable(subCategory: string): boolean {
-  return STOCK_SET.includes(subCategory) || subCategory === FUND_SUBCATEGORY;
+  if (subCategory === FUND_SUBCATEGORY) return FUND_NAV_ENABLED;
+  return STOCK_SET.includes(subCategory);
 }
 
 /**

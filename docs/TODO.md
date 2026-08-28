@@ -60,7 +60,7 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
 - 註：**需要 native rebuild**（`expo-notifications` 是原生模組，且 `app.json` 的
   `plugins` 已變更，OTA 送不了），所以要跟下一次上架版本綁在一起發。
 
-### 3. 基金淨值更新（含境內外）— 已實作，等實機驗證
+### 3. 基金淨值更新（含境內外）— 已完成，但入口先關著
 
 設計與實測踩到的坑記在
 `docs/superpowers/specs/2026-08-28-fund-nav-design.md`。
@@ -81,8 +81,11 @@ Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design
       總覽的市值跟著更新
 - [x] 15 個服務測試（含四個真實踩到的資料坑：基金代號跨投信重複、TDCC 的
       -9999 哨兵值、空字串變 0、兩份檔案 BOM 位置不同）
-- [ ] 實機驗證：拿一檔真實持有的基金走一次「搜尋 → 綁定 → 更新淨值」，確認
-      市值與損益數字合理
+- [x] 2026-08-28 實機驗證通過：搜尋 → 綁定 → 更新淨值 → 市值都正確
+- [x] 2026-08-28 決定**先不對使用者放出來**：開關是
+      `apps/mobile/lib/stockConstants.ts` 的 `FUND_NAV_ENABLED`（現為 `false`）。
+      關著時詳情頁沒有按鈕、不抓淨值、已綁定的基金也不併入清單市值。後端與測試
+      照常留著，要放出來改一行即可
 - 註：這部分是純 JS + 後端，可以 OTA；但會跟第 2 項的原生改動同一批發。
 
 ## 已評估、暫不執行

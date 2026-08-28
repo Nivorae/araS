@@ -34,6 +34,7 @@ import { fetchFundQuote, formatNavDate, type FundSearchResult } from "@/lib/fund
 import {
   STOCK_CATS,
   FUND_SUBCATEGORY,
+  FUND_NAV_ENABLED,
   buildYfSymbol as _buildYfSymbol,
 } from "@/lib/stockConstants";
 const STOCK_PICKER_CATEGORIES: readonly string[] = STOCK_CATS;
@@ -206,7 +207,9 @@ export default function EntryDetailScreen() {
     !!entry && STOCK_PICKER_CATEGORIES.includes(entry.subCategory) && !!entry.stockCode;
   // 基金走的是淨值（不是股價），但成本、市值、損益的算法與股票完全相同，所以
   // 兩者共用底下同一組 currentPrice / P&L 狀態，只有取價來源與標籤不一樣。
-  const isFundEntry = !!entry && entry.subCategory === FUND_SUBCATEGORY;
+  // FUND_NAV_ENABLED 關著時，基金就跟功能沒做過一樣：沒有按鈕、不抓淨值、
+  // 金額維持成本價。已經綁好的 stockCode 留在資料裡，開回來立刻可用。
+  const isFundEntry = FUND_NAV_ENABLED && !!entry && entry.subCategory === FUND_SUBCATEGORY;
   const hasQuote = isStockEntry || (isFundEntry && !!entry?.stockCode);
 
   // Rows land in the store, so the selector above picks them up. useFocusRefresh

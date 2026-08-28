@@ -20,6 +20,22 @@ export const STOCK_CATS = ["台股", "美股", "加密貨幣", "貴金屬"] as c
  */
 export const FUND_SUBCATEGORY = "投資基金";
 
+/**
+ * 基金淨值功能的總開關。
+ *
+ * 2026-08-28 實機驗證通過（搜尋 → 綁定 → 取淨值 → 市值都正確），但決定先不
+ * 對使用者放出來，所以整條入口關掉：詳情頁的「獲取淨值／更新淨值」按鈕、
+ * 「重新選擇基金」，以及已綁定基金併入清單市值的行為。
+ *
+ * 關的是入口不是程式碼 —— 後端 `/api/funds/*` 與服務層照常存在（有測試守著），
+ * 要放出來時把這裡改成 `true` 就好，不需要重寫任何東西。已經綁在
+ * `Entry.stockCode` 上的基金代碼也留著，開回來就直接能用。
+ */
+// 明確標成 boolean 而不是讓它推論成字面型別 `false` —— 否則 TypeScript 會把
+// 旗標後面所有程式碼視為永遠不會執行，型別收窄出一堆 never，改回 true 的那天
+// 反而要先跟編譯器打一架。
+export const FUND_NAV_ENABLED: boolean = false;
+
 export const LOAN_SUBCATS = ["貸款"] as const;
 
 export const METAL_YF_SYMBOL: Record<string, string> = {
