@@ -6,87 +6,58 @@
 
 最後整理：2026-08-28
 
-## 進行中
+## 下一步（下週從這裡接手）
 
-### 1. `arasasset.com` Safe Browsing 旗標 — 已解除（2026-08-27）
+PR #121 已於 2026-08-28 合併進 `develop`（merge commit `2a57eac`），內容是：
+每月記帳提醒（含可調時間）、基金淨值（入口先關著）、網址尾斜線修正。
+`pnpm lint` / `type-check` / `test`（web 240 + shared 12）在合併前全綠。
 
-Google 於 2026-08-27 來信通知安全性審核完成，判定網域不含惡意內容、警告訊息
-即將撤下。覆查 Transparency Report 狀態 API，`arasasset.com` 與
-`clerk.arasasset.com` 都已從 **2**（flagged）回到 **1**（乾淨）、所有分類旗標
-false、時間戳不再凍結在 2026-08-21。全新安裝 Google 登入時閃紅色
-「Deceptive Website Warning」的問題隨之結束。
+剩下兩件事，順序無關：
 
-旗標是誤判（新註冊網域 + 登入表單 + 理財字眼 + 攔 OAuth callback 的子網域）。
-處理過程與證據留在記憶 `project_safe_browsing_domain_flag`。順手做掉的
-`NEXT_PUBLIC_APP_URL` → `https://arasasset.com` 修正（canonical/OG 不再冒充舊站）
-本身是對的，維持現狀。
+### A. `www.arasasset.com` 的 DNS — 只能在後台做
 
-- [x] 2026-08-27 實機驗證：重新用 Google 登入，紅色警告畫面已不再出現。本案結案
-- [x] 2026-08-28 尾斜線的坑修掉了：三處各自重複的 `NEXT_PUBLIC_APP_URL` 讀取
-      收斂成 `apps/web/lib/site-url.ts`，在那裡一次 `.replace(/\/+$/, "")`。
-      `robots.ts`／`sitemap.ts`／`layout.tsx` 都改讀它
-- [ ] 順帶、與本案無關：`www.arasasset.com` 沒有 DNS 記錄（NXDOMAIN，2026-08-28
-      覆查仍然如此），輸入 www 會連不上。**這件事只能在 Cloudflare + Vercel 後台
-      做，程式碼動不了**：Vercel 專案 Domains 加 `www.arasasset.com` 並設成
-      redirect 到 apex，再照它給的值在 Cloudflare 加一筆 CNAME（proxy 關閉）
+現況：**NXDOMAIN**，輸入 www 會連不上（apex `arasasset.com` 正常，A 記錄指向
+`216.198.79.65` / `64.29.17.65`）。
 
-### 2. 每月記帳提醒通知 — 已實作，等實機驗證與發版
+- [ ] Vercel → 專案 → Domains → **Add Existing** → `www.arasasset.com`
+      ⚠️ **不要**去改 apex 那一列的設定，它必須維持
+      「Connect to an environment → Production」。在 apex 上按到 Redirect 會讓
+      正式站整個重導出去
+- [ ] 照 Vercel 給的值在 Cloudflare 加 CNAME（通常是 `www → cname.vercel-dns.com`），
+      **Proxy status 必須是 DNS only（灰雲）** —— 開橘雲 Vercel 簽不到憑證
+- [ ] 等 www 那列變 Valid Configuration，再在**那一列**按 Edit →
+      Redirect to Another Domain → `arasasset.com` → 把 307 改成 **308 Permanent**
+      （永久重導才會把 SEO 權重併到 apex，307 會讓兩個網址各自獨立）
+- [ ] 弄完覆查：DNS 有記錄、`https://www.arasasset.com` 回 308 且 Location 指向
+      apex、憑證有簽出來
 
-Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design.md`
-（PR #96 合入）。本機通知，`expo-notifications` calendar trigger 每月 1 號 9:00
-重複，不動後端與資料庫。設定頁加 Switch 卡片、預設關閉。
+### B. Native rebuild + 送審
 
-- [x] `apps/mobile/lib/notifications.ts`：排程／取消／查詢排程／權限，唯一碰
-      原生 API 的地方。iOS 用可重複的 CALENDAR trigger（排一次系統自己接管）；
-      Android 沒有等價觸發，改排「下一次」並在回到前景時續約
-- [x] `apps/mobile/hooks/useMonthlyReminder.ts`：開關狀態存 AsyncStorage、預設
-      關閉，載入時與每次回到前景都拿 OS 權限對齊 —— 使用者在系統設定裡收回權限
-      時開關會自動退回關閉，不會顯示「開」但永遠不響
-- [x] 設定頁新增 Switch 卡片變體（`SettingSwitchCard`），權限被永久拒絕時改跳
-      App 內 Alert 引導去系統設定，開關留在關閉
-- [x] 2026-08-28 追加：提醒時間可調（點卡片上的時間開 `TimePickerModal`，
-      分鐘 5 分一級、純 JS 無新原生依賴）。日期仍固定每月 1 號。設計文件原本
-      寫「不做時間選擇器」，已標記推翻
-- [x] `app.json` 的 `plugins` 加入 `expo-notifications`；root layout 設定前景
-      顯示 handler 與「點通知回首頁」的 response listener
-- [x] `pnpm lint` / `type-check` / `test`（225 tests）全數通過
-- [x] 2026-08-28 Expo Go 實機驗證通過：通知確實跳出來（背景與滑掉都會響 ——
-      排程交給 iOS 通知中心，不歸 App 管）。常數已改回 `1 / 9 / 0`
-- [x] 驗證時發現的坑，已用開發模式的「查看已排程通知」卡片解掉：改了程式碼的
-      常數再 reload **不會生效** —— iOS 的重複排程歸系統管，`syncMonthlyReminder`
-      看到已經有一筆就不重排。要重排必須關開關再打開、或改一次時間
-- [ ] 剩下「點通知回首頁」這段：Expo Go 裡通知掛在 Expo Go 名下，完全滑掉時
-      點擊只會開 Expo Go 首頁，要等 TestFlight／正式版才驗得準
-- 註：**需要 native rebuild**（`expo-notifications` 是原生模組，且 `app.json` 的
-  `plugins` 已變更，OTA 送不了），所以要跟下一次上架版本綁在一起發。
+這批**不能 OTA**：`expo-notifications` 是原生模組，且 `app.json` 的 `plugins`
+有變更。照 `mobile-release` 的判斷表走 Road B。
 
-### 3. 基金淨值更新（含境內外）— 已完成，但入口先關著
+- [ ] `app.json` 的 `version` 從 `1.3` 往上跳（它同時是 `runtimeVersion`，
+      policy 是 `appVersion`）
+- [ ] 更新 `app.json` 的 `extra.whatsNew`（目前還停在 2026-08-26 的空白狀態
+      動畫那版），至少要寫「每月記帳提醒」
+- [ ] `eas build` → `eas submit` → App Store Connect 送審
+      ⚠️ 合併前就在跑的那支 production build **不含**這次的通知功能，要重跑
+- [ ] 上架後才驗得準的一項：**點通知回首頁**。Expo Go 裡通知掛在 Expo Go 名下，
+      完全滑掉時點擊只會開 Expo Go 首頁，不是程式的問題
+- 送審前記得確認 EAS 配額（上次確認：2026-08-04 起新週期，iOS 1/15，可用到 9/1）
 
-設計與實測踩到的坑記在
-`docs/superpowers/specs/2026-08-28-fund-nav-design.md`。
+## 已完成但還沒放出來的功能
 
-- [x] 境內資料源找到了：投信投顧公會 (SITCA) 每日淨值 CSV，掛在政府資料開放
-      平臺 dataset 11109 —— 不必爬那個 ASP.NET viewstate 網站。約 600KB／
-      4,244 檔。TDCC 只有境外與期信基金，沒有境內
-- [x] 境外：TDCC open data 3-4，約 8.5MB／5,975 檔
-- [x] `apps/web/services/funds.service.ts`：兩來源解析＋合併，模組層記憶體快取
-      12h（8.5MB 超過 Next Data Cache 單筆 2MB 上限），併發共用同一次下載，
-      單一來源掛掉仍然回得出另一邊
-- [x] `GET /api/funds/search`、`GET /api/funds/quote`，兩支都自我保護並列入
-      middleware 的 `auth.protect()` 名單
-- [x] `Entry.stockCode` 存官方代碼（境內用基金統編、境外用 TDCC 代碼，兩邊
-      代碼空間實測無交集），不需要 migration
-- [x] App：詳情頁「獲取淨值／更新淨值」按鈕 + `FundPickerSheet` 綁定流程 +
-      「重新選擇基金」；綁過的基金併入 `useInvestmentMarketValues`，清單與
-      總覽的市值跟著更新
-- [x] 15 個服務測試（含四個真實踩到的資料坑：基金代號跨投信重複、TDCC 的
-      -9999 哨兵值、空字串變 0、兩份檔案 BOM 位置不同）
-- [x] 2026-08-28 實機驗證通過：搜尋 → 綁定 → 更新淨值 → 市值都正確
-- [x] 2026-08-28 決定**先不對使用者放出來**：開關是
-      `apps/mobile/lib/stockConstants.ts` 的 `FUND_NAV_ENABLED`（現為 `false`）。
-      關著時詳情頁沒有按鈕、不抓淨值、已綁定的基金也不併入清單市值。後端與測試
-      照常留著，要放出來改一行即可
-- 註：這部分是純 JS + 後端，可以 OTA；但會跟第 2 項的原生改動同一批發。
+### 基金淨值 — 程式碼在 develop 上，入口關著
+
+實機驗證通過（搜尋 → 綁定 → 取淨值 → 市值都正確），2026-08-28 決定先不對使用者
+開放。開關是 `apps/mobile/lib/stockConstants.ts` 的 **`FUND_NAV_ENABLED`**
+（現為 `false`）：關著時詳情頁沒有「獲取淨值／更新淨值」與「重新選擇基金」、
+不抓淨值、已綁定的基金也不併入清單市值。
+
+後端 `/api/funds/*`、服務層與 15 個測試都留著，`Entry.stockCode` 上綁好的代碼
+也留著 —— 要放出來把旗標改成 `true` 即可，不需要重寫。資料源與四個實測踩到的
+坑記在 `docs/superpowers/specs/2026-08-28-fund-nav-design.md`。
 
 ## 已評估、暫不執行
 
