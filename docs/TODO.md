@@ -4,131 +4,89 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-08-26
+最後整理：2026-08-28
 
 ## 進行中
 
-### 1. `arasasset.com` 被 Google Safe Browsing 標記 — 最高優先
+### 1. `arasasset.com` Safe Browsing 旗標 — 已解除（2026-08-27）
 
-**症狀**：全新安裝、Google 登入完成後，會閃出整頁紅色 Safari
-「Deceptive Website Warning」（網址列顯示 accounts.google.com），約兩秒後自動
-消失並正常進入主頁。登入本身沒壞，但使用者看到的是「這個理財 App 要騙我的
-密碼和信用卡」。
+Google 於 2026-08-27 來信通知安全性審核完成，判定網域不含惡意內容、警告訊息
+即將撤下。覆查 Transparency Report 狀態 API，`arasasset.com` 與
+`clerk.arasasset.com` 都已從 **2**（flagged）回到 **1**（乾淨）、所有分類旗標
+false、時間戳不再凍結在 2026-08-21。全新安裝 Google 登入時閃紅色
+「Deceptive Website Warning」的問題隨之結束。
 
-**根因（2026-08-26 查證）**：Google Transparency Report 的 Safe Browsing 狀態
-查詢中，`arasasset.com` 與 `clerk.arasasset.com` 都回傳狀態碼 **2**（第 3 類
-旗標 true），判定時間戳凍結在 **2026-08-21T07:23Z**；對照組 20 幾個網域
-（含 `ara-s-web.vercel.app` 與 9 個別家 Clerk FAPI 子網域如 `clerk.cal.com`、
-`clerk.linear.app`）全部回 1（乾淨）或 4（大型平台白名單），官方惡意測試站回 3。
-只有我們的網域回 2。兩個 host 時間戳完全相同 → 旗標下在根網域、子網域繼承。
+旗標是誤判（新註冊網域 + 登入表單 + 理財字眼 + 攔 OAuth callback 的子網域）。
+處理過程與證據留在記憶 `project_safe_browsing_domain_flag`。順手做掉的
+`NEXT_PUBLIC_APP_URL` → `https://arasasset.com` 修正（canonical/OG 不再冒充舊站）
+本身是對的，維持現狀。
 
-誤判成因：網域 2026-07-28 才註冊（RDAP 查證，無前手歷史），四週大的新網域 +
-登入表單 + 理財字眼 + 一個攔截 Google OAuth callback 的子網域 = 釣魚站的
-教科書外型。
+- [x] 2026-08-27 實機驗證：重新用 Google 登入，紅色警告畫面已不再出現。本案結案
+- [x] 2026-08-28 尾斜線的坑修掉了：三處各自重複的 `NEXT_PUBLIC_APP_URL` 讀取
+      收斂成 `apps/web/lib/site-url.ts`，在那裡一次 `.replace(/\/+$/, "")`。
+      `robots.ts`／`sitemap.ts`／`layout.tsx` 都改讀它
+- [ ] 順帶、與本案無關：`www.arasasset.com` 沒有 DNS 記錄（NXDOMAIN，2026-08-28
+      覆查仍然如此），輸入 www 會連不上。**這件事只能在 Cloudflare + Vercel 後台
+      做，程式碼動不了**：Vercel 專案 Domains 加 `www.arasasset.com` 並設成
+      redirect 到 apex，再照它給的值在 Cloudflare 加一筆 CNAME（proxy 關閉）
 
-為什麼是「閃兩秒」而不是擋死：登入重導鏈是 accounts.google.com →
-`clerk.arasasset.com/v1/oauth_callback` → `saraasset://sso-callback`。Safari 的
-Safe Browsing 查詢是非同步的，回報時 deep link 已經打回 App、`setActive` 已成功，
-警告是在正要被關掉的瀏覽器裡渲染出來的。
-
-App 的 API 走 `ara-s-web.vercel.app`（乾淨），所以只有登入這段瀏覽器流程中槍。
-Apple 登入是原生流程、不開瀏覽器，不受影響 —— 與 8 月 OAuth lockout 同樣的分界線。
-
-- [x] Search Console 加了 `arasasset.com` Domain 資源。判定類別是
-      **「不實網頁」（社交工程）**，且**「網址示例：不適用」** —— Google 沒有列出
-      任何具體頁面，代表旗標下在整個網域層級、不是某一頁有問題內容。也就是說
-      沒有具體頁面可修，這是純粹的網域信譽誤判
-- [x] 修掉一個很可能是誘因的設定：`arasasset.com` 原本逐位元組複製舊站內容，
-      卻在 HTML 裡宣告 `canonical/og:url → ara-s-web.vercel.app`，等於「新網域
-      冒充既有網站」。已把 Vercel Production 的 `NEXT_PUBLIC_APP_URL` 改為
-      `https://arasasset.com` 並 redeploy，驗證 canonical/OG/robots/sitemap 全部
-      指回自己且無雙斜線（細節見記憶 `project_web_seo_domain`）
-- [x] 2026-08-26 已按下 Search Console 的「要求審查」，附上下方的說明文案。
-      審查期間旗標仍在、警告照樣會閃，通常 1-3 天有結果
-- [x] 2026-08-26 已替新的 `arasasset.com` 資源提交
-      `https://arasasset.com/sitemap.xml`（純 SEO，與旗標解除無關）
-- [ ] 未確認、目前不阻塞：App 警告畫面按「Show Details」顯示的確切 URL。若申訴
-      被駁回才需要 —— 顯示 `clerk.arasasset.com/...` = 對上上述證據；顯示
-      `accounts.google.com/...` 的某個頁面 = 另一條線（見記憶
-      `project_account_deletion_oauth_lockout`），處理方式不同
-- [x] 2026-08-26 已送 Safe Browsing 誤判回報表單
-      （`https://safebrowsing.google.com/safebrowsing/report_error/`），
-      `https://arasasset.com/` 與 `https://clerk.arasasset.com/` 各一次。
-      這條管道沒有回覆、沒有進度可查 —— 成功與否只能靠覆查狀態碼看出來
-- [ ] 每天用同一支 API 覆查狀態碼，回到 1 才算解除
-- 不做：**不改登入按鈕順序去推薦 Apple 登入**（2026-08-26 使用者否決，他自己
-  就以 Google 登入為主）
-- 最後手段、先不要做：把 Clerk FAPI 換到別的網域 —— 會換掉 publishable key、
-  必須 native rebuild + 重新送審，等申訴結果再說
-- 不做：從 `ara-s-web.vercel.app` 做 308 導向到新網域 —— 已不需要（舊站現在自己
-  宣告 `canonical → arasasset.com`），而且 App 的 `EXPO_PUBLIC_API_URL` 還指著
-  舊站，全站導向會打壞所有已出貨 binary 的 `/api/*`
-- [ ] 順帶、與本案無關：`www.arasasset.com` 沒有 DNS 記錄（NXDOMAIN），輸入 www 會連不上
-- [ ] 順帶：`apps/web/app/robots.ts` 與 `sitemap.ts` 用字串串接組網址，
-      `NEXT_PUBLIC_APP_URL` 帶尾斜線就會產出 `//sitemap.xml`。加一行
-      `.replace(/\/$/, "")` 可讓這個坑踩不到（尚未決定要不要做）
-
-要求審查的說明文案：
-
-> This is the official website of araS, an iOS personal finance app published on
-> the App Store (id6785747999). The domain was registered on 2026-07-28 and is
-> operated solely by the app's developer. The site contains no third-party
-> content, no iframes, no forms, and no third-party scripts. The
-> clerk.arasasset.com subdomain is the managed authentication endpoint provided
-> by Clerk (clerk.com), our authentication provider, and is used only for our own
-> app's OAuth flow. We believe this is a false positive.
-
-### 2. 每月記帳提醒通知 — 已設計，尚未實作
+### 2. 每月記帳提醒通知 — 已實作，等實機驗證與發版
 
 Spec 在 `docs/superpowers/specs/2026-08-13-monthly-reminder-notification-design.md`
 （PR #96 合入）。本機通知，`expo-notifications` calendar trigger 每月 1 號 9:00
 重複，不動後端與資料庫。設定頁加 Switch 卡片、預設關閉。
 
-- [ ] 尚未開始寫 plan、尚未實作
-- 註：**需要 native rebuild**（`expo-notifications` 是原生模組，OTA 送不了），
-  所以排程上適合跟下一次上架版本綁在一起做。
+- [x] `apps/mobile/lib/notifications.ts`：排程／取消／查詢排程／權限，唯一碰
+      原生 API 的地方。iOS 用可重複的 CALENDAR trigger（排一次系統自己接管）；
+      Android 沒有等價觸發，改排「下一次」並在回到前景時續約
+- [x] `apps/mobile/hooks/useMonthlyReminder.ts`：開關狀態存 AsyncStorage、預設
+      關閉，載入時與每次回到前景都拿 OS 權限對齊 —— 使用者在系統設定裡收回權限
+      時開關會自動退回關閉，不會顯示「開」但永遠不響
+- [x] 設定頁新增 Switch 卡片變體（`SettingSwitchCard`），權限被永久拒絕時改跳
+      App 內 Alert 引導去系統設定，開關留在關閉
+- [x] 2026-08-28 追加：提醒時間可調（點卡片上的時間開 `TimePickerModal`，
+      分鐘 5 分一級、純 JS 無新原生依賴）。日期仍固定每月 1 號。設計文件原本
+      寫「不做時間選擇器」，已標記推翻
+- [x] `app.json` 的 `plugins` 加入 `expo-notifications`；root layout 設定前景
+      顯示 handler 與「點通知回首頁」的 response listener
+- [x] `pnpm lint` / `type-check` / `test`（225 tests）全數通過
+- [x] 2026-08-28 Expo Go 實機驗證通過：通知確實跳出來（背景與滑掉都會響 ——
+      排程交給 iOS 通知中心，不歸 App 管）。常數已改回 `1 / 9 / 0`
+- [x] 驗證時發現的坑，已用開發模式的「查看已排程通知」卡片解掉：改了程式碼的
+      常數再 reload **不會生效** —— iOS 的重複排程歸系統管，`syncMonthlyReminder`
+      看到已經有一筆就不重排。要重排必須關開關再打開、或改一次時間
+- [ ] 剩下「點通知回首頁」這段：Expo Go 裡通知掛在 Expo Go 名下，完全滑掉時
+      點擊只會開 Expo Go 首頁，要等 TestFlight／正式版才驗得準
+- 註：**需要 native rebuild**（`expo-notifications` 是原生模組，且 `app.json` 的
+  `plugins` 已變更，OTA 送不了），所以要跟下一次上架版本綁在一起發。
 
-### 3. 基金淨值更新（含境內外）— 設計階段
+### 3. 基金淨值更新（含境內外）— 已完成，但入口先關著
 
-- [x] 境外基金：已驗證免費可行。集保結算所 TDCC open data
-      `https://openapi.tdcc.com.tw/v1/opendata/3-4`，無需 API key、無需註冊，
-      單次回應含基金代碼、名稱、淨值、淨值日期、計價幣別、ISIN（整包 dump，
-      5,990 檔，360KB，建議 server 端快取 12h 再讓 App 查單一檔）
-- [ ] 境內基金資料源尚未確認（TDCC 沒有，歸投信投顧公會 SITCA 管，其官網是
-      ASP.NET viewstate，還沒驗證是否有其他免費 JSON 源）
-- [ ] 定案：`Entry.stockCode` 存基金代碼（沿用既有多型欄位，不需 migration）；
-      淨值/幣別 on-demand 抓取、不落地存資料庫（跟美股現在的模式一致）
-- [ ] 使用情境已定案：entry 清單/詳情頁上的「獲取淨值」按鈕，第一次按時用
-      使用者輸入的名稱去搜尋比對、綁定官方代碼寫回 `stockCode`，之後每次按
-      直接用代碼查
-- [ ] 尚未開始寫 spec / plan
+設計與實測踩到的坑記在
+`docs/superpowers/specs/2026-08-28-fund-nav-design.md`。
 
-### 4. 行為分析漏斗（PostHog）— 已實作，等金鑰與發版
-
-程式碼已完成，說明文件在 `docs/analytics.md`。目的是把「下載後 7 天內
-0.6% 轉付費」拆成可觀測的五段，回答流失發生在哪一步。
-
-新增 `posthog-react-native`（無必要的原生模組，optional peer 全部沒裝，
-儲存退回已在用的 AsyncStorage），埋 7 個事件：`app_open`、
-`onboarding_complete`、`first_record_created`、`record_created`、
-`paywall_viewed`、`subscribe_clicked`、`subscribe_success`。
-原本 App 沒有任何引導流程、`onboarding_complete` 沒有東西可埋，所以在登入頁
-右上角加了一顆 ? 按鈕，開啟三步說明的 bottom sheet
-（`components/OnboardingSheet.tsx`）。**刻意不是首次啟動強制顯示** —— 登入頁
-本身就是第一個畫面，說明只在使用者主動想看時才出現。
-
-- [x] analytics 模組、七個埋點、說明 sheet、`docs/analytics.md`
-- [x] `pnpm type-check` / `pnpm lint` 通過；`expo export` 打包驗證過
-- [x] PostHog project 已建立（US Cloud，project id 577802），key 已填進四個
-      地方：`apps/mobile/.env:9`、`.env.production:25`、`eas.json` 的 preview:15
-      與 production:36。用 flags 端點驗證過金鑰有效（錯的 key 會回 401）
-- [x] 用 Expo Go 驗證過事件確實送達 PostHog（2026-08-26，Activity 頁看得到進來的事件）
-- [x] 已於 2026-08-26 走 OTA 出貨（runtime version 1.3，update group
-      `59f41b0a`）。出貨前驗證過：`posthog-react-native` 只有 `dist/`、無
-      podspec、需要原生模組的 optional peer 全部未安裝；bundle 內 React 內部
-      唯一標記只出現 1 次（單一份 React）、無 LAN IP
-- [ ] `subscribe_success` 只能在 TestFlight／正式版驗證（Expo Go 沒有
-      RevenueCat 原生模組）
+- [x] 境內資料源找到了：投信投顧公會 (SITCA) 每日淨值 CSV，掛在政府資料開放
+      平臺 dataset 11109 —— 不必爬那個 ASP.NET viewstate 網站。約 600KB／
+      4,244 檔。TDCC 只有境外與期信基金，沒有境內
+- [x] 境外：TDCC open data 3-4，約 8.5MB／5,975 檔
+- [x] `apps/web/services/funds.service.ts`：兩來源解析＋合併，模組層記憶體快取
+      12h（8.5MB 超過 Next Data Cache 單筆 2MB 上限），併發共用同一次下載，
+      單一來源掛掉仍然回得出另一邊
+- [x] `GET /api/funds/search`、`GET /api/funds/quote`，兩支都自我保護並列入
+      middleware 的 `auth.protect()` 名單
+- [x] `Entry.stockCode` 存官方代碼（境內用基金統編、境外用 TDCC 代碼，兩邊
+      代碼空間實測無交集），不需要 migration
+- [x] App：詳情頁「獲取淨值／更新淨值」按鈕 + `FundPickerSheet` 綁定流程 +
+      「重新選擇基金」；綁過的基金併入 `useInvestmentMarketValues`，清單與
+      總覽的市值跟著更新
+- [x] 15 個服務測試（含四個真實踩到的資料坑：基金代號跨投信重複、TDCC 的
+      -9999 哨兵值、空字串變 0、兩份檔案 BOM 位置不同）
+- [x] 2026-08-28 實機驗證通過：搜尋 → 綁定 → 更新淨值 → 市值都正確
+- [x] 2026-08-28 決定**先不對使用者放出來**：開關是
+      `apps/mobile/lib/stockConstants.ts` 的 `FUND_NAV_ENABLED`（現為 `false`）。
+      關著時詳情頁沒有按鈕、不抓淨值、已綁定的基金也不併入清單市值。後端與測試
+      照常留著，要放出來改一行即可
+- 註：這部分是純 JS + 後端，可以 OTA；但會跟第 2 項的原生改動同一批發。
 
 ## 已評估、暫不執行
 
