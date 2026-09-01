@@ -6,13 +6,14 @@
 
 最後整理：2026-09-01
 
-## 下一步（下週從這裡接手）
+## 下一步
 
-PR #121 已於 2026-08-28 合併進 `develop`（merge commit `2a57eac`），內容是：
-每月記帳提醒（含可調時間）、基金淨值（入口先關著）、網址尾斜線修正。
-`pnpm lint` / `type-check` / `test`（web 240 + shared 12）在合併前全綠。
+**1.4 已同時送出兩邊**（兩支 binary 都建自 `6cfea92`）：iOS 送 App Store 審查、
+Android 進 Google Play 封閉測試。`develop` → `main` 的 release PR 是 **#124**
+（尚未合併 —— 合併等於部署到 production）。
 
-剩下兩件事，順序無關：
+現在的關鍵路徑是 **C 的封閉測試 12 人**：14 天的時鐘要等人數到位才起算，
+在那之前每一天都是白費的。A 與 B 都不阻塞它。
 
 ### A. `www.arasasset.com` 的 DNS — 只能在後台做
 
@@ -41,7 +42,7 @@ build `5ac7c4f9`（commit `6cfea92`）已 `eas submit` 上傳，ASC 版本 **1.4
 - [x] `eas credentials -p ios` 重簽 provisioning profile ——
       `expo-notifications` 的 iOS plugin 會寫入 `aps-environment`，8/21 那支
       profile 沒有這個 capability。輸出出現 `Synced capabilities: Enabled:
-    Push Notifications` 才算修好
+  Push Notifications` 才算修好
 - [x] `eas build` → `eas submit` → ASC 選建置版本 → 送出審查
 - [ ] **上架後才驗得準**：點通知回首頁。Expo Go 裡通知掛在 Expo Go 名下，
       完全滑掉時點擊只會開 Expo Go 首頁，不是程式的問題
@@ -85,6 +86,9 @@ Play Console 端（**只能由你在後台做**）：
 - [ ] 連續維持 14 天
 - [ ] 跑滿後在「正式版存取權」頁提出申請（一份獨立表單，問測試期間學到什麼）
 - [ ] 通過後才能建立正式版並送正式審查
+
+等人的期間可以平行補（不阻塞 14 天）：
+
 - [ ] 商店資訊素材：512×512 應用程式圖示、1024×500 主打圖（feature graphic，
       Google 必填、Apple 沒有這個東西，要新做）、至少 2 張手機截圖、
       簡短說明（80 字內）、完整說明
@@ -92,14 +96,20 @@ Play Console 端（**只能由你在後台做**）：
 - [ ] **資料安全性表單**：宣告蒐集的資料與用途。`app.json` 已封鎖
       `com.google.android.gms.permission.AD_ID`，所以可以誠實勾「不用於廣告」
 - [ ] 內容分級問卷、目標對象與內容、廣告聲明（本 App 無廣告）
-- [ ] **封閉測試 12 人 × 連續 14 天** —— 個人開發者帳號的硬性要求，正式發布前
-      跑不完就不能上。這是整個時程的關鍵路徑，越早開始越好
-- [ ] 全部跑完才送正式版審查
+
+⚠️ **12 人算的是實際 opted-in 的帳號，不是你填進去的 email 數。** 2026-09-01
+的實際狀態是「已加 email、0 名選擇參加」。對方必須用清單上那個 Google 帳號打開
+「加入測試網址」並點成為測試人員，計數器才會動。算帳號不算裝置；中途退出人數
+會掉。**內部測試（最多 100 人）不算數。**
+
+規則適用範圍：只有 **2023-11-13 之後建立的個人開發者帳號**要跑這關；公司／組織
+帳號（需 D-U-N-S）與更早的個人帳號都免除。若 Android 使用者湊不到 12 個，
+改用組織帳號是唯一能跳過這 14 天的路。
 
 之後才需要做（不阻塞首發）：
 
 - [ ] `eas.json` 的 `submit.production` 目前**只有 ios**。要用 `eas submit
-  --platform android` 自動送件，需要 Google Cloud service account JSON 並在
+--platform android` 自動送件，需要 Google Cloud service account JSON 並在
       Play Console 授權；首版手動上傳之後再補，可省下之後每次的手動步驟
 - [ ] Android App Links：`app.json` 的 `android.intentFilters` 只有
       `ara-s-web.vercel.app`，沒有 `arasasset.com`（iOS 兩個都有）。要真正生效
@@ -123,6 +133,13 @@ Play Console 端（**只能由你在後台做**）：
 後端 `/api/funds/*`、服務層與 15 個測試都留著，`Entry.stockCode` 上綁好的代碼
 也留著 —— 要放出來把旗標改成 `true` 即可，不需要重寫。資料源與四個實測踩到的
 坑記在 `docs/superpowers/specs/2026-08-28-fund-nav-design.md`。
+
+**已驗證（2026-09-01）：1.4 的 binary 不會呼叫 `/api/funds/*`。** 這件事重要，
+因為 `/api/funds/search`、`/api/funds/quote` 只存在於 `develop`，PR #124 合併前
+production 沒有它們。三條呼叫路徑全被旗標擋住：`useInvestmentMarketValues.ts:107`
+（`targets` 用 `isPriceable()` 過濾）、`entry/[id].tsx:326`（`if (!isFundEntry)
+return`）、`FundPickerSheet` 搜尋（兩個開啟入口都在 `{isFundEntry && …}` 內，
+sheet 自身 effect 另有 `if (!visible) return`）。
 
 ## 已評估、暫不執行
 
