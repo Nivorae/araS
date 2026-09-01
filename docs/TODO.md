@@ -120,6 +120,32 @@ production 沒有它們。三條呼叫路徑全被旗標擋住：`useInvestmentM
 return`）、`FundPickerSheet` 搜尋（兩個開啟入口都在 `{isFundEntry && …}` 內，
 sheet 自身 effect 另有 `if (!visible) return`）。
 
+## 網頁版 SEO / GA（`feature/web-google-analytics`）
+
+Google 搜不到 `arasasset.com` 的主因不是「網站太新」——production 的 SSR、
+`robots.txt`、`sitemap.xml` 都正常。真正卡住的是 **Google 還沒發現這個網域**：
+沒有任何外部連結指進來，也沒有在 Search Console 主動送出。
+
+程式碼已處理（分支上，兩個 commit，尚未開 PR）：
+
+- [x] GA4：`apps/web/components/google-analytics.tsx`，`NEXT_PUBLIC_GA_ID` 有值
+      才注入；CSP 已放行 googletagmanager / google-analytics
+- [x] JSON-LD 擴充為 `@graph`（Organization + WebSite + SoftwareApplication），
+      `sameAs` 指 App Store
+- [x] hero `<h1>` 加 sr-only 品牌關鍵字、landing metadata 加 keywords
+- [x] `sitemap.xml` 補 `/terms`、新增 `public/llms.txt`
+
+只有帳號能做、必須手動：
+
+- [ ] Vercel Production 環境變數設 `NEXT_PUBLIC_GA_ID`（先去 analytics.google.com
+      開 GA4 資源拿 `G-` 開頭 ID）
+- [ ] Google Search Console 加入 `arasasset.com` → 送 `sitemap.xml` → 對首頁按
+      「要求建立索引」
+- [ ] Bing Webmaster Tools 同上（餵 ChatGPT 搜尋）
+- [ ] 弄至少 1~2 個外部連結：App Store／Play 商店的網站欄位、LINE 官方帳號簡介
+- [ ] `landing-content.tsx` 的 `DOWNLOAD_HREF` 仍是假連結，確認後同步更新
+      `page.tsx` 的 `SAME_AS`
+
 ## 技術債（不阻塞任何事）
 
 - [ ] **`pnpm audit` 報 92 個弱點**（3 critical / 52 high，2026-09-01 於 PR #124
