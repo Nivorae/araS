@@ -12,27 +12,13 @@
 Android 進 Google Play 封閉測試。`develop` → `main` 的 release PR 是 **#124**
 （尚未合併 —— 合併等於部署到 production）。
 
-現在的關鍵路徑是 **C 的封閉測試 12 人**：14 天的時鐘要等人數到位才起算，
-在那之前每一天都是白費的。A 與 B 都不阻塞它。
+現在的關鍵路徑是 **B 的封閉測試 12 人**：14 天的時鐘要等人數到位才起算，
+在那之前每一天都是白費的。A（iOS 審核）不阻塞它。
 
-### A. `www.arasasset.com` 的 DNS — 只能在後台做
+`www.arasasset.com` 的 DNS 已於 2026-09-01 完成並驗證（308 → apex、路徑保留、
+apex 仍 200），整段已移除。
 
-現況：**NXDOMAIN**，輸入 www 會連不上（apex `arasasset.com` 正常，A 記錄指向
-`216.198.79.65` / `64.29.17.65`）。
-
-- [ ] Vercel → 專案 → Domains → **Add Existing** → `www.arasasset.com`
-      ⚠️ **不要**去改 apex 那一列的設定，它必須維持
-      「Connect to an environment → Production」。在 apex 上按到 Redirect 會讓
-      正式站整個重導出去
-- [ ] 照 Vercel 給的值在 Cloudflare 加 CNAME（通常是 `www → cname.vercel-dns.com`），
-      **Proxy status 必須是 DNS only（灰雲）** —— 開橘雲 Vercel 簽不到憑證
-- [ ] 等 www 那列變 Valid Configuration，再在**那一列**按 Edit →
-      Redirect to Another Domain → `arasasset.com` → 把 307 改成 **308 Permanent**
-      （永久重導才會把 SEO 權重併到 apex，307 會讓兩個網址各自獨立）
-- [ ] 弄完覆查：DNS 有記錄、`https://www.arasasset.com` 回 308 且 Location 指向
-      apex、憑證有簽出來
-
-### B. iOS 1.4 —— 已送審（2026-09-01）
+### A. iOS 1.4 —— 已送審（2026-09-01）
 
 build `5ac7c4f9`（commit `6cfea92`）已 `eas submit` 上傳，ASC 版本 **1.4
 (build 10)** 已送出審查。等 Apple 1–3 天。
@@ -42,7 +28,7 @@ build `5ac7c4f9`（commit `6cfea92`）已 `eas submit` 上傳，ASC 版本 **1.4
 - [x] `eas credentials -p ios` 重簽 provisioning profile ——
       `expo-notifications` 的 iOS plugin 會寫入 `aps-environment`，8/21 那支
       profile 沒有這個 capability。輸出出現 `Synced capabilities: Enabled:
-  Push Notifications` 才算修好
+Push Notifications` 才算修好
 - [x] `eas build` → `eas submit` → ASC 選建置版本 → 送出審查
 - [ ] **上架後才驗得準**：點通知回首頁。Expo Go 裡通知掛在 Expo Go 名下，
       完全滑掉時點擊只會開 Expo Go 首頁，不是程式的問題
@@ -54,7 +40,7 @@ build `5ac7c4f9`（commit `6cfea92`）已 `eas submit` 上傳，ASC 版本 **1.4
 唯一方法是把 `version` 暫時改回 `1.3` 發一包，且那包 JS 不能碰
 `expo-notifications`（1.3 的 binary 沒有那個原生模組，import 就閃退）。
 
-### C. Android 首次上架 Google Play（1.4，純免費版）
+### B. Android 首次上架 Google Play（1.4，純免費版）
 
 決策：**首發不含訂閱付費**。後端零 Google Play 購買處理（`apps/web/services`
 搜不到 androidpublisher / RTDN），訂閱驗證 100% 綁 Apple 的 App Store Server
@@ -87,15 +73,8 @@ Play Console 端（**只能由你在後台做**）：
 - [ ] 跑滿後在「正式版存取權」頁提出申請（一份獨立表單，問測試期間學到什麼）
 - [ ] 通過後才能建立正式版並送正式審查
 
-等人的期間可以平行補（不阻塞 14 天）：
-
-- [ ] 商店資訊素材：512×512 應用程式圖示、1024×500 主打圖（feature graphic，
-      Google 必填、Apple 沒有這個東西，要新做）、至少 2 張手機截圖、
-      簡短說明（80 字內）、完整說明
-- [ ] 隱私權政策網址填 `https://arasasset.com/privacy`（頁面已存在）
-- [ ] **資料安全性表單**：宣告蒐集的資料與用途。`app.json` 已封鎖
-      `com.google.android.gms.permission.AD_ID`，所以可以誠實勾「不用於廣告」
-- [ ] 內容分級問卷、目標對象與內容、廣告聲明（本 App 無廣告）
+- [x] 商店資訊（素材、隱私權政策網址、資料安全性表單、內容分級、目標對象、
+      廣告聲明）—— 2026-09-01 由 Max 確認 Play Console 的檢查清單已無待辦項
 
 ⚠️ **12 人算的是實際 opted-in 的帳號，不是你填進去的 email 數。** 2026-09-01
 的實際狀態是「已加 email、0 名選擇參加」。對方必須用清單上那個 Google 帳號打開
@@ -140,6 +119,15 @@ production 沒有它們。三條呼叫路徑全被旗標擋住：`useInvestmentM
 （`targets` 用 `isPriceable()` 過濾）、`entry/[id].tsx:326`（`if (!isFundEntry)
 return`）、`FundPickerSheet` 搜尋（兩個開啟入口都在 `{isFundEntry && …}` 內，
 sheet 自身 effect 另有 `if (!visible) return`）。
+
+## 技術債（不阻塞任何事）
+
+- [ ] **`pnpm audit` 報 92 個弱點**（3 critical / 52 high，2026-09-01 於 PR #124
+      的 CI 上觀察到）。全是傳遞依賴、不是自己的程式碼：主要是
+      `ajv@8.18.0 > fast-uri@3.1.0`，經由 `@commitlint/config-validator`（開發
+      工具）與 `@ducanh2912/next-pwa > webpack > schema-utils` 進來。CI 的
+      `pnpm audit --audit-level=high` 步驟不阻擋建置（job 仍然 success），所以
+      不影響發版。是既有狀態、非本次改動造成。之後單獨排一次依賴升級處理。
 
 ## 已評估、暫不執行
 
