@@ -186,9 +186,14 @@ pnpm --filter @repo/mobile start -c   # Expo，Expo Go 輸入 exp://<LAN_IP>:808
 cd apps/mobile && eas update --branch production --clear-cache --message "…"
 ```
 
-⚠️ **OTA 絕不能 bump `app.json` 的 `version`。** `runtimeVersion.policy` 是 `appVersion`，
-代表 runtimeVersion 就等於 version，而 OTA 只送給 runtimeVersion 完全相符的 binary ——
-bump 了版號，更新就永遠送不到已安裝的裝置上，**而且不會報錯**。
+⚠️ **OTA 只送給 runtimeVersion 完全相符的 binary，不符的裝置收不到、而且不會報錯。**
+`runtimeVersion.policy` 自 1.4 起是 **`fingerprint`** —— runtimeVersion 是原生專案內容
+的雜湊，不再是 `version` 字串。所以**改版號本身不會擋掉 OTA**（1.3 以前的 `appVersion`
+policy 會），只有真正動到原生層（新增／移除原生模組、改 `plugins`／權限／icon／splash、
+升 SDK）才會讓指紋改變，而那種情況本來就必須重新 build ——「擋住」正是我們要的行為。
+
+反過來要注意的是：**升級一個含原生程式碼的套件（即使只是修補版號）也會改變指紋**，
+於是 OTA 一樣靜默送不到。動過依賴之後要發 OTA，先確認指紋沒變。
 
 設定頁底部會顯示版號：`版本 1.2` + `更新於 <OTA 發佈時間>` + 更新狀態（下載進度／
 已下載待重啟／已是最新版本）。版號來自 `app.json`，時間來自 `expo-updates` 的
