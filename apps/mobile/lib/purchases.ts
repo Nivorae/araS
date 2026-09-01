@@ -8,6 +8,18 @@ const apiKey = Platform.select({
   android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
 });
 
+// Subscriptions ship on iOS only for now. There is no Google Play Billing
+// product, no RevenueCat Android app, and — decisively — no backend handling of
+// Google's real-time developer notifications, which are what would have to
+// write the Subscription row that entitlements.service reads. So the Android
+// key is deliberately unset, and this flag is what the UI branches on.
+//
+// It exists because `isPurchasesConfigured()` alone cannot tell the two
+// no-store cases apart: "Expo Go, native module missing" (show preview plans)
+// and "Android, nothing to sell" (say so). Conflating them made a production
+// Android build show placeholder NT$300／NT$30 prices nobody could buy.
+export const SUBSCRIPTIONS_SUPPORTED = Boolean(apiKey);
+
 // RevenueCat's native store module does not exist inside Expo Go — calling
 // Purchases.configure() there throws "Invalid API key / native store not
 // available" and, being uncaught, crashes the whole app on login.

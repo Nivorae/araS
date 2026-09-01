@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Check, X } from "lucide-react-native";
 import Purchases, { PURCHASES_ERROR_CODE, type PurchasesPackage } from "react-native-purchases";
 import { FREE_ENTRY_LIMIT } from "@repo/shared";
-import { isPurchasesConfigured } from "@/lib/purchases";
+import { SUBSCRIPTIONS_SUPPORTED, isPurchasesConfigured } from "@/lib/purchases";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -84,7 +84,12 @@ export default function PaywallScreen() {
   // RevenueCat's native module doesn't exist in Expo Go, so no real offerings
   // load there. In that case we show preview plans instead of a dead-end
   // message, and the CTA explains purchases only work in a real build.
-  const previewMode = !isPurchasesConfigured();
+  //
+  // Gated on SUBSCRIPTIONS_SUPPORTED so this stays an Expo-Go affordance. On
+  // Android the SDK is unconfigured for a different reason — there is nothing
+  // to sell — and preview plans there would be placeholder prices shown to
+  // real users in a store build.
+  const previewMode = SUBSCRIPTIONS_SUPPORTED && !isPurchasesConfigured();
 
   // paywall_viewed：這個畫面 mount 就等於它顯示在使用者眼前（expo-router 的
   // Stack 是 push 才 mount）。空依賴陣列 = 一次 push 只送一次，回上一頁再進來
@@ -290,7 +295,11 @@ export default function PaywallScreen() {
               </>
             ) : (
               <View style={s.messageCard}>
-                <Text style={s.messageText}>訂閱方案尚未上架，敬請期待。</Text>
+                <Text style={s.messageText}>
+                  {SUBSCRIPTIONS_SUPPORTED
+                    ? "訂閱方案尚未上架，敬請期待。"
+                    : "此版本尚未開放訂閱功能，敬請期待。"}
+                </Text>
               </View>
             )}
 
@@ -316,8 +325,12 @@ export default function PaywallScreen() {
                 offering fails to load (as it did while the Paid Apps agreement
                 was unsigned) the buy button disappears, and gating Restore the
                 same way would hide it exactly when a subscriber most needs it,
-                and from the reviewer who checks it is there. */}
-            {!isPremium && !loading ? (
+                and from the reviewer who checks it is there.
+
+                It IS gated on SUBSCRIPTIONS_SUPPORTED, though: where no store
+                exists there is nothing to restore, and Purchases.restorePurchases()
+                would throw on an unconfigured SDK. */}
+            {!isPremium && !loading && SUBSCRIPTIONS_SUPPORTED ? (
               <Pressable
                 onPress={handleRestore}
                 disabled={restoring}
