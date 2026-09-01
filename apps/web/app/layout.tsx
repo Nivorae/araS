@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import NextTopLoader from "nextjs-toploader";
+import { siteUrl } from "@/lib/site-url";
 import "./globals.css";
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(baseUrl),
+  metadataBase: new URL(siteUrl),
   title: { default: "araS", template: "%s｜araS" },
   description: "個人資產管理工具",
   manifest: "/manifest.json",

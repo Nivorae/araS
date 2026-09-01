@@ -20,6 +20,7 @@ import * as Sentry from "@sentry/react-native";
 import { TRANSFER_TOP_CATEGORIES, type EntryHistory } from "@repo/shared";
 import { BankLogo } from "@/components/BankLogo";
 import DividendSection from "@/components/DividendSection";
+import FundPickerSheet from "@/components/FundPickerSheet";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -28,8 +29,14 @@ import { useFocusRefresh } from "@/hooks/useFocusRefresh";
 import { useApi, ApiError } from "@/lib/api";
 import { formatCurrency, toIntegerDigits, formatThousands } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
+import { fetchFundQuote, formatNavDate, type FundSearchResult } from "@/lib/funds";
 
-import { STOCK_CATS, buildYfSymbol as _buildYfSymbol } from "@/lib/stockConstants";
+import {
+  STOCK_CATS,
+  FUND_SUBCATEGORY,
+  FUND_NAV_ENABLED,
+  buildYfSymbol as _buildYfSymbol,
+} from "@/lib/stockConstants";
 const STOCK_PICKER_CATEGORIES: readonly string[] = STOCK_CATS;
 
 // Taiwan market convention: 紅漲綠跌 — gains are red, losses are green.
@@ -158,7 +165,7 @@ export default function EntryDetailScreen() {
   const apiRef = useRef(api);
   apiRef.current = api;
 
-  const { deleteEntry, fetchEntryHistory } = useFinanceActions();
+  const { deleteEntry, fetchEntryHistory, updateEntry } = useFinanceActions();
   const entry = useFinanceStore((state) => state.entries.find((e) => e.id === id));
 
   // Served from the store cache, so re-opening this entry paints its records on
@@ -178,6 +185,11 @@ export default function EntryDetailScreen() {
   // read as if it were the TWD amount above it. Null for TWD (台股) — no
   // label needed when the currency already matches the rest of the screen.
   const [currentPriceCurrency, setCurrentPriceCurrency] = useState<string | null>(null);
+  // 基金淨值。淨值日跟股價不同，不保證是今天 —— 各投信報價時間不一，境外基金
+  // 還會晚上兩三個交易日，所以畫面一定要把日期標出來。
+  const [navDate, setNavDate] = useState<string | null>(null);
+  const [fundLoading, setFundLoading] = useState(false);
+  const [fundPickerOpen, setFundPickerOpen] = useState(false);
 
   // Edit modal state
   const [editingHistory, setEditingHistory] = useState<EntryHistory | null>(null);
@@ -193,6 +205,12 @@ export default function EntryDetailScreen() {
 
   const isStockEntry =
     !!entry && STOCK_PICKER_CATEGORIES.includes(entry.subCategory) && !!entry.stockCode;
+  // 基金走的是淨值（不是股價），但成本、市值、損益的算法與股票完全相同，所以
+  // 兩者共用底下同一組 currentPrice / P&L 狀態，只有取價來源與標籤不一樣。
+  // FUND_NAV_ENABLED 關著時，基金就跟功能沒做過一樣：沒有按鈕、不抓淨值、
+  // 金額維持成本價。已經綁好的 stockCode 留在資料裡，開回來立刻可用。
+  const isFundEntry = FUND_NAV_ENABLED && !!entry && entry.subCategory === FUND_SUBCATEGORY;
+  const hasQuote = isStockEntry || (isFundEntry && !!entry?.stockCode);
 
   // Rows land in the store, so the selector above picks them up. useFocusRefresh
   // owns the guarding — see that hook for why an unguarded focus refetch could
@@ -265,6 +283,62 @@ export default function EntryDetailScreen() {
       active = false;
     };
   }, [isStockEntry, stockCode, subCategory]); // primitive deps only
+
+  // 基金淨值。與上面的股價 effect 分開寫而不是塞進同一個 if：來源、錯誤語意、
+  // 以及「還沒綁代碼」這個只有基金才有的狀態都不一樣，混在一起只會兩邊都難讀。
+  const loadFundQuote = useCallback(
+    async (code: string) => {
+      setFundLoading(true);
+      try {
+        const quote = await fetchFundQuote(apiRef.current, code);
+        let rate = 1;
+        if (quote.currency !== "TWD") {
+          // 非台幣計價的基金要換算成台幣才能跟 EntryHistory 裡的台幣成本相減，
+          // 匯率來源沿用股票那條路徑。
+          const fx = await apiRef.current
+            .rawGet<{
+              price: number;
+            }>(`/api/stocks/price?symbol=${encodeURIComponent(quote.currency + "TWD=X")}`)
+            .catch(() => null);
+          rate = fx && typeof fx.price === "number" ? fx.price : 1;
+        }
+        setCurrentPrice(quote.nav);
+        setCurrentPriceTWD(quote.nav * rate);
+        setCurrentPriceCurrency(quote.currency !== "TWD" ? quote.currency : null);
+        setNavDate(quote.navDate);
+      } catch (e) {
+        if (isNotFoundError(e)) {
+          Alert.alert("查不到淨值", "這檔基金的代碼可能已經失效，請重新選擇基金。");
+        } else if (isNetworkError(e)) {
+          reportNetworkError("fund.quote");
+        } else {
+          reportUnexpectedError(e, "fund.quote");
+        }
+      } finally {
+        setFundLoading(false);
+      }
+    },
+    [] // apiRef 是穩定的 ref
+  );
+
+  // 已經綁過代碼的基金，一進畫面就把最新淨值抓回來，不用使用者再按一次。
+  useEffect(() => {
+    if (!isFundEntry || !stockCode) return;
+    void loadFundQuote(stockCode);
+  }, [isFundEntry, stockCode, loadFundQuote]);
+
+  /** 從搜尋結果選定一檔基金：把官方代碼寫回 entry，之後都直接用代碼查。 */
+  async function handleFundSelected(fund: FundSearchResult) {
+    setFundPickerOpen(false);
+    if (!id) return;
+    try {
+      await updateEntry(id, { stockCode: fund.code });
+      await loadFundQuote(fund.code);
+    } catch (e) {
+      if (isNetworkError(e)) reportNetworkError("fund.bind");
+      else reportUnexpectedError(e, "fund.bind");
+    }
+  }
 
   // P&L — memoized on `history` (a stable store reference) so typing in the edit
   // modal doesn't re-walk every record on each keystroke.
@@ -458,16 +532,17 @@ export default function EntryDetailScreen() {
           </View>
           <Text style={s.entryValue}>
             {formatCurrency(
-              isStockEntry && currentMarketValue != null ? currentMarketValue : entry.value
+              hasQuote && currentMarketValue != null ? currentMarketValue : entry.value
             )}
           </Text>
-          {isStockEntry && currentMarketValue != null && (
+          {hasQuote && currentMarketValue != null && (
             <Text style={s.costLabel}>成本 {formatCurrency(entry.value)}</Text>
           )}
-          {isStockEntry && currentPrice != null && (
+          {hasQuote && currentPrice != null && (
             <View style={s.pnlRow}>
               <Text style={s.priceLabel}>
-                當日股價 {currentPriceCurrency ? `${currentPriceCurrency} ` : ""}
+                {isFundEntry ? `淨值 (${navDate ? formatNavDate(navDate) : "—"})` : "當日股價"}{" "}
+                {currentPriceCurrency ? `${currentPriceCurrency} ` : ""}
                 {currentPrice.toLocaleString("zh-TW", { maximumFractionDigits: 4 })}
               </Text>
               {totalPnL != null && (
@@ -480,6 +555,31 @@ export default function EntryDetailScreen() {
               )}
             </View>
           )}
+          {isFundEntry && (
+            <Pressable
+              onPress={() =>
+                entry.stockCode ? void loadFundQuote(entry.stockCode) : setFundPickerOpen(true)
+              }
+              disabled={fundLoading}
+              style={({ pressed }) => [
+                s.navButton,
+                { opacity: fundLoading ? 0.6 : pressed ? 0.85 : 1 },
+              ]}
+            >
+              {fundLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={s.navButtonLabel}>{entry.stockCode ? "更新淨值" : "獲取淨值"}</Text>
+              )}
+            </Pressable>
+          )}
+          {/* 綁錯基金是使用者自己看得出來的（名稱對不上），所以留一個換一檔的
+              入口，不用回編輯頁重打名稱。 */}
+          {isFundEntry && entry.stockCode ? (
+            <Pressable onPress={() => setFundPickerOpen(true)} hitSlop={8}>
+              <Text style={s.navRebind}>重新選擇基金</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {isStockEntry && entry.stockCode && (
@@ -528,6 +628,13 @@ export default function EntryDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      <FundPickerSheet
+        visible={fundPickerOpen}
+        initialQuery={entry.name}
+        onClose={() => setFundPickerOpen(false)}
+        onSelect={(fund) => void handleFundSelected(fund)}
+      />
 
       {/* ── Edit History Modal ──────────────────────────────────────────── */}
       <Modal
@@ -668,6 +775,21 @@ export default function EntryDetailScreen() {
 }
 
 const s = StyleSheet.create({
+  navButton: {
+    marginTop: 16,
+    backgroundColor: "#374254",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  navButtonLabel: { color: "#ffffff", fontSize: 15, fontWeight: "700" },
+  navRebind: {
+    marginTop: 10,
+    textAlign: "center",
+    fontSize: 13,
+    color: "#8e8e93",
+    textDecorationLine: "underline",
+  },
   root: { flex: 1, backgroundColor: "#f2f2f7" },
   center: { alignItems: "center", justifyContent: "center" },
 

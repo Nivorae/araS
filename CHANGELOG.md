@@ -10,6 +10,10 @@
 由 `/git:changelog` 維護。不追蹤 root `package.json` 版號，也不打 git tag ——
 每次 build / OTA 的 commit hash 由 EAS 記錄（見 expo.dev 的 update / build 頁面）。
 
+## 1.4（審核中）
+
+- 新增每月記帳提醒：可在「設定」開啟，並自訂每月提醒的時間，到點由手機本機發出通知
+
 ## 1.3（已上架）
 
 ### OTA

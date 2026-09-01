@@ -9,10 +9,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SUBSCRIPTIONS_SUPPORTED } from "@/lib/purchases";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
@@ -21,6 +23,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import {
   ArrowLeft,
   Bell,
+  BellRing,
   Check,
   CreditCard,
   LogOut,
@@ -33,6 +36,9 @@ import { useIsPremium } from "@/hooks/useIsPremium";
 import { useResponsive } from "@/hooks/useResponsive";
 import { parseWhatsNew } from "@/lib/whatsNew";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
+import { useMonthlyReminder } from "@/hooks/useMonthlyReminder";
+import { TimePickerModal, formatTime } from "@/components/TimePickerModal";
+import { describeScheduledReminders } from "@/lib/notifications";
 
 // Borrowed from CategoryCardStack: same radius, same soft upward shadow, same
 // brand colours. The deck geometry (width taper, overlap, expand-on-tap) is not
@@ -176,6 +182,76 @@ function SettingCard({
   );
 }
 
+/**
+ * The on/off variant of the card above. Same geometry and shadow — the only
+ * differences are that the whole card toggles instead of navigating, and it
+ * carries a second line of explanatory text, because "每月提醒" alone does not
+ * say when the notification arrives.
+ *
+ * `onHintPress` turns that second line into its own tap target (the reminder's
+ * time). It sits inside the switch row rather than under it so the card stays
+ * one object: label and time read as a sentence, and the switch still owns the
+ * rest of the surface.
+ */
+function SettingSwitchCard({
+  icon: Icon,
+  label,
+  hint,
+  color,
+  textColor,
+  value,
+  disabled,
+  onValueChange,
+  onHintPress,
+}: {
+  icon: LucideIcon;
+  label: string;
+  hint: string;
+  color: string;
+  textColor: string;
+  value: boolean;
+  disabled?: boolean;
+  onValueChange: (next: boolean) => void;
+  onHintPress?: () => void;
+}) {
+  return (
+    <View style={[s.card, { backgroundColor: color }]}>
+      <Pressable
+        onPress={() => onValueChange(!value)}
+        disabled={disabled}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: value, disabled: !!disabled }}
+        style={({ pressed }) => [s.cardPress, { opacity: disabled ? 0.6 : pressed ? 0.85 : 1 }]}
+      >
+        <Icon size={20} color={textColor} />
+        <View style={s.switchText}>
+          <Text style={[s.cardLabel, { color: textColor }]}>{label}</Text>
+          {onHintPress ? (
+            <Pressable
+              onPress={onHintPress}
+              disabled={disabled}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`${label}時間，目前 ${hint}`}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              <Text style={[s.cardHint, s.cardHintLink, { color: textColor }]}>{hint}</Text>
+            </Pressable>
+          ) : (
+            <Text style={[s.cardHint, { color: textColor }]}>{hint}</Text>
+          )}
+        </View>
+        <Switch
+          value={value}
+          disabled={disabled}
+          onValueChange={onValueChange}
+          trackColor={{ false: "#c7c7cc", true: "#34C759" }}
+        />
+      </Pressable>
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const { isTablet, contentWidth, width, height } = useResponsive();
   const insets = useSafeAreaInsets();
@@ -184,6 +260,23 @@ export default function SettingsScreen() {
   const { user } = useUser();
   const api = useApi();
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
+  const reminder = useMonthlyReminder();
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+
+  /**
+   * 開發模式限定：把 OS 實際排了什麼印出來。
+   *
+   * 改了 `notifications.ts` 的常數卻沒收到通知，最常見的原因是排程根本沒被重建
+   * —— iOS 的重複排程會一直留著，`syncMonthlyReminder` 看到「已經有一筆」就不會
+   * 覆蓋。這顆按鈕能一眼分辨是「沒重排」還是「排到很遠的未來」。
+   */
+  async function showScheduledReminders() {
+    try {
+      Alert.alert("已排程的通知", await describeScheduledReminders());
+    } catch (e) {
+      Alert.alert("讀取失敗", e instanceof Error ? e.message : "請稍後再試");
+    }
+  }
   const [deleting, setDeleting] = useState(false);
   const [devToggling, setDevToggling] = useState(false);
   // The avatar is now the only entry point to 登出, so the menu it opens is
@@ -224,6 +317,17 @@ export default function SettingsScreen() {
   // ("你可隨時於 App Store 帳戶設定管理或取消訂閱") should be reachable in one
   // tap rather than only readable as text.
   async function openSubscriptionManagement() {
+    // Every subscription this app has ever sold was bought through Apple, so
+    // there is nowhere on an Android device to manage one. Deliberately an
+    // explanation rather than a link out — Google Play's anti-steering rules
+    // are strict about pointing at another store's billing from inside the app.
+    if (!SUBSCRIPTIONS_SUPPORTED) {
+      Alert.alert(
+        "訂閱管理",
+        "你的訂閱是透過 Apple 購買的，請在原本的 iPhone／iPad 上，於「設定」→ 你的 Apple ID →「訂閱」進行管理。"
+      );
+      return;
+    }
     try {
       await Linking.openURL("https://apps.apple.com/account/subscriptions");
     } catch {
@@ -317,15 +421,23 @@ export default function SettingsScreen() {
             {/* One card in three states: reading (spinner), already-premium, and
                 free. All three route into the paywall on tap — a premium user can
                 still open it to review what their plan includes. The cached
-                premium status means later visits skip the spinner entirely. */}
-            <SettingCard
-              icon={isPremium ? Check : Loader}
-              label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
-              color="#374254"
-              textColor="#ffffff"
-              loading={premiumLoading}
-              onPress={() => router.push(`/paywall?source=${PAYWALL_SOURCES.SETTINGS_CARD}`)}
-            />
+                premium status means later visits skip the spinner entirely.
+
+                Hidden on a platform with no store UNLESS the user is already
+                premium: entitlement is keyed by Clerk userId, so someone who
+                subscribed on iPhone is premium on Android too and should still
+                see their status — but a free Android user must not be offered
+                an upgrade that cannot be bought. */}
+            {SUBSCRIPTIONS_SUPPORTED || isPremium || premiumLoading ? (
+              <SettingCard
+                icon={isPremium ? Check : Loader}
+                label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
+                color="#374254"
+                textColor="#ffffff"
+                loading={premiumLoading}
+                onPress={() => router.push(`/paywall?source=${PAYWALL_SOURCES.SETTINGS_CARD}`)}
+              />
+            ) : null}
             {/* Only for subscribers — there is nothing to manage otherwise. A
                 user who has cancelled but is still inside the paid period is
                 still premium, so they keep seeing it until the term ends. */}
@@ -340,6 +452,13 @@ export default function SettingsScreen() {
             ) : null}
             {__DEV__ ? (
               <>
+                <SettingCard
+                  icon={BellRing}
+                  label="查看已排程通知（僅開發模式）"
+                  color="#5856D6"
+                  textColor="#ffffff"
+                  onPress={() => void showScheduledReminders()}
+                />
                 <SettingCard
                   icon={Check}
                   label="模擬升級（僅開發模式）"
@@ -360,6 +479,20 @@ export default function SettingsScreen() {
                 />
               </>
             ) : null}
+            {/* Local scheduled notification, off by default — the permission
+                prompt only appears when the user reaches for it here, which is
+                Apple's recommended contextual request. */}
+            <SettingSwitchCard
+              icon={BellRing}
+              label="每月記帳提醒"
+              hint={`每月 1 號 ${formatTime(reminder.time.hour, reminder.time.minute)}・點這裡改時間`}
+              color="#FFFFFF"
+              textColor="#1c1c1e"
+              value={reminder.enabled}
+              disabled={reminder.loading}
+              onValueChange={(next) => void reminder.toggle(next)}
+              onHintPress={() => setTimePickerOpen(true)}
+            />
             <SettingCard
               icon={Trash2}
               label={deleting ? "刪除中…" : "刪除帳號"}
@@ -423,6 +556,15 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* 提醒時間。日期固定每月 1 號，所以只選時分。 */}
+      <TimePickerModal
+        visible={timePickerOpen}
+        hour={reminder.time.hour}
+        minute={reminder.time.minute}
+        onConfirm={(hour, minute) => void reminder.setTime(hour, minute)}
+        onClose={() => setTimePickerOpen(false)}
+      />
 
       {/* Update-notes modal: read-only display of app.json's whatsNew. */}
       <Modal
@@ -521,6 +663,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
   },
   cardLabel: { fontSize: 16, fontWeight: "700" },
+  cardHint: { fontSize: 12, opacity: 0.6, marginTop: 2 },
+  cardHintLink: { textDecorationLine: "underline" },
+  switchText: { flex: 1 },
 
   dangerHint: { fontSize: 13, color: "#8e8e93", marginTop: 16, textAlign: "center" },
 

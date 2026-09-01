@@ -47,15 +47,27 @@ The app shows its version in Settings, so every release must leave that display
 correct. **Confirm the version with the user before publishing anything** — state
 the current value, the value after this release, and why.
 
-**The rule that makes this non-obvious:** `app.json` has
-`runtimeVersion.policy: "appVersion"`, so **runtimeVersion IS the `version`
-string**. An OTA is only delivered to binaries whose runtimeVersion matches
-exactly. Bumping `version` for an OTA therefore publishes an update that **no
-installed device can ever receive — silently, with no error**.
+**The rule that used to make this non-obvious, and what changed in 1.4:** the
+policy was `runtimeVersion.policy: "appVersion"`, which made **runtimeVersion
+the `version` string itself** — so bumping `version` for an OTA published an
+update **no installed device could ever receive, silently and with no error**.
+
+Since 1.4 the policy is **`fingerprint`**: runtimeVersion is a hash of the
+native project, so the `version` string no longer decides OTA compatibility.
+Bumping it on an OTA is now merely wrong bookkeeping, not a silent
+undeliverable release. What DOES cut delivery is a changed fingerprint — a
+native module added/removed, `plugins`/permissions/icon/splash edited, an SDK
+upgrade — all of which require a rebuild anyway, which is the point.
+
+**The new trap:** upgrading any dependency that ships native code changes the
+fingerprint even on a patch bump, so an OTA after a dependency change can
+still reach nobody. Before an OTA that touched `package.json`, confirm the
+fingerprint is unchanged (`npx expo-updates fingerprint:generate` locally, or
+compare the `Fingerprint` field in `eas build:list` against the live build).
 
 | Road             | `app.json` `version` | What the user sees in Settings         |
 | ---------------- | -------------------- | -------------------------------------- |
-| A — OTA          | **Never touch it**   | Same version, new 「更新於」 timestamp |
+| A — OTA          | **Leave it alone**   | Same version, new 「更新於」 timestamp |
 | B — native build | **Bump it**          | New version number                     |
 
 So the version display stays honest without manual bookkeeping on Road A:
@@ -567,9 +579,12 @@ the thing they rejected — can still be running the embedded bundle.
 - **`react-native-svg` + non-finite data:** feeding `NaN`/`Infinity` coordinates
   to an SVG path hard-crashes on iOS. Chart/number inputs derived from API data
   must be coerced to finite numbers (see `retirement.tsx` / `ProjectionChart.tsx`).
-- **`runtimeVersion.policy: "appVersion"`** ties OTA compatibility to the version
-  string. If native modules change, prefer moving to `"fingerprint"` so an OTA
-  that needs new native code is never delivered to an incompatible binary.
+- **`runtimeVersion.policy: "fingerprint"`** (since 1.4) ties OTA compatibility
+  to a hash of the native project rather than the version string, so only a real
+  native change cuts delivery. Binaries built before 1.4 carry an `appVersion`
+  runtimeVersion (`"1.1"`, `"1.2"`, `"1.3"`) and can never match a fingerprint —
+  those users only come back onto the OTA channel by installing 1.4 from the
+  store. Expect the fingerprint to also move on native dependency upgrades.
 - **Dependency versions:** run `npx expo install --check` in `apps/mobile` before
   a Road B build; align any flagged package to the SDK-recommended version.
 - **Lockfile:** run installs with the repo's pinned pnpm (`packageManager` in root
