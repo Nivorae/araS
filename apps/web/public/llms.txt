@@ -1,0 +1,37 @@
+# araS
+
+> araS（arasasset.com）是一款繁體中文的個人資產管理工具，將資產、負債、
+> 收支交易、投資組合、保險與退休規劃整合在單一介面，即時計算並呈現個人淨值。
+> 提供 iOS、Android 與網頁版，透過 Google 或 LINE 帳號登入，資料以 HTTPS
+> 加密傳輸且僅與使用者本人的帳號關聯。
+
+## 重點資訊
+
+- 名稱：araS（讀作 a-ra-s；與工業軟體 Aras Corp、艾瑞斯資訊無關）
+- 類別：個人理財 / 資產管理 / 淨值追蹤
+- 平台：iOS App、Android App、網頁版（arasasset.com）
+- 登入方式：Google、LINE 第三方帳號登入，免密碼
+- 價格：免費使用；提供付費訂閱方案 Premium（透過 Apple App Store 內購）
+- 語言／地區：繁體中文，主要面向台灣使用者
+- 幣別：新台幣（TWD）；美股、加密貨幣、貴金屬於顯示時自動換算為 TWD
+
+## 功能
+
+- 淨資產總覽：資產、負債、投資即時彙整為單一淨值數字
+- 資產與負債：分類記錄每一筆項目，保留歷史變動
+- 交易紀錄：收支記錄與自動歸類，支援每月／每週／每兩週／每年的自動重複交易
+- 投資組合：追蹤持股與報酬表現
+- 保險保障：集中管理保單資訊
+- 退休規劃：依現況預估未來並試算
+
+## 連結
+
+- 網站首頁：https://arasasset.com/
+- 隱私權政策：https://arasasset.com/privacy
+- 使用條款（含訂閱 EULA）：https://arasasset.com/terms
+- 支援與聯絡：https://arasasset.com/support
+- iOS App：https://apps.apple.com/us/app/aras-asset/id6785747999
+
+## 聯絡
+
+- Email：milk88084@gmail.com

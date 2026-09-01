@@ -325,6 +325,9 @@ function Hero() {
             variants={fadeUp}
             className="mx-auto max-w-3xl text-4xl leading-[1.1] font-extrabold tracking-tight text-[#1c1c1e] sm:text-6xl"
           >
+            {/* Keyword-bearing brand text for crawlers/screen readers; the
+                visible headline stays purely aspirational. */}
+            <span className="sr-only">araS 個人資產管理工具 — </span>
             掌握你的每一分資產
           </motion.h1>
 
