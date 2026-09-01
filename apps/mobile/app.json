@@ -4,7 +4,7 @@
     "slug": "sara-asset-app",
     "scheme": "saraasset",
     "platforms": ["ios", "android"],
-    "version": "1.3",
+    "version": "1.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -57,15 +57,13 @@
     "extra": {
       "router": {},
       "whatsNew": {
-        "id": "2026-08-26-empty-state-and-guide",
+        "id": "2026-09-01-monthly-reminder",
         "sections": [
           {
             "title": "新功能",
-            "items": ["登入頁右上角新增「?」按鈕，開啟三步說明，介紹這支 App 能做什麼"]
-          },
-          {
-            "title": "優化",
-            "items": ["還沒有任何資產時的空白畫面改成分類卡片漩渦動畫，中央是「＋ 新增第一筆資產」"]
+            "items": [
+              "每月記帳提醒：可在「設定」開啟，並自訂每月提醒的時間，到點由手機本機發出通知"
+            ]
           }
         ]
       },
