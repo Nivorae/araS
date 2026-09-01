@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SUBSCRIPTIONS_SUPPORTED } from "@/lib/purchases";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
@@ -224,6 +225,17 @@ export default function SettingsScreen() {
   // ("你可隨時於 App Store 帳戶設定管理或取消訂閱") should be reachable in one
   // tap rather than only readable as text.
   async function openSubscriptionManagement() {
+    // Every subscription this app has ever sold was bought through Apple, so
+    // there is nowhere on an Android device to manage one. Deliberately an
+    // explanation rather than a link out — Google Play's anti-steering rules
+    // are strict about pointing at another store's billing from inside the app.
+    if (!SUBSCRIPTIONS_SUPPORTED) {
+      Alert.alert(
+        "訂閱管理",
+        "你的訂閱是透過 Apple 購買的，請在原本的 iPhone／iPad 上，於「設定」→ 你的 Apple ID →「訂閱」進行管理。"
+      );
+      return;
+    }
     try {
       await Linking.openURL("https://apps.apple.com/account/subscriptions");
     } catch {
@@ -317,15 +329,23 @@ export default function SettingsScreen() {
             {/* One card in three states: reading (spinner), already-premium, and
                 free. All three route into the paywall on tap — a premium user can
                 still open it to review what their plan includes. The cached
-                premium status means later visits skip the spinner entirely. */}
-            <SettingCard
-              icon={isPremium ? Check : Loader}
-              label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
-              color="#374254"
-              textColor="#ffffff"
-              loading={premiumLoading}
-              onPress={() => router.push(`/paywall?source=${PAYWALL_SOURCES.SETTINGS_CARD}`)}
-            />
+                premium status means later visits skip the spinner entirely.
+
+                Hidden on a platform with no store UNLESS the user is already
+                premium: entitlement is keyed by Clerk userId, so someone who
+                subscribed on iPhone is premium on Android too and should still
+                see their status — but a free Android user must not be offered
+                an upgrade that cannot be bought. */}
+            {SUBSCRIPTIONS_SUPPORTED || isPremium || premiumLoading ? (
+              <SettingCard
+                icon={isPremium ? Check : Loader}
+                label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
+                color="#374254"
+                textColor="#ffffff"
+                loading={premiumLoading}
+                onPress={() => router.push(`/paywall?source=${PAYWALL_SOURCES.SETTINGS_CARD}`)}
+              />
+            ) : null}
             {/* Only for subscribers — there is nothing to manage otherwise. A
                 user who has cancelled but is still inside the paid period is
                 still premium, so they keep seeing it until the term ends. */}
