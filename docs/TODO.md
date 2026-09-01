@@ -122,29 +122,33 @@ sheet 自身 effect 另有 `if (!visible) return`）。
 
 ## 網頁版 SEO / GA（`feature/web-google-analytics`）
 
-Google 搜不到 `arasasset.com` 的主因不是「網站太新」——production 的 SSR、
-`robots.txt`、`sitemap.xml` 都正常。真正卡住的是 **Google 還沒發現這個網域**：
-沒有任何外部連結指進來，也沒有在 Search Console 主動送出。
+Google 搜不到 `arasasset.com` ——**不是壞掉、也已進索引**（首頁 + /privacy，8/26
+剛重爬過）。Search Console 成效：3 個月只有 1 次曝光。純粹是排名問題：零外部連結
+＝零權重、內容只有 1~2 頁太薄、品牌詞「araS」撞 Aras Corp / 艾瑞斯資訊。
 
-程式碼已處理（分支上，兩個 commit，尚未開 PR）：
+程式碼已處理（PR #126 → `develop`）：
 
 - [x] GA4：`apps/web/components/google-analytics.tsx`，`NEXT_PUBLIC_GA_ID` 有值
       才注入；CSP 已放行 googletagmanager / google-analytics
-- [x] JSON-LD 擴充為 `@graph`（Organization + WebSite + SoftwareApplication），
-      `sameAs` 指 App Store
+- [x] JSON-LD 擴充為 `@graph`（Organization + WebSite + SoftwareApplication +
+      FAQPage），`sameAs` 指 App Store
 - [x] hero `<h1>` 加 sr-only 品牌關鍵字、landing metadata 加 keywords
+- [x] landing 加 FAQ 區塊（`app/landing-faq.ts` 單一來源，同時餵可見區塊與
+      FAQPage JSON-LD）
 - [x] `sitemap.xml` 補 `/terms`、新增 `public/llms.txt`
 
-只有帳號能做、必須手動：
+手動（帳號類）：
 
-- [ ] Vercel Production 環境變數設 `NEXT_PUBLIC_GA_ID`（先去 analytics.google.com
-      開 GA4 資源拿 `G-` 開頭 ID）
-- [ ] Google Search Console 加入 `arasasset.com` → 送 `sitemap.xml` → 對首頁按
-      「要求建立索引」
-- [ ] Bing Webmaster Tools 同上（餵 ChatGPT 搜尋）
-- [ ] 弄至少 1~2 個外部連結：App Store／Play 商店的網站欄位、LINE 官方帳號簡介
-- [ ] `landing-content.tsx` 的 `DOWNLOAD_HREF` 仍是假連結，確認後同步更新
-      `page.tsx` 的 `SAME_AS`
+- [x] Vercel Production 設 `NEXT_PUBLIC_GA_ID`（`G-TPJ0VV0L6V`）— 等 production
+      部署才生效
+- [x] Google Search Console：sitemap 已送（狀態成功）、`/` `/support` `/terms`
+      已要求索引
+- [x] Bing Webmaster Tools（從 GSC 匯入）
+- [x] 外部連結 ×3：App Store 行銷/支援網址、Play 商店網站欄、LINE 官方帳號
+- [ ] **開 `develop → main` PR** 讓 PR #126 上 production（GA 才開始收數據）
+- [ ] `landing-content.tsx` 的 `DOWNLOAD_HREF` 仍是假連結，確認正式 App Store
+      連結後同步更新 `page.tsx` 的 `SAME_AS`
+- [ ] 之後每 1~2 週看 GSC 成效報表；PR #126 上線後對 `/` 重新「要求索引」
 
 ## 技術債（不阻塞任何事）
 

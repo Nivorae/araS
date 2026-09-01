@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { siteUrl } from "@/lib/site-url";
+import { LANDING_FAQ } from "./landing-faq";
 import { LandingContent } from "./landing-content";
 
 const TITLE = "araS｜把資產、負債、投資都管在一個 App";
@@ -72,6 +73,15 @@ const jsonLd = {
       url: siteUrl,
       publisher: { "@id": `${siteUrl}/#organization` },
       offers: { "@type": "Offer", price: "0", priceCurrency: "TWD" },
+    },
+    {
+      "@type": "FAQPage",
+      "@id": `${siteUrl}/#faq`,
+      mainEntity: LANDING_FAQ.map(({ q, a }) => ({
+        "@type": "Question",
+        name: q,
+        acceptedAnswer: { "@type": "Answer", text: a },
+      })),
     },
   ],
 };

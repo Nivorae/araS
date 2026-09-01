@@ -16,8 +16,10 @@ import {
   LogIn,
   Lock,
   Download,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
+import { LANDING_FAQ } from "./landing-faq";
 
 /* -------------------------------------------------------------------------- */
 /*  Config                                                                     */
@@ -238,6 +240,7 @@ export function LandingContent() {
           <Hero />
           <Showcase />
           <Highlights />
+          <Faq />
           <CtaBand />
         </main>
         <Footer />
@@ -579,6 +582,44 @@ function Highlights() {
           })}
         </motion.div>
       </div>
+    </section>
+  );
+}
+
+/* --------------------------------- FAQ ---------------------------------- */
+
+function Faq() {
+  return (
+    <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-28">
+      <motion.h2
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+        className="text-center text-3xl font-extrabold tracking-tight sm:text-4xl"
+      >
+        常見問題
+      </motion.h2>
+
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+        className="mt-12 divide-y divide-black/[0.08] border-y border-black/[0.08]"
+      >
+        {LANDING_FAQ.map(({ q, a }) => (
+          <motion.details key={q} variants={fadeUp} className="group py-5">
+            <summary className="flex cursor-pointer items-center justify-between gap-4 text-[17px] font-semibold text-[#1c1c1e] [&::-webkit-details-marker]:hidden">
+              {q}
+              <span className="shrink-0 text-[#8e8e93] transition-transform duration-200 group-open:rotate-45">
+                <Plus size={20} strokeWidth={2.5} />
+              </span>
+            </summary>
+            <p className="mt-3 text-[15px] leading-relaxed text-[#6b6b70]">{a}</p>
+          </motion.details>
+        ))}
+      </motion.div>
     </section>
   );
 }
