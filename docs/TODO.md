@@ -31,26 +31,27 @@ PR #121 已於 2026-08-28 合併進 `develop`（merge commit `2a57eac`），內�
 - [ ] 弄完覆查：DNS 有記錄、`https://www.arasasset.com` 回 308 且 Location 指向
       apex、憑證有簽出來
 
-### B. Native rebuild + 送審（iOS 1.4）
+### B. iOS 1.4 —— 已送審（2026-09-01）
 
-這批**不能 OTA**：`expo-notifications` 是原生模組，且 `app.json` 的 `plugins`
-有變更。照 `mobile-release` 的判斷表走 Road B。
+build `5ac7c4f9`（commit `6cfea92`）已 `eas submit` 上傳，ASC 版本 **1.4
+(build 10)** 已送出審查。等 Apple 1–3 天。
 
-- [x] `app.json` 的 `version` 1.3 → **1.4**（它同時是 `runtimeVersion`，
-      policy 是 `appVersion`）
-- [x] 更新 `app.json` 的 `extra.whatsNew`（id `2026-09-01-monthly-reminder`，
-      內容是「每月記帳提醒」）
-- [x] `CHANGELOG.md` 的 `## 1.4（審核中）` 區段 —— 這段文字就是 ASC
-      「此版本新增功能」的文案來源
-- [ ] `eas build --profile production --platform ios` → `eas submit` → ASC 送審
-      ⚠️ 8/28 之前跑的那支 production build **不含**通知功能，要重跑
-      ⚠️ 上次 native build 之後 `app.json` 的 `plugins` 有動過，若 provisioning
-      profile 抱怨 capability，照 `mobile-release` 的 `eas credentials` 步驟走
-- [ ] `eas submit` 之後務必到 ASC 確認**建置版本**已切到新的 build number
-      —— 1.2 的第三輪被打回就是因為這一步沒做
-- [ ] 上架後才驗得準的一項：**點通知回首頁**。Expo Go 裡通知掛在 Expo Go 名下，
+- [x] 版號 1.3 → 1.4、`extra.whatsNew`、`CHANGELOG.md` 的 1.4 區段
+- [x] `runtimeVersion.policy` 換成 `fingerprint`（PR #123）
+- [x] `eas credentials -p ios` 重簽 provisioning profile ——
+      `expo-notifications` 的 iOS plugin 會寫入 `aps-environment`，8/21 那支
+      profile 沒有這個 capability。輸出出現 `Synced capabilities: Enabled:
+    Push Notifications` 才算修好
+- [x] `eas build` → `eas submit` → ASC 選建置版本 → 送出審查
+- [ ] **上架後才驗得準**：點通知回首頁。Expo Go 裡通知掛在 Expo Go 名下，
       完全滑掉時點擊只會開 Expo Go 首頁，不是程式的問題
-- 送審前記得確認 EAS 配額（上次確認：2026-08-04 起新週期，iOS 1/15）
+- [ ] 上架後在真機確認 Android 那組 `SUBSCRIPTIONS_SUPPORTED` 改動沒有影響
+      iOS 的付費流程（理論上 iOS 恆為 true、行為不變，但沒實機驗過）
+
+⚠️ **審核期間 1.3 使用者收不到任何 OTA** —— 他們 binary 的 runtimeVersion 是
+`"1.3"`（舊的 appVersion policy），永遠不可能符合指紋。要緊急修 1.3 的話，
+唯一方法是把 `version` 暫時改回 `1.3` 發一包，且那包 JS 不能碰
+`expo-notifications`（1.3 的 binary 沒有那個原生模組，import 就閃退）。
 
 ### C. Android 首次上架 Google Play（1.4，純免費版）
 
@@ -74,10 +75,16 @@ Notifications，Android 要賣訂閱是獨立的一整塊工程。
 
 Play Console 端（**只能由你在後台做**）：
 
-- [ ] 建立應用程式：名稱 `Sara Asset`、套件名稱 `com.Sara.assetapp`（與 iOS
-      bundle id 同字串，Android 端不可再改）
-- [ ] 上傳第一支 `.aab`。**第一版一定要用 Play Console 網頁手動上傳** ——
-      `eas submit` 的 API 無法替一個還沒有任何版本的應用程式建立首版
+- [x] 建立應用程式、上傳第一支 `.aab`（versionCode 4、fingerprint runtime）、
+      送出**封閉測試**（測試群組 `version1`，2026-09-01）
+- [ ] **確認 ≥12 位測試者實際 opted-in** —— 門檻算的是真的點連結加入的人數，
+      不是填進去的 email 數。權威位置：Play Console → 測試 → **正式版存取權**，
+      那頁直接顯示「X / 12 位測試人員」與「Y / 14 天」的進度，不要用猜的
+- [ ] 等封閉測試版本**通過 Google 審查並實際上線** —— 14 天是從測試者裝得到
+      的那天起算，不是從按提交那天
+- [ ] 連續維持 14 天
+- [ ] 跑滿後在「正式版存取權」頁提出申請（一份獨立表單，問測試期間學到什麼）
+- [ ] 通過後才能建立正式版並送正式審查
 - [ ] 商店資訊素材：512×512 應用程式圖示、1024×500 主打圖（feature graphic，
       Google 必填、Apple 沒有這個東西，要新做）、至少 2 張手機截圖、
       簡短說明（80 字內）、完整說明
@@ -92,7 +99,7 @@ Play Console 端（**只能由你在後台做**）：
 之後才需要做（不阻塞首發）：
 
 - [ ] `eas.json` 的 `submit.production` 目前**只有 ios**。要用 `eas submit
-    --platform android` 自動送件，需要 Google Cloud service account JSON 並在
+  --platform android` 自動送件，需要 Google Cloud service account JSON 並在
       Play Console 授權；首版手動上傳之後再補，可省下之後每次的手動步驟
 - [ ] Android App Links：`app.json` 的 `android.intentFilters` 只有
       `ara-s-web.vercel.app`，沒有 `arasasset.com`（iOS 兩個都有）。要真正生效
