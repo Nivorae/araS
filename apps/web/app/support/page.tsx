@@ -1,17 +1,40 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbJsonLd, faqPageJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "支援與聯絡",
-  description: "araS 個人資產管理工具的使用支援與聯絡方式",
+  description:
+    "araS 個人資產管理工具的使用支援與聯絡方式：如何登入、資料安全、如何刪除帳號與資料。",
   alternates: { canonical: "/support" },
   robots: { index: true, follow: true },
 };
 
 const CONTACT_EMAIL = "milk88084@gmail.com";
 
+// Keep each answer in sync with the visible copy in the 常見問題 section below —
+// Google requires FAQ structured data to match what the user sees.
+const SUPPORT_FAQ = [
+  {
+    q: "如何登入 araS？",
+    a: "araS 透過 Google 或 LINE 帳號一鍵登入，你不需要另外設定密碼。",
+  },
+  {
+    q: "我的資料安全嗎？",
+    a: "你的資料以加密連線（HTTPS）傳輸，並僅與你的帳號關聯，只有你本人能存取。我們不會販售你的個人資料，也不會用於廣告追蹤。",
+  },
+  {
+    q: "如何刪除我的帳號與資料？",
+    a: "最快的方式是在 App 內操作：登入後點選底部導覽的「設定」，選擇「刪除帳號」並確認，帳號與所有相關資料會立即永久刪除、無法復原。若你無法登入 App，也可以寄信到 milk88084@gmail.com，主旨註明「刪除帳號」，並使用註冊時的電子郵件來信，我們會在合理期間內永久刪除你的帳號與所有相關資料。",
+  },
+];
+
 export default function SupportPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e] md:px-10 md:py-16">
+      <JsonLd data={breadcrumbJsonLd([{ name: "支援與聯絡", path: "/support" }])} />
+      <JsonLd data={faqPageJsonLd(SUPPORT_FAQ)} />
+
       <h1 className="text-3xl font-bold tracking-tight">支援與聯絡</h1>
       <p className="mt-2 text-neutral-600">
         感謝你使用 araS。若你在使用上遇到問題、有功能建議，或需要協助，歡迎透過以下方式與我們聯繫。

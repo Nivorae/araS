@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "使用條款",
-  description: "araS 個人資產管理工具的使用條款與訂閱條款（EULA）",
+  description:
+    "araS 個人資產管理工具的使用條款與訂閱條款（EULA）：服務說明、Premium 自動續訂、退款與責任限制。",
   alternates: { canonical: "/terms" },
   robots: { index: true, follow: true },
 };
@@ -13,6 +16,8 @@ const CONTACT_EMAIL = "milk88084@gmail.com";
 export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e] md:px-10 md:py-16">
+      <JsonLd data={breadcrumbJsonLd([{ name: "使用條款", path: "/terms" }])} />
+
       <h1 className="text-3xl font-bold tracking-tight">使用條款</h1>
       <p className="mt-2 text-sm text-neutral-500">最後更新日期：{LAST_UPDATED}</p>
 

@@ -16,15 +16,17 @@ import {
   LogIn,
   Lock,
   Download,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
+import { LANDING_FAQ } from "./landing-faq";
 
 /* -------------------------------------------------------------------------- */
 /*  Config                                                                     */
 /* -------------------------------------------------------------------------- */
 
 const PRIVACY_HREF = "/privacy";
-const DOWNLOAD_HREF = "https://apps.apple.com/us/app/aras-asset/id6785747999"; // 假連結，之後接上 App Store / 下載頁
+const DOWNLOAD_HREF = "https://apps.apple.com/tw/app/id6785747999"; // araS 資產紀錄 on the App Store (slug-less form; Apple redirects to canonical)
 
 // 五支手機的截圖插槽。把圖片放到 apps/web/public/landing/ 後，
 // 這裡的路徑就會自動顯示；找不到檔案時會回退成占位畫面。
@@ -238,6 +240,7 @@ export function LandingContent() {
           <Hero />
           <Showcase />
           <Highlights />
+          <Faq />
           <CtaBand />
         </main>
         <Footer />
@@ -325,6 +328,9 @@ function Hero() {
             variants={fadeUp}
             className="mx-auto max-w-3xl text-4xl leading-[1.1] font-extrabold tracking-tight text-[#1c1c1e] sm:text-6xl"
           >
+            {/* Keyword-bearing brand text for crawlers/screen readers; the
+                visible headline stays purely aspirational. */}
+            <span className="sr-only">araS 個人資產管理工具 — </span>
             掌握你的每一分資產
           </motion.h1>
 
@@ -332,9 +338,9 @@ function Hero() {
             variants={fadeUp}
             className="mx-auto mt-5 max-w-xl text-base text-[#6b6b70] sm:text-lg"
           >
-            araS 把資產、負債、投資、保險與退休規劃，
+            araS 是一款個人資產管理工具，把現金、股票、加密貨幣、不動產、貸款與保單
             <br className="hidden sm:block" />
-            整合在一個乾淨俐落的介面，隨時看清你的淨值全貌。
+            整合在同一個介面，即時計算你的新台幣淨值。
           </motion.p>
 
           <motion.div variants={fadeUp} className="mt-8 flex flex-col items-center gap-3">
@@ -388,7 +394,8 @@ function Showcase() {
           一個 App，管理你的全部財務
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-base text-[#6b6b70] sm:text-lg">
-          從日常收支到長期規劃，araS 內建你需要的每一個模組，不必再切換多個工具。
+          從日常收支到長期規劃，araS 內建你需要的每一個模組，不必再切換多個工具。提供 iOS、Android
+          與網頁版，用 Google 或 LINE 帳號登入，免記密碼。
         </p>
       </motion.div>
 
@@ -580,6 +587,44 @@ function Highlights() {
   );
 }
 
+/* --------------------------------- FAQ ---------------------------------- */
+
+function Faq() {
+  return (
+    <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-28">
+      <motion.h2
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+        className="text-center text-3xl font-extrabold tracking-tight sm:text-4xl"
+      >
+        常見問題
+      </motion.h2>
+
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+        className="mt-12 divide-y divide-black/[0.08] border-y border-black/[0.08]"
+      >
+        {LANDING_FAQ.map(({ q, a }) => (
+          <motion.details key={q} variants={fadeUp} className="group py-5">
+            <summary className="flex cursor-pointer items-center justify-between gap-4 text-[17px] font-semibold text-[#1c1c1e] [&::-webkit-details-marker]:hidden">
+              {q}
+              <span className="shrink-0 text-[#8e8e93] transition-transform duration-200 group-open:rotate-45">
+                <Plus size={20} strokeWidth={2.5} />
+              </span>
+            </summary>
+            <p className="mt-3 text-[15px] leading-relaxed text-[#6b6b70]">{a}</p>
+          </motion.details>
+        ))}
+      </motion.div>
+    </section>
+  );
+}
+
 /* ------------------------------ CTA band ---------------------------------- */
 
 function CtaBand() {
@@ -627,9 +672,15 @@ function Footer() {
           <span className="text-sm font-semibold">araS</span>
           <span className="text-sm text-[#a1a1a6]">個人資產管理工具</span>
         </div>
-        <div className="flex items-center gap-5 text-sm text-[#8e8e93]">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-[#8e8e93]">
+          <Link href="/about" className="transition-colors hover:text-[#1c1c1e]">
+            關於
+          </Link>
           <Link href={PRIVACY_HREF} className="transition-colors hover:text-[#1c1c1e]">
             隱私政策
+          </Link>
+          <Link href="/terms" className="transition-colors hover:text-[#1c1c1e]">
+            使用條款
           </Link>
           <Link href="/support" className="transition-colors hover:text-[#1c1c1e]">
             支援
