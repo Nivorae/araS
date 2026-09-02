@@ -83,6 +83,7 @@ const jsonLd = {
       description: DESCRIPTION,
       applicationCategory: "FinanceApplication",
       operatingSystem: "iOS, Android, Web",
+      softwareVersion: "1.4",
       url: siteUrl,
       publisher: { "@id": `${siteUrl}/#organization` },
       offers: { "@type": "Offer", price: "0", priceCurrency: "TWD" },
