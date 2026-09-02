@@ -4,24 +4,25 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-09-01
+最後整理：2026-09-02
 
 ## 下一步
 
-**1.4 已同時送出兩邊**（兩支 binary 都建自 `6cfea92`）：iOS 送 App Store 審查、
+**1.4 兩支 binary 都建自 `6cfea92`**：**iOS 已通過 App Store 審核（2026-09-02）**、
 Android 進 Google Play 封閉測試。`develop` → `main` 的 release PR 是 **#124**
 （尚未合併 —— 合併等於部署到 production）。
 
 現在的關鍵路徑是 **B 的封閉測試 12 人**：14 天的時鐘要等人數到位才起算，
-在那之前每一天都是白費的。A（iOS 審核）不阻塞它。
+在那之前每一天都是白費的。A（iOS）已不阻塞任何事。
 
 `www.arasasset.com` 的 DNS 已於 2026-09-01 完成並驗證（308 → apex、路徑保留、
 apex 仍 200），整段已移除。
 
-### A. iOS 1.4 —— 已送審（2026-09-01）
+### A. iOS 1.4 —— App Store 審核通過（2026-09-02）
 
-build `5ac7c4f9`（commit `6cfea92`）已 `eas submit` 上傳，ASC 版本 **1.4
-(build 10)** 已送出審查。等 Apple 1–3 天。
+build `5ac7c4f9`（commit `6cfea92`）＝ ASC 版本 **1.4 (build 10)**，**Apple
+審核已通過**。剩下：確認是否已釋出（自動釋出 or 手動「發布這個版本」），以及
+下面兩個上架後才驗得準的項目。
 
 - [x] 版號 1.3 → 1.4、`extra.whatsNew`、`CHANGELOG.md` 的 1.4 區段
 - [x] `runtimeVersion.policy` 換成 `fingerprint`（PR #123）
@@ -119,6 +120,62 @@ production 沒有它們。三條呼叫路徑全被旗標擋住：`useInvestmentM
 （`targets` 用 `isPriceable()` 過濾）、`entry/[id].tsx:326`（`if (!isFundEntry)
 return`）、`FundPickerSheet` 搜尋（兩個開啟入口都在 `{isFundEntry && …}` 內，
 sheet 自身 effect 另有 `if (!visible) return`）。
+
+## 網頁版 SEO / GA（`feature/web-google-analytics`）
+
+Google 搜不到 `arasasset.com` ——**不是壞掉、也已進索引**（首頁 + /privacy，8/26
+剛重爬過）。Search Console 成效：3 個月只有 1 次曝光。純粹是排名問題：零外部連結
+＝零權重、內容只有 1~2 頁太薄、品牌詞「araS」撞 Aras Corp / 艾瑞斯資訊。
+
+`geo-reports/GEO-AUDIT-REPORT.md` 有完整稽核：線上站 GEO 分數 **31/100
+(Critical)**，PR #126 全部合併後預估 **~44/100 (Poor)**。技術地基強（SSR /
+robots 全開 / sitemap / 安全標頭），弱在可引用內容、品牌權威、E-E-A-T、平台佈局
+——後三者是 off-site 工作，改 code 到不了。
+
+程式碼已處理（PR #126 → `develop`）：
+
+- [x] GA4：`apps/web/components/google-analytics.tsx`，`NEXT_PUBLIC_GA_ID` 有值
+      才注入；CSP 已放行 googletagmanager / google-analytics
+- [x] JSON-LD `@graph`：Organization（`alternateName` + `email` +
+      `foundingDate` + `sameAs`）+ WebSite + SoftwareApplication + FAQPage
+- [x] 子頁 BreadcrumbList schema（`lib/structured-data.ts` helper）；`/support`
+      的 Q&A 補 FAQPage schema
+- [x] 新增 `/about` 頁（araS 是什麼、為什麼做、收費、隱私、聯絡）+ 進 sitemap +
+      footer 內部連結（關於 / 使用條款 也補進 footer）
+- [x] 首頁 hero + Showcase 段落改寫成可引用的事實句（平台、幣別、登入方式）
+- [x] hero `<h1>` 加 sr-only 品牌關鍵字、landing metadata 加 keywords
+- [x] landing FAQ 區塊（`app/landing-faq.ts` 單一來源，餵可見區塊 + FAQPage）
+- [x] `sitemap.xml` 補 `/terms`、`/about`；新增 `public/llms.txt` +
+      `public/llms-full.txt`
+- [x] `robots.txt` 改用 route handler（`app/robots.txt/route.ts`），加
+      `Content-Signal: search=yes, ai-input=yes, ai-train=yes`
+- [x] IndexNow：key 檔 `public/42273540….txt` + `pnpm --filter @repo/web
+indexnow`（每次 production 部署後手動跑一次；之後可接進部署流程）
+- [x] `SoftwareApplication` schema 加 `softwareVersion: "1.4"`
+
+手動（帳號類）：
+
+- [x] Vercel Production 設 `NEXT_PUBLIC_GA_ID`（`G-TPJ0VV0L6V`）— 等 production
+      部署才生效
+- [x] Google Search Console：sitemap 已送（狀態成功）、`/` `/support` `/terms`
+      已要求索引
+- [x] Bing Webmaster Tools（從 GSC 匯入）
+- [x] 外部連結 ×3：App Store 行銷/支援網址、Play 商店網站欄、LINE 官方帳號
+- [x] 正式 App Store 連結 `https://apps.apple.com/tw/app/id6785747999` 已換進
+      下載按鈕 / `SAME_AS` / `llms.txt` / `llms-full.txt`（開發者 = Li KO CHUAN）
+- [ ] **開 `develop → main` PR** 讓 PR #126 上 production（GA 才開始收數據）
+- [ ] PR #126 上 production 後：GSC 對 `/`、`/about` 重新「要求索引」；跑一次
+      `pnpm --filter @repo/web indexnow`
+- [ ] 之後每 1~2 週看 GSC 成效報表
+
+品牌權威（off-site，分數最低、槓桿最大，全部無法用 code 解決）：
+
+- [ ] Google Play 商店資訊「網站」欄填 `arasasset.com`（App Store 已填）
+- [ ] 開一個 LinkedIn 或 FB 專頁 + 一個 Threads/IG，全部串進 `page.tsx` 的
+      `SAME_AS`
+- [ ] 投 Product Hunt + 1~2 個台灣 App 目錄
+- [ ] 爭取 ≥1 篇第三方台灣理財 App 介紹提到 araS（塔科女子 / 蘋果仁 / vocus）
+- [ ] 在 PTT Tech_Job / Dcard 理財 / Threads 發一篇真誠的「我做了這個」
 
 ## 技術債（不阻塞任何事）
 

@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "隱私權政策",
-  description: "araS 個人資產管理工具的隱私權政策",
+  description:
+    "araS 個人資產管理工具的隱私權政策：我們蒐集哪些資料、如何使用與保護，以及你的權利。",
   alternates: { canonical: "/privacy" },
   robots: { index: true, follow: true },
 };
@@ -13,6 +16,8 @@ const CONTACT_EMAIL = "milk88084@gmail.com";
 export default function PrivacyPolicyPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e] md:px-10 md:py-16">
+      <JsonLd data={breadcrumbJsonLd([{ name: "隱私權政策", path: "/privacy" }])} />
+
       <h1 className="text-3xl font-bold tracking-tight">隱私權政策</h1>
       <p className="mt-2 text-sm text-neutral-500">最後更新日期：{LAST_UPDATED}</p>
 
