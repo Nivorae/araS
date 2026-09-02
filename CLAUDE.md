@@ -164,6 +164,54 @@ Don't re-propose these — each was raised and rejected on purpose:
   already makes the web account premium — the only stuck case is a web-only user
   with no iPhone, judged out of scope for this product.
 
+## Web SEO / GEO
+
+The marketing site (`arasasset.com`) is optimised for both Google and AI answer
+engines. Full analysis + score history in `geo-reports/GEO-AUDIT-REPORT.md`
+(50/100 as of 2026-09-02; the ceiling is off-site brand authority, not code).
+Use the global `geo` / `geo-audit` skills for analysis — don't build a local copy.
+
+**Every SEO surface, and they must stay in sync** — a fact like the brand
+description, platforms, pricing, or the App Store URL appears in all of these:
+
+- `apps/web/app/page.tsx` — homepage JSON-LD `@graph` (Organization + `founder`
+  Person + WebSite + SoftwareApplication + FAQPage), `metadata`, `SAME_AS`
+- `apps/web/app/landing-faq.ts` — the 8 landing FAQs (single source: drives the
+  visible `<Faq>` in `landing-content.tsx` **and** the FAQPage schema)
+- `apps/web/app/{about,privacy,support,terms}/page.tsx` — per-page `metadata` +
+  `<JsonLd>` (BreadcrumbList everywhere; FAQPage on `/support`; Person on `/about`)
+- `apps/web/app/sitemap.ts`, `apps/web/app/robots.txt/route.ts`
+- `apps/web/public/llms.txt`, `apps/web/public/llms-full.txt`
+
+**Helpers**: `<JsonLd>` (`apps/web/components/json-ld.tsx`),
+`breadcrumbJsonLd` / `faqPageJsonLd` (`apps/web/lib/structured-data.ts`),
+`siteUrl` (`apps/web/lib/site-url.ts`, from `NEXT_PUBLIC_APP_URL`).
+
+**Gotchas**:
+
+- **CSP blocks new external scripts silently.** Any new `<script src>` / beacon
+  (GA was one) needs its host added to `script-src` **and** `connect-src` in
+  `apps/web/next.config.ts`. No console error when it's missing — the tag just
+  never loads.
+- **`robots.txt` is a route handler**, not `MetadataRoute.Robots`, so it can
+  carry `Content-Signal: search=yes, ai-input=yes, ai-train=yes`. Keep the
+  `Disallow` list in sync with the private app routes.
+- **Brand disambiguation**: "araS" collides with Aras Corp (PLM, has a Wikipedia
+  page) and 艾瑞斯資訊. `Organization.alternateName` carries `araS 資產` /
+  `arasasset`; every new profile must use the exact name "araS" + link
+  `arasasset.com`.
+- Developer for schema/attribution: **KO CHUAN LI** (前端工程師). App Store:
+  `https://apps.apple.com/tw/app/id6785747999` (slug-less, TW storefront).
+- `NEXT_PUBLIC_GA_ID` is set **only** in Vercel Production (dev/preview send no
+  hits). GA renders via `apps/web/components/google-analytics.tsx`.
+
+**After every production deploy that changed a public page**:
+
+1. Google Search Console → URL Inspection → "Request Indexing" for each changed
+   or new URL.
+2. `pnpm --filter @repo/web indexnow` (pings Bing/Yandex/Copilot; key file is
+   `apps/web/public/42273540bc2d049348f599ea70dcf81a.txt` — must stay reachable).
+
 ## Reference Resources
 
 | Resource                        | URL                                             | Description                                          |
