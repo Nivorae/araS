@@ -26,7 +26,7 @@ import { LANDING_FAQ } from "./landing-faq";
 /* -------------------------------------------------------------------------- */
 
 const PRIVACY_HREF = "/privacy";
-const DOWNLOAD_HREF = "https://apps.apple.com/us/app/aras-asset/id6785747999"; // 假連結，之後接上 App Store / 下載頁
+const DOWNLOAD_HREF = "https://apps.apple.com/tw/app/id6785747999"; // araS 資產紀錄 on the App Store (slug-less form; Apple redirects to canonical)
 
 // 五支手機的截圖插槽。把圖片放到 apps/web/public/landing/ 後，
 // 這裡的路徑就會自動顯示；找不到檔案時會回退成占位畫面。

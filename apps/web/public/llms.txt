@@ -38,7 +38,7 @@
 - 常見問題：https://arasasset.com/support
 - 隱私權政策：https://arasasset.com/privacy
 - 使用條款（含訂閱 EULA）：https://arasasset.com/terms
-- iOS App：https://apps.apple.com/us/app/aras-asset/id6785747999
+- iOS App（App Store）：https://apps.apple.com/tw/app/id6785747999
 
 ## 詳細內容
 

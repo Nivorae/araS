@@ -13,7 +13,7 @@ const DESCRIPTION =
 // External profiles for entity disambiguation ("araS" collides with Aras Corp /
 // 艾瑞斯資訊 in search). Add the Play Store + any social profiles here as they
 // go live — keep them in sync with the download links in landing-content.tsx.
-const SAME_AS = ["https://apps.apple.com/us/app/aras-asset/id6785747999"];
+const SAME_AS = ["https://apps.apple.com/tw/app/id6785747999"];
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
