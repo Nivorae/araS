@@ -4,7 +4,7 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-09-01
+最後整理：2026-09-02
 
 ## 下一步
 
@@ -18,10 +18,11 @@ Android 進 Google Play 封閉測試。`develop` → `main` 的 release PR 是 *
 `www.arasasset.com` 的 DNS 已於 2026-09-01 完成並驗證（308 → apex、路徑保留、
 apex 仍 200），整段已移除。
 
-### A. iOS 1.4 —— 已送審（2026-09-01）
+### A. iOS 1.4 —— App Store 審核通過（2026-09-02）
 
-build `5ac7c4f9`（commit `6cfea92`）已 `eas submit` 上傳，ASC 版本 **1.4
-(build 10)** 已送出審查。等 Apple 1–3 天。
+build `5ac7c4f9`（commit `6cfea92`）＝ ASC 版本 **1.4 (build 10)**，**Apple
+審核已通過**。剩下：確認是否已釋出（自動釋出 or 手動「發布這個版本」），以及
+下面兩個上架後才驗得準的項目。
 
 - [x] 版號 1.3 → 1.4、`extra.whatsNew`、`CHANGELOG.md` 的 1.4 區段
 - [x] `runtimeVersion.policy` 換成 `fingerprint`（PR #123）
@@ -126,16 +127,28 @@ Google 搜不到 `arasasset.com` ——**不是壞掉、也已進索引**（首�
 剛重爬過）。Search Console 成效：3 個月只有 1 次曝光。純粹是排名問題：零外部連結
 ＝零權重、內容只有 1~2 頁太薄、品牌詞「araS」撞 Aras Corp / 艾瑞斯資訊。
 
+`geo-reports/GEO-AUDIT-REPORT.md` 有完整稽核：線上站 GEO 分數 **31/100
+(Critical)**，PR #126 全部合併後預估 **~44/100 (Poor)**。技術地基強（SSR /
+robots 全開 / sitemap / 安全標頭），弱在可引用內容、品牌權威、E-E-A-T、平台佈局
+——後三者是 off-site 工作，改 code 到不了。
+
 程式碼已處理（PR #126 → `develop`）：
 
 - [x] GA4：`apps/web/components/google-analytics.tsx`，`NEXT_PUBLIC_GA_ID` 有值
       才注入；CSP 已放行 googletagmanager / google-analytics
-- [x] JSON-LD 擴充為 `@graph`（Organization + WebSite + SoftwareApplication +
-      FAQPage），`sameAs` 指 App Store
+- [x] JSON-LD `@graph`：Organization（`alternateName` + `email` +
+      `foundingDate` + `sameAs`）+ WebSite + SoftwareApplication + FAQPage
+- [x] 子頁 BreadcrumbList schema（`lib/structured-data.ts` helper）；`/support`
+      的 Q&A 補 FAQPage schema
+- [x] 新增 `/about` 頁（araS 是什麼、為什麼做、收費、隱私、聯絡）+ 進 sitemap +
+      footer 內部連結（關於 / 使用條款 也補進 footer）
+- [x] 首頁 hero + Showcase 段落改寫成可引用的事實句（平台、幣別、登入方式）
 - [x] hero `<h1>` 加 sr-only 品牌關鍵字、landing metadata 加 keywords
-- [x] landing 加 FAQ 區塊（`app/landing-faq.ts` 單一來源，同時餵可見區塊與
-      FAQPage JSON-LD）
-- [x] `sitemap.xml` 補 `/terms`、新增 `public/llms.txt`
+- [x] landing FAQ 區塊（`app/landing-faq.ts` 單一來源，餵可見區塊 + FAQPage）
+- [x] `sitemap.xml` 補 `/terms`、`/about`；新增 `public/llms.txt` +
+      `public/llms-full.txt`
+- [ ] （低）robots.txt 的 `Content-Signal` opt-in、部署時 ping IndexNow ——
+      `app/robots.ts` 是動態的，加自訂指令要改成靜態，暫緩
 
 手動（帳號類）：
 
@@ -147,8 +160,18 @@ Google 搜不到 `arasasset.com` ——**不是壞掉、也已進索引**（首�
 - [x] 外部連結 ×3：App Store 行銷/支援網址、Play 商店網站欄、LINE 官方帳號
 - [ ] **開 `develop → main` PR** 讓 PR #126 上 production（GA 才開始收數據）
 - [ ] `landing-content.tsx` 的 `DOWNLOAD_HREF` 仍是假連結，確認正式 App Store
-      連結後同步更新 `page.tsx` 的 `SAME_AS`
-- [ ] 之後每 1~2 週看 GSC 成效報表；PR #126 上線後對 `/` 重新「要求索引」
+      連結後同步更新 `page.tsx` 的 `SAME_AS`、`llms.txt`、`about` 頁
+- [ ] PR #126 上 production 後：GSC 對 `/`、`/about` 重新「要求索引」
+- [ ] 之後每 1~2 週看 GSC 成效報表
+
+品牌權威（off-site，分數最低、槓桿最大，全部無法用 code 解決）：
+
+- [ ] Google Play 商店資訊「網站」欄填 `arasasset.com`（App Store 已填）
+- [ ] 開一個 LinkedIn 或 FB 專頁 + 一個 Threads/IG，全部串進 `page.tsx` 的
+      `SAME_AS`
+- [ ] 投 Product Hunt + 1~2 個台灣 App 目錄
+- [ ] 爭取 ≥1 篇第三方台灣理財 App 介紹提到 araS（塔科女子 / 蘋果仁 / vocus）
+- [ ] 在 PTT Tech_Job / Dcard 理財 / Threads 發一篇真誠的「我做了這個」
 
 ## 技術債（不阻塞任何事）
 
