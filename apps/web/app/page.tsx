@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/json-ld";
 import { siteUrl } from "@/lib/site-url";
 import { LANDING_FAQ } from "./landing-faq";
 import { LandingContent } from "./landing-content";
+
+const CONTACT_EMAIL = "milk88084@gmail.com";
 
 const TITLE = "araS｜把資產、負債、投資都管在一個 App";
 const DESCRIPTION =
@@ -52,8 +55,12 @@ const jsonLd = {
       "@type": "Organization",
       "@id": `${siteUrl}/#organization`,
       name: "araS",
+      alternateName: ["araS 資產", "araS 資產管理工具", "arasasset"],
+      description: DESCRIPTION,
       url: siteUrl,
       logo: `${siteUrl}/icons/app-icon.png`,
+      email: CONTACT_EMAIL,
+      foundingDate: "2026",
       sameAs: SAME_AS,
     },
     {
@@ -89,11 +96,7 @@ const jsonLd = {
 export default function LandingPage() {
   return (
     <>
-      <script
-        type="application/ld+json"
-        // eslint-disable-next-line react/no-danger -- Next.js's documented pattern for JSON-LD
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <LandingContent />
     </>
   );

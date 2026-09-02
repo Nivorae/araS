@@ -24,13 +24,24 @@
 - 保險保障：集中管理保單資訊
 - 退休規劃：依現況預估未來並試算
 
+## 收費
+
+- 免費版：可建立最多 20 筆資產或負債項目
+- Premium：解除項目上限與進階功能，透過 Apple App Store 內購訂閱，提供月繳與
+  年繳，可隨時關閉自動續訂
+
 ## 連結
 
 - 網站首頁：https://arasasset.com/
+- 關於 araS：https://arasasset.com/about
+- 常見問題：https://arasasset.com/support
 - 隱私權政策：https://arasasset.com/privacy
 - 使用條款（含訂閱 EULA）：https://arasasset.com/terms
-- 支援與聯絡：https://arasasset.com/support
 - iOS App：https://apps.apple.com/us/app/aras-asset/id6785747999
+
+## 詳細內容
+
+- 常見問題全文：https://arasasset.com/llms-full.txt
 
 ## 聯絡
 

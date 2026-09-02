@@ -338,9 +338,9 @@ function Hero() {
             variants={fadeUp}
             className="mx-auto mt-5 max-w-xl text-base text-[#6b6b70] sm:text-lg"
           >
-            araS 把資產、負債、投資、保險與退休規劃，
+            araS 是一款個人資產管理工具，把現金、股票、加密貨幣、不動產、貸款與保單
             <br className="hidden sm:block" />
-            整合在一個乾淨俐落的介面，隨時看清你的淨值全貌。
+            整合在同一個介面，即時計算你的新台幣淨值。
           </motion.p>
 
           <motion.div variants={fadeUp} className="mt-8 flex flex-col items-center gap-3">
@@ -394,7 +394,8 @@ function Showcase() {
           一個 App，管理你的全部財務
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-base text-[#6b6b70] sm:text-lg">
-          從日常收支到長期規劃，araS 內建你需要的每一個模組，不必再切換多個工具。
+          從日常收支到長期規劃，araS 內建你需要的每一個模組，不必再切換多個工具。提供 iOS、Android
+          與網頁版，用 Google 或 LINE 帳號登入，免記密碼。
         </p>
       </motion.div>
 
@@ -671,9 +672,15 @@ function Footer() {
           <span className="text-sm font-semibold">araS</span>
           <span className="text-sm text-[#a1a1a6]">個人資產管理工具</span>
         </div>
-        <div className="flex items-center gap-5 text-sm text-[#8e8e93]">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-[#8e8e93]">
+          <Link href="/about" className="transition-colors hover:text-[#1c1c1e]">
+            關於
+          </Link>
           <Link href={PRIVACY_HREF} className="transition-colors hover:text-[#1c1c1e]">
             隱私政策
+          </Link>
+          <Link href="/terms" className="transition-colors hover:text-[#1c1c1e]">
+            使用條款
           </Link>
           <Link href="/support" className="transition-colors hover:text-[#1c1c1e]">
             支援
