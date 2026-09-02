@@ -61,6 +61,12 @@ const jsonLd = {
       logo: `${siteUrl}/icons/app-icon.png`,
       email: CONTACT_EMAIL,
       foundingDate: "2026",
+      founder: {
+        "@type": "Person",
+        "@id": `${siteUrl}/#founder`,
+        name: "KO CHUAN LI",
+        jobTitle: "前端工程師",
+      },
       sameAs: SAME_AS,
     },
     {

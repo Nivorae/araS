@@ -8,6 +8,7 @@
 ## 重點資訊
 
 - 名稱：araS（讀作 a-ra-s；與工業軟體 Aras Corp、艾瑞斯資訊無關）
+- 開發者：前端工程師 KO CHUAN LI，獨力開發與維護
 - 類別：個人理財 / 資產管理 / 淨值追蹤
 - 平台：iOS App、Android App、網頁版（arasasset.com）
 - 登入方式：Google、LINE 第三方帳號登入，免密碼

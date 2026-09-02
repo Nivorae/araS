@@ -1,9 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { JsonLd } from "@/components/json-ld";
+import { siteUrl } from "@/lib/site-url";
 import { breadcrumbJsonLd } from "@/lib/structured-data";
 
 const CONTACT_EMAIL = "milk88084@gmail.com";
+
+const founderJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "@id": `${siteUrl}/#founder`,
+  name: "KO CHUAN LI",
+  jobTitle: "前端工程師",
+  description:
+    "前端工程師，對 UI/UX 有強烈的設計美感，喜歡把介面質感往上提，目前獨力開發網頁與 App。",
+  worksFor: { "@id": `${siteUrl}/#organization` },
+};
 
 export const metadata: Metadata = {
   title: "關於 araS",
@@ -17,6 +29,7 @@ export default function AboutPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 text-[#1c1c1e] md:px-10 md:py-16">
       <JsonLd data={breadcrumbJsonLd([{ name: "關於 araS", path: "/about" }])} />
+      <JsonLd data={founderJsonLd} />
 
       <h1 className="text-3xl font-bold tracking-tight">關於 araS</h1>
 
@@ -34,10 +47,18 @@ export default function AboutPage() {
 
       <Section title="為什麼做 araS">
         <p>
-          araS 由一位在台灣的獨立開發者利用業餘時間開發與維護。它最初是為了解決自己的
+          araS 是一個由獨立開發者維護的個人專案。它最初是為了解決自己的
           需求：資產分散在銀行、券商、保單和不同 App 裡，沒有一個地方能一眼看清「現在
           到底有多少淨值」。市面上的工具不是綁定特定券商、就是把記帳和資產管理混在一起，
           所以決定自己做一個乾淨、專注在「淨值全貌」的版本。
+        </p>
+      </Section>
+
+      <Section title="開發者">
+        <p>
+          araS 由前端工程師 <strong>KO CHUAN LI</strong> 獨力開發與維護。他對 UI/UX
+          有強烈的設計美感，喜歡把介面質感往上提，目前獨自開發網頁與 App。araS
+          就是這個取向下的作品：功能專注、介面乾淨。
         </p>
       </Section>
 
