@@ -3,6 +3,9 @@
 一個 Turborepo + pnpm monorepo：**Next.js 15 後端/網頁** + **Expo React Native iOS App**，
 共用同一套 API、Zod schema 與 Clerk 認證。協助記錄與檢視資產、負債、收支、投資組合、保險與退休規劃。
 
+> 開發指南、Git 流程、發版步驟、慣例與疑難排解都在 **[CLAUDE.md](CLAUDE.md)**。
+> 這份 README 只放專案本身的資訊。
+
 ## Tech Stack
 
 | Layer      | Technology                                                                            |
@@ -38,6 +41,9 @@
 
 > 各服務的登入帳號記在 `docs/ACCOUNTS.local.md`。**這個 repo 是公開的**，所以那個檔案
 > 被 `.gitignore` 排除、只存在本機 —— 帳號、密碼、金鑰一律不進版控。
+>
+> Supabase 的 dev 專案在免費方案上，閒置約 7 天會被自動暫停 —— 症狀與復原步驟見
+> [CLAUDE.md](CLAUDE.md) 的「Troubleshooting」。
 
 ### 行為分析（PostHog）
 
@@ -45,35 +51,11 @@ App Store Connect 只告訴我們「下載後 7 天內 0.6% 轉付費」，答�
 哪一步走掉的。PostHog 收 7 個事件把它拆成五段：`app_open` →
 `onboarding_complete` → `first_record_created`（activation）→ `paywall_viewed` →
 `subscribe_clicked` → `subscribe_success`。事件定義、參數與指標算法見
-[`docs/analytics.md`](docs/analytics.md)，事件名稱一律從
-`apps/mobile/lib/analytics/events.ts` 取，**程式碼裡不准出現字串字面量**。
+[`docs/analytics.md`](docs/analytics.md)。
 
 `EXPO_PUBLIC_POSTHOG_API_KEY` 是 write-only 的 project token，跟 Clerk publishable
 key、RevenueCat SDK key 同性質，可公開、可進版控。**留空 = 追蹤停用**（App 一切
-正常，dev 下事件只印在 console），所以忘了填不會報錯，只會沒有數據。要填的四個
-地方見下面「Mobile 發版」。
-
-### Supabase dev 專案會自動暫停
-
-dev 專案在免費方案上，**閒置約 7 天就會被自動暫停**，之後所有連線都會失敗：
-
-```
-FATAL: (ENOTFOUND) tenant/user postgres.<project-ref> not found
-```
-
-這則訊息看起來像帳密或主機名稱錯誤，其實兩者都不是 —— 專案本身不在了。
-到 Supabase dashboard 按 **Restore project**，復原後**重新複製一次連線字串**貼回
-`.env`（pooler 主機可能從 `aws-0-` 換成 `aws-1-`），再跑 `pnpm db:migrate:deploy`
-與 `pnpm db:seed`。
-
-在手機上這會表現成「儲存資產一直轉圈圈」，因為 `apps/mobile/lib/api.ts` 的
-`request()` 沒有 timeout，連不上後端時會轉到 iOS 自己逾時（約 75 秒）為止。
-由外而內的排查順序：
-
-1. `Get-NetTCPConnection -LocalPort 3000` —— dev server 到底有沒有開？
-2. `curl http://<LAN_IP>:3000/api/health` —— 回 500 代表程式活著、DB 掛了。
-3. 用 `.env` 裡**另一組**專案憑證做唯讀探測，隔離網路／Prisma／憑證等變因：
-   `echo "SELECT 1;" | npx prisma db execute --url "$U" --stdin`
+正常，dev 下事件只印在 console），忘了填不會報錯，只會沒有數據。
 
 ## Project Structure
 
@@ -106,7 +88,8 @@ pnpm db:generate
 pnpm dev
 ```
 
-> **重要：** `.env` 只能有一個 `DATABASE_URL`（指向 Supabase）。重複會造成混亂（最後一個生效）。
+> **重要：** `.env` 只能有一個 `DATABASE_URL`（指向 Supabase 的 **dev** 專案，絕不是
+> production）。重複會造成混亂（最後一個生效）。
 
 Mobile 開發：
 
@@ -118,174 +101,6 @@ pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Ex
 `apps/mobile/.env` 的 `EXPO_PUBLIC_API_URL` 要填**電腦的 LAN IP**（例如 `http://192.168.50.220:3000`）——
 手機上的 `localhost` 指向手機自己。背景執行 Expo 時終端機不會印 QR，改在 Expo Go 手動輸入
 `exp://<LAN_IP>:8081`。
-
-## 🚀 完整流程速查（從改動到上線）
-
-> 忘記怎麼做的時候看這一節就好。`/` 開頭的是打給 Claude Code 的指令，其餘是終端機指令。
-
-### 情境 A：改 JS / UI / 邏輯 → OTA 熱更新（最常見，不用送審）
-
-```
-1.  /git:branch              從 main 開 feature 分支
-2.  （開發）                  完成後再 commit，不要逐檔 commit
-3.  /git:commit              產生 conventional commit
-4.  /create-pr               推分支 + 開 PR（base 自動是 develop）
-5.  （在 GitHub merge PR 進 develop）
-6.  git checkout develop && git pull
-7.  /git:changelog --ota     記錄這次改動到 CHANGELOG，**同時**把同一批文案寫進
-                             app.json 的 extra.whatsNew（id 和 sections 都要改）
-8.  開 develop → main 的 release PR，CI 綠燈後合併
-    gh pr create --base main --head develop
-9.  切到 main，「推 OTA」      Claude 會先確認版號不變、跑乾跑驗證，再 eas update
-```
-
-用戶重開 App 後幾分鐘內生效，設定頁的「更新於」會變成新時間。
-
-第 7 步的 `whatsNew` 不能跳過：App 套用更新後顯示的「本次更新」說明只從那裡讀文案，
-`CHANGELOG.md` 不會被打包進 App。忘了改的後果是**那次更新對使用者靜默**（見下面
-「更新提示」）。
-
-### 情境 B：動到原生 → 重新打包送審
-
-觸發條件：新增／移除原生套件、升級 Expo SDK、改 `app.json` 原生設定、換 icon 或 App 名稱。
-
-```
-1-6. 同情境 A
-7.   /git:changelog --release   開新的 ## X.Y 區段（這段文字等下要用）
-8.   「上架」                    Claude 會跟你確認版號（例：1.1 → 1.2）後
-                                改 app.json → eas build → eas submit
-9.   （到 App Store Connect）    新增版本 → 貼上第 7 步的 CHANGELOG 文字
-                                → 選 build → 送審（1–3 天）
-10.  開 develop → main 的 release PR，CI 綠燈後合併
-     gh pr create --base main --head develop
-```
-
-### 不確定是 A 還是 B？
-
-直接說「**發版**」或「**推更新**」，`/mobile-release` 會看 diff 自動判斷並告訴你走哪條路。
-判斷錯誤的代價很高——把需要原生模組的 JS 用 OTA 推出去會讓 App 直接閃退——所以不確定時就問。
-
-### 日常開發
-
-```bash
-pnpm dev                              # 後端 API（手機透過 LAN IP 連）
-pnpm --filter @repo/mobile start -c   # Expo，Expo Go 輸入 exp://<LAN_IP>:8081
-```
-
-## Mobile 發版
-
-版號**只在原生打包時 bump**，OTA 不動它 —— 詳見 [`/mobile-release`](.claude/skills/mobile-release/SKILL.md) skill。
-
-| 改動內容                                             | 走法                     | 版號        | 需要送審 |
-| ---------------------------------------------------- | ------------------------ | ----------- | -------- |
-| 文字、樣式、版面、邏輯、API 呼叫（純 JS）            | **OTA** `eas update`     | **不變**    | 否       |
-| 新增原生套件、Expo SDK 升級、app.json 原生設定、icon | **原生打包** `eas build` | **要 bump** | 是       |
-
-```bash
-# OTA（幾分鐘後用戶重開 App 生效）
-cd apps/mobile && eas update --branch production --clear-cache --message "…"
-```
-
-⚠️ **OTA 只送給 runtimeVersion 完全相符的 binary，不符的裝置收不到、而且不會報錯。**
-`runtimeVersion.policy` 自 1.4 起是 **`fingerprint`** —— runtimeVersion 是原生專案內容
-的雜湊，不再是 `version` 字串。所以**改版號本身不會擋掉 OTA**（1.3 以前的 `appVersion`
-policy 會），只有真正動到原生層（新增／移除原生模組、改 `plugins`／權限／icon／splash、
-升 SDK）才會讓指紋改變，而那種情況本來就必須重新 build ——「擋住」正是我們要的行為。
-
-反過來要注意的是：**升級一個含原生程式碼的套件（即使只是修補版號）也會改變指紋**，
-於是 OTA 一樣靜默送不到。動過依賴之後要發 OTA，先確認指紋沒變。
-
-設定頁底部會顯示版號：`版本 1.2` + `更新於 <OTA 發佈時間>` + 更新狀態（下載進度／
-已下載待重啟／已是最新版本）。版號來自 `app.json`，時間來自 `expo-updates` 的
-`Updates.createdAt`，每次 `eas update` 自動更新，不需手動維護。
-
-### 更新提示（發 OTA 前必做一步）
-
-`fallbackToCacheTimeout` 是預設的 0，所以套用一次 OTA 需要開**兩次** App：第一次仍跑
-舊 bundle 並在背景下載，第二次才生效。App 因此有兩個提示：
-
-| 時機           | 顯示                                               | 文案來源                    |
-| -------------- | -------------------------------------------------- | --------------------------- |
-| 下載完成當下   | 底部 banner「有新版本已準備好　[稍後] [立即重啟]」 | 固定文字（與版本無關）      |
-| 重啟後首次執行 | 「本次更新」sheet，只顯示一次                      | `app.json` `extra.whatsNew` |
-
-**每次發 OTA 前都要改 `app.json` 的 `expo.extra.whatsNew`**，`id` 和 `sections` 都要改
-（文案沿用 `CHANGELOG.md` 剛寫好的那幾行，不要另外編）：
-
-```json
-"extra": {
-  "whatsNew": {
-    "id": "2026-08-18-update-notice",
-    "sections": [
-      { "title": "新功能", "items": ["…"] },
-      { "title": "優化", "items": ["…"] },
-      { "title": "立即重啟", "items": ["…"] }
-    ]
-  }
-}
-```
-
-文案固定分成「新功能」「優化」「立即重啟」三個區塊。**沒有內容的區塊整段省略**
-（純修 bug 的版本就不會有「新功能」），不要留空的 `items`。標題與順序完全由
-`app.json` 決定，App 端不寫死 —— 見 `apps/mobile/lib/whatsNew.ts` 的
-`WHATS_NEW_SECTION_TITLES`。
-
-sheet 是否顯示，取決於「bundle 帶的 `id`」與「AsyncStorage 存的上次顯示過的 id」是否
-不同。**忘了改 id → 什麼都不顯示（靜默）**，而不是重播上一版的舊文案 —— 錯的方向刻意
-設計成「少講」而非「講錯」。判斷邏輯在 `apps/mobile/lib/whatsNew.ts` 的
-`shouldShowWhatsNew()`（純函式，不依賴 React）。
-
-`extra` 不是原生欄位，改它走 OTA 即可，**不需要重新打包**，也不可以順手 bump `version`。
-另外這兩個提示在 Expo Go 驗證不了（`Updates.isEnabled` 為 false，整段邏輯短路），
-只能在 TestFlight 或正式版上看。
-
-環境變數有兩套且**必須同步**：`eas.json` 的 `build.production.env` 給 `eas build` 用，
-`apps/mobile/.env.production` 給 `eas update` 用（`eas update` 不讀 `eas.json`）。
-`EXPO_PUBLIC_POSTHOG_API_KEY` 是這條規則的實例 —— 它一共要填四個地方：
-`apps/mobile/.env`（本機）、`.env.production`（OTA）、`eas.json` 的 `preview` 與
-`production`（build），四邊的值必須一致。
-發佈前可先本地乾跑確認打包內容：
-
-```bash
-cd apps/mobile && NODE_ENV=production npx expo export --platform ios
-grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # 要是 0
-```
-
-## Git 工作流程
-
-`feature/*` → `develop` → `main`。Feature 分支一律從 `main` checkout。
-
-```
-main ──► feature/*  ──/create-pr──►  develop  ──release PR──►  main
-```
-
-> 完整的指令順序見上面「[🚀 完整流程速查](#-完整流程速查從改動到上線)」。
-
-1. **`/git:branch`** — 從 staged diff 或對話自動建議分支名；也可附帶情境：`/git:branch 加上 hero 動畫`。從 `main` 開分支。
-2. **開發** — 整個 feature 完成前不要逐檔 commit。
-3. **`/git:commit`** — feature 完成後執行；產生 Conventional Commits 訊息（<72 字、無 scope、無 body），必要時建議拆分。
-4. **`/create-pr`** — 在 feature 分支執行（**不可在 develop/main**）。推分支、開 PR（base 一律是 `develop`）、跑 CI/CD、合併進 develop。
-5. **切到 develop，`/git:changelog`** — 記錄這次改動（`--ota` 或 `--release`），寫進 `CHANGELOG.md`。**僅可在 develop 執行**，工作區需乾淨。
-6. **`git push origin develop`** — 驗證功能正常。
-7. **開 develop → main 的 release PR**（不要直接 `git merge` 推 `main`）
-   ```bash
-   gh pr create --base main --head develop
-   ```
-   CI（`.github/workflows/ci.yml`）**只在 base 是 `main` 的 PR 上跑** —— base 是
-   `develop` 的 PR 只看得到 Vercel 的檢查，看起來像「CI 過了」其實沒跑過。這支
-   release PR 是整條流程裡唯一一次 Lint / Type Check / Build / Security Scan
-   真的會執行的地方，所以不要用 `git merge` 繞過它。
-8. **發版** — 見上面「Mobile 發版」（`/mobile-release` 判定 OTA 或送審）。
-
-### 版號只有一套
-
-**`apps/mobile/app.json` 的 `version` 是唯一的版號來源**（App Store 上架版本），
-`CHANGELOG.md` 依它分段。
-
-不使用 git tag，也不維護 root `package.json` 的 `version`（scaffold 殘留，
-root 是 private 套件、不會發佈，沒有任何東西消費它）。每次 build / OTA 的
-**commit hash 由 EAS 自動記錄**，在 expo.dev 的 update / build 頁面可查 ——
-git tag 會是同一件事的第三份人工副本，只會失準。
 
 ## Scripts
 
@@ -331,7 +146,7 @@ Route Handlers（`apps/web/app/api/**/route.ts`）負責 HTTP 解析、呼叫 Cl
 
 ## 文件
 
-- **[CLAUDE.md](CLAUDE.md)** — 專案開發指南（架構、慣例、指令）
+- **[CLAUDE.md](CLAUDE.md)** — 開發指南：架構、慣例、指令、Git 流程、Mobile 發版、疑難排解
 - **[apps/mobile/RELEASE.md](apps/mobile/RELEASE.md)** — Mobile App 上架後的發版流程、訂閱制規劃、擴容判斷
 - **[apps/mobile/UI-STRUCTURE.md](apps/mobile/UI-STRUCTURE.md)** — 手機 App 的頁面地圖與共用元件對照
 - **[docs/analytics.md](docs/analytics.md)** — 行為分析：埋了哪些事件、為什麼是這些、怎麼算出核心指標
