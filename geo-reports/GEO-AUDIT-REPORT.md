@@ -20,7 +20,54 @@ is **not yet deployed** — its projected effect is noted per category.
 
 ---
 
-## Executive Summary
+## Re-audit — 2026-09-02, post-deploy (PR #126 → #127 live)
+
+The full branch shipped to production (`main` `ec3c7d0`, Vercel deploy verified:
+`/about` 200, `/llms.txt` 200, `robots.txt` carries `Content-Signal`, homepage
+`@graph` has Organization + Person + WebSite + SoftwareApplication + FAQPage).
+Re-scored against the live site:
+
+**Overall GEO Score: 31 → 50 / 100 (Poor — Fair starts at 60).**
+
+| Category                 | Before | After  | What moved it                                                                                                                                                                    |
+| ------------------------ | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI Citability            | 32     | **60** | quotable "araS 是一款…" lead sentence, 8-Q&A FAQ, `/about` (~350 words), `llms.txt` + `llms-full.txt`; visible word count ~300 → ~1,100                                          |
+| Brand Authority          | 12     | **17** | only `founder` (Person KO CHUAN LI) + `alternateName` in schema; no off-site change                                                                                              |
+| Content E-E-A-T          | 28     | **46** | `/about` with a **named, credentialed developer** (前端工程師) + `Person` schema + `Organization.founder` — the biggest gap, now closed                                          |
+| Technical GEO            | 72     | **84** | `llms.txt` + `llms-full.txt` live; `robots.txt` `Content-Signal: search=yes, ai-input=yes, ai-train=yes`; IndexNow key file (ping still manual)                                  |
+| Schema & Structured Data | 35     | **82** | `@graph` (Organization + founder / WebSite / SoftwareApplication `softwareVersion 1.4` / FAQPage) + `BreadcrumbList` on all sub-pages + `Person` on `/about`; `/support` FAQPage |
+| Platform Optimization    | 8      | **13** | negligible — off-site                                                                                                                                                            |
+| **Overall**              | **31** | **50** |                                                                                                                                                                                  |
+
+**On-site is now ~80/100 on average** (Technical 84, Schema 82, Citability 60,
+E-E-A-T 46). The ceiling is **Brand Authority (17)** and **Platform Optimization
+(13)** — together 30% of the weighted score, both near the floor, both 100%
+off-site. Even pushing Citability to ~75 and E-E-A-T to ~60 lands around 57 —
+reaching Fair (60) requires the off-site work.
+
+### Remaining path to Fair (60+) — all off-site
+
+1. araS-branded social profiles (FB Page / IG / Threads) → add each to
+   `SAME_AS` in `apps/web/app/page.tsx` + `llms.txt`.
+2. ≥1 genuinely third-party mention: Product Hunt launch, a Taiwan app
+   directory, or a finance/tech blog (塔科女子 / 蘋果仁 / vocus).
+3. Publish the Google Play listing (a second first-party anchor).
+4. Personal Medium / Threads / LinkedIn posts (supporting signal, weaker than
+   earned mentions).
+5. After any deploy: GSC "Request Indexing" for changed URLs +
+   `pnpm --filter @repo/web indexnow`.
+
+### Post-deploy follow-ups still open
+
+- [ ] GSC: request indexing for `/` and `/about` (content changed / new page).
+- [ ] Run `pnpm --filter @repo/web indexnow` once.
+- [ ] Consider making the landing page a Server Component (it is fully
+      `"use client"`, ~292 kB first-load JS) — helps Core Web Vitals, which feed
+      AI-Overview eligibility.
+
+---
+
+## Executive Summary (original audit)
 
 **Overall GEO Score: 31/100 (Critical)**
 
