@@ -164,6 +164,54 @@ Don't re-propose these — each was raised and rejected on purpose:
   already makes the web account premium — the only stuck case is a web-only user
   with no iPhone, judged out of scope for this product.
 
+## Web SEO / GEO
+
+The marketing site (`arasasset.com`) is optimised for both Google and AI answer
+engines. Full analysis + score history in `geo-reports/GEO-AUDIT-REPORT.md`
+(50/100 as of 2026-09-02; the ceiling is off-site brand authority, not code).
+Use the global `geo` / `geo-audit` skills for analysis — don't build a local copy.
+
+**Every SEO surface, and they must stay in sync** — a fact like the brand
+description, platforms, pricing, or the App Store URL appears in all of these:
+
+- `apps/web/app/page.tsx` — homepage JSON-LD `@graph` (Organization + `founder`
+  Person + WebSite + SoftwareApplication + FAQPage), `metadata`, `SAME_AS`
+- `apps/web/app/landing-faq.ts` — the 8 landing FAQs (single source: drives the
+  visible `<Faq>` in `landing-content.tsx` **and** the FAQPage schema)
+- `apps/web/app/{about,privacy,support,terms}/page.tsx` — per-page `metadata` +
+  `<JsonLd>` (BreadcrumbList everywhere; FAQPage on `/support`; Person on `/about`)
+- `apps/web/app/sitemap.ts`, `apps/web/app/robots.txt/route.ts`
+- `apps/web/public/llms.txt`, `apps/web/public/llms-full.txt`
+
+**Helpers**: `<JsonLd>` (`apps/web/components/json-ld.tsx`),
+`breadcrumbJsonLd` / `faqPageJsonLd` (`apps/web/lib/structured-data.ts`),
+`siteUrl` (`apps/web/lib/site-url.ts`, from `NEXT_PUBLIC_APP_URL`).
+
+**Gotchas**:
+
+- **CSP blocks new external scripts silently.** Any new `<script src>` / beacon
+  (GA was one) needs its host added to `script-src` **and** `connect-src` in
+  `apps/web/next.config.ts`. No console error when it's missing — the tag just
+  never loads.
+- **`robots.txt` is a route handler**, not `MetadataRoute.Robots`, so it can
+  carry `Content-Signal: search=yes, ai-input=yes, ai-train=yes`. Keep the
+  `Disallow` list in sync with the private app routes.
+- **Brand disambiguation**: "araS" collides with Aras Corp (PLM, has a Wikipedia
+  page) and 艾瑞斯資訊. `Organization.alternateName` carries `araS 資產` /
+  `arasasset`; every new profile must use the exact name "araS" + link
+  `arasasset.com`.
+- Developer for schema/attribution: **KO CHUAN LI** (前端工程師). App Store:
+  `https://apps.apple.com/tw/app/id6785747999` (slug-less, TW storefront).
+- `NEXT_PUBLIC_GA_ID` is set **only** in Vercel Production (dev/preview send no
+  hits). GA renders via `apps/web/components/google-analytics.tsx`.
+
+**After every production deploy that changed a public page**:
+
+1. Google Search Console → URL Inspection → "Request Indexing" for each changed
+   or new URL.
+2. `pnpm --filter @repo/web indexnow` (pings Bing/Yandex/Copilot; key file is
+   `apps/web/public/42273540bc2d049348f599ea70dcf81a.txt` — must stay reachable).
+
 ## Reference Resources
 
 | Resource                        | URL                                             | Description                                          |
@@ -186,3 +234,68 @@ Don't re-propose these — each was raised and rejected on purpose:
 - **Commits**: Conventional Commits enforced by commitlint + husky. Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Subject must be lowercase.
 - **Tests**: `apps/web` service tests mock Prisma via `vi.mock("@/lib/prisma")`; component tests use jsdom + React Testing Library.
 - **Tailwind**: `apps/web` uses Tailwind CSS 4 — config is in `app/globals.css` via `@theme` block, not `tailwind.config.ts`.
+- **Analytics events**: event names come from `apps/mobile/lib/analytics/events.ts` — no string literals for event names anywhere in code. Event/param definitions and the metric formulas are in `docs/analytics.md`.
+
+## Git workflow
+
+`feature/*` → `develop` → `main`. Branch off `main`, never off `develop`.
+
+```
+main ──► feature/* ──(/create-pr)──► develop ──(release PR)──► main
+```
+
+1. **`/git:branch`** — cut a branch from `main` (from the staged diff or the conversation).
+2. **Develop** — don't commit file-by-file; commit once the whole feature is done.
+3. **`/git:commit`** — Conventional Commits, `<72` chars, **no scope**, no body; suggests splits when needed.
+4. **`/create-pr`** — run on the feature branch (**never** on `develop`/`main`). Pushes, opens a PR with **base `develop`**, merges once green.
+5. **`/git:changelog`** — run on `develop` with a clean tree; writes `CHANGELOG.md` (`--ota` or `--release`).
+6. **Release PR** — `gh pr create --base main --head develop`. **CI (`.github/workflows/ci.yml`) only runs on PRs whose base is `main`** — a `develop`-based PR shows only the Vercel check, which looks like green CI but isn't. This release PR is the only place Lint / Type Check / Build / Security Scan actually run, so never `git merge` straight to `main` to skip it. (This is the same limitation noted under "Known won't-fix".)
+7. **Ship** — see "Mobile release"; `/mobile-release` decides OTA vs App Store.
+
+**Hotfix exception**: a production-down or security issue may go straight to a `main`-based PR. Back-fill `develop` afterward (`gh pr create --base develop --head main`) so history doesn't diverge.
+
+### Versioning
+
+`apps/mobile/app.json` `version` is the **only** version source (the App Store build) and `CHANGELOG.md` is sectioned by it. No git tags. No root `package.json` version (scaffold leftover — root is private, nothing consumes it). EAS records the commit hash for every build/OTA, so a git tag would just be a third copy that drifts.
+
+## Mobile release (`apps/mobile`, Expo + EAS)
+
+Use the **`/mobile-release`** skill — it reads the diff and picks the path. Full post-launch flow (subscriptions, scaling) is in `apps/mobile/RELEASE.md`.
+
+| Change                                                                        | Path                         | Version   | Review |
+| ----------------------------------------------------------------------------- | ---------------------------- | --------- | ------ |
+| JS only — text, styles, layout, logic, API calls                              | **OTA** `eas update`         | unchanged | no     |
+| New native package, Expo SDK bump, `app.json` native config, icon/splash/name | **native build** `eas build` | **bump**  | yes    |
+
+**OTA gotchas**:
+
+- OTA only reaches binaries whose `runtimeVersion` matches exactly — mismatched devices get nothing, with no error. Since 1.4 the policy is **`fingerprint`** (a hash of the native project), so a version-string bump alone no longer blocks OTA; only real native changes do (and those need a rebuild anyway). But **upgrading any dependency that ships native code also changes the fingerprint** — after touching deps, confirm the fingerprint is unchanged before shipping an OTA.
+- **Every OTA must update `app.json` `expo.extra.whatsNew`** — bump both `id` and `sections` (reuse the `CHANGELOG.md` lines). The post-update "本次更新" sheet reads only from there; `CHANGELOG.md` is not bundled. A stale `id` = the update is silent to users (deliberately "say nothing" over "say something wrong"). Logic: `apps/mobile/lib/whatsNew.ts` `shouldShowWhatsNew()`.
+- Env vars live in **two** places that must stay in sync: `eas.json` `build.production.env` (for `eas build`) and `apps/mobile/.env.production` (for `eas update`, which does not read `eas.json`). `EXPO_PUBLIC_POSTHOG_API_KEY` must match across `apps/mobile/.env`, `.env.production`, and `eas.json`'s `preview` + `production`.
+- The update banner + sheet can't be verified in Expo Go (`Updates.isEnabled` is false) — only TestFlight or production.
+
+Pre-publish dry run:
+
+```bash
+cd apps/mobile && NODE_ENV=production npx expo export --platform ios
+grep -c "192.168" dist/_expo/static/js/ios/*.hbc   # must be 0
+```
+
+## Troubleshooting
+
+### Supabase dev project auto-pauses
+
+The dev Supabase project is on the free plan and **auto-suspends after ~7 days idle**; every connection then fails with:
+
+```
+FATAL: (ENOTFOUND) tenant/user postgres.<project-ref> not found
+```
+
+This reads like a credentials or hostname error — it is neither, the project is simply gone. Restore it in the Supabase dashboard, **re-copy the connection string** into `.env` (the pooler host can flip `aws-0-` → `aws-1-`), then re-run `pnpm db:migrate:deploy` and `pnpm db:seed`.
+
+On a phone this shows as "saving an asset spins forever" — `apps/mobile/lib/api.ts` `request()` has no timeout, so it hangs until iOS times out (~75s). Outside-in checks:
+
+1. `Get-NetTCPConnection -LocalPort 3000` — is the dev server even up?
+2. `curl http://<LAN_IP>:3000/api/health` — a 500 means the app is alive, the DB is down.
+3. Read-only probe with the **other** project's credentials from `.env` to isolate network / Prisma / creds:
+   `echo "SELECT 1;" | npx prisma db execute --url "$U" --stdin`

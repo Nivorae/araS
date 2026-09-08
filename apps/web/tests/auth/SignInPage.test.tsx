@@ -1,44 +1,32 @@
 import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import SignInPage from "../../app/sign-in/[[...sign-in]]/page";
 
-const replaceMock = vi.fn();
-const backMock = vi.fn();
-let isSignedIn = false;
-
 vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ isSignedIn }),
-  useClerk: () => ({
-    client: { signIn: { authenticateWithRedirect: vi.fn() } },
-  }),
+  SignIn: () => <div data-testid="clerk-sign-in" />,
 }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: replaceMock, back: backMock }),
+vi.mock("next/image", () => ({
+  default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
 }));
 
 describe("Sign-in Page", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    isSignedIn = false;
-  });
-
-  it("renders Google and LINE OAuth buttons", () => {
+  it("renders Clerk SignIn component", () => {
     render(<SignInPage />);
-    expect(screen.getByRole("button", { name: /以 Google 繼續/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /以 LINE 繼續/ })).toBeInTheDocument();
+    expect(screen.getByTestId("clerk-sign-in")).toBeInTheDocument();
   });
 
-  it("renders a full-screen main element", () => {
+  it("wraps SignIn in a full-screen centered main element", () => {
     render(<SignInPage />);
     const main = screen.getByRole("main");
-    expect(main).toHaveClass("min-h-[100dvh]");
+    expect(main).toHaveClass("min-h-screen");
+    expect(main).toHaveClass("items-center");
+    expect(main).toHaveClass("justify-center");
   });
 
-  it("redirects to /assets when already signed in", () => {
-    isSignedIn = true;
+  it("shows araS product context so the page is not a bare credential form", () => {
     render(<SignInPage />);
-    expect(replaceMock).toHaveBeenCalledWith("/assets");
+    expect(screen.getByText("登入 araS 個人資產管理工具")).toBeInTheDocument();
   });
 });
