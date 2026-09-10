@@ -163,10 +163,37 @@ indexnow`（每次 production 部署後手動跑一次；之後可接進部署�
 - [x] 外部連結 ×3：App Store 行銷/支援網址、Play 商店網站欄、LINE 官方帳號
 - [x] 正式 App Store 連結 `https://apps.apple.com/tw/app/id6785747999` 已換進
       下載按鈕 / `SAME_AS` / `llms.txt` / `llms-full.txt`（開發者 = Li KO CHUAN）
-- [ ] **開 `develop → main` PR** 讓 PR #126 上 production（GA 才開始收數據）
-- [ ] PR #126 上 production 後：GSC 對 `/`、`/about` 重新「要求索引」；跑一次
-      `pnpm --filter @repo/web indexnow`
+- [x] **開 `develop → main` PR** 讓 PR #126 上 production（GA 已在線上收數據，
+      線上原始碼可見 `G-TPJ0VV0L6V`）
+- [ ] Safe Browsing 解除後（見下一節）：GSC 對 `/`、`/about`、`/support`、
+      `/terms` 重新「要求索引」；跑一次 `pnpm --filter @repo/web indexnow`
 - [ ] 之後每 1~2 週看 GSC 成效報表
+
+### Safe Browsing「不實網頁」誤判（2026-09-08 發生、2026-09-09 解除）
+
+GSC 安全性問題報「**不實網頁 / social engineering**」（無範例網址），Chrome 對
+所有訪客顯示整頁紅色警告、搜尋排名被降權。
+
+**不是入侵。** 逐行檢查線上 `/` 與 `/sign-in` 的原始碼，所有 `<script src>` 只有
+`/_next/*`、`clerk.arasasset.com`、`googletagmanager.com`，無 iframe、無混淆碼、
+無注入導向；下載按鈕全指向真正的 App Store 網址。
+
+**觸發點是舊版 `/sign-in`**：手工拼的 Google 四色 logo + 假 LINE「L」圓圈按鈕，
+放在一個幾乎沒有搜尋權重的網域上，被分類器判成「假冒 Google 釣帳號」。自製
+OAuth 按鈕本來也違反 Google 品牌規範。
+
+修正（都已上 production）：
+
+- [x] PR #128：`/sign-in` 改用 Clerk 官方 `<SignIn>` 元件（`/sign-up` 早就是），
+      OAuth 按鈕由 Clerk 用各家官方品牌渲染
+- [x] PR #129：CSP 補上 `https://clerk.arasasset.com`。原本 `script-src` /
+      `connect-src` 只放行 dev 的 `*.clerk.accounts.dev`，production 的 Clerk
+      網域從來沒進去 —— 舊登入頁的按鈕是純 React 畫的所以看不出來，`<SignIn>`
+      完全依賴 clerk-js，被擋就整頁空白
+- [x] GSC「要求審查」送出 → 通過，警告與降權解除
+
+**教訓**：任何新的外部 script／XHR 目標都要同時進 `script-src` **和**
+`connect-src`，CSP 擋掉時不會有 console 以外的任何提示（已記進 `CLAUDE.md`）。
 
 品牌權威（off-site，分數最低、槓桿最大，全部無法用 code 解決）：
 
