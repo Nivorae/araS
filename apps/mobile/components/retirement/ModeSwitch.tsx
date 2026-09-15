@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import Animated, {
   Easing,
@@ -25,7 +25,7 @@ const INDEX: Record<Mode, number> = { retirement: 0, finance: 1 };
 
 // Content slides this far toward the direction of travel while fading.
 const SHIFT = 28;
-const EXIT_MS = 140;
+const EXIT_MS = 110;
 const ENTER_SPRING = { damping: 20, stiffness: 190, mass: 0.9 } as const;
 const PILL_SPRING = { damping: 19, stiffness: 240, mass: 0.8 } as const;
 
@@ -46,10 +46,12 @@ export function useModeTransition(initial: Mode) {
   const [selected, setSelected] = useState(initial);
   const opacity = useSharedValue(1);
   const offset = useSharedValue(0);
+  const modeRef = useRef(initial);
+  // Direction of an enter that is waiting for React to commit the new mode.
+  const pendingDir = useRef(0);
 
-  const enter = useCallback(
-    (next: Mode, dir: number) => {
-      setMode(next);
+  const runEnter = useCallback(
+    (dir: number) => {
       // Jump to the far side (invisible, opacity is 0) before springing home.
       offset.value = withSequence(
         withTiming(dir * SHIFT, { duration: 0 }),
@@ -60,6 +62,31 @@ export function useModeTransition(initial: Mode) {
     [offset, opacity]
   );
 
+  const commit = useCallback(
+    (next: Mode, dir: number) => {
+      // Tapped back to the mode still on screen: nothing to re-render.
+      if (next === modeRef.current) {
+        runEnter(dir);
+        return;
+      }
+      modeRef.current = next;
+      pendingDir.current = dir;
+      setMode(next);
+    },
+    [runEnter]
+  );
+
+  // Start the enter only after the new mode has been committed and painted.
+  // Starting it alongside setMode fades the OLD tree back in while React is
+  // still swapping the (heavy) retirement content, which reads as a leftover
+  // frame of the previous screen.
+  useEffect(() => {
+    const dir = pendingDir.current;
+    if (dir === 0) return;
+    pendingDir.current = 0;
+    runEnter(dir);
+  }, [mode, runEnter]);
+
   const select = useCallback(
     (next: Mode) => {
       if (next === selected) return;
@@ -67,20 +94,23 @@ export function useModeTransition(initial: Mode) {
       setSelected(next);
 
       if (reduceMotion) {
+        modeRef.current = next;
         setMode(next);
         return;
       }
 
       // Forward (to the right-hand tab) moves content left, back moves it right.
       const dir = INDEX[next] > INDEX[selected] ? 1 : -1;
-      const exit = { duration: EXIT_MS, easing: Easing.in(Easing.quad) };
+      // Ease-out so the old content starts disappearing on the tap itself;
+      // ease-in held it almost fully visible for most of the exit.
+      const exit = { duration: EXIT_MS, easing: Easing.out(Easing.quad) };
       opacity.value = withTiming(0, exit);
       offset.value = withTiming(-dir * SHIFT, exit, (finished) => {
         // A newer tap cancels this exit and schedules its own commit.
-        if (finished) scheduleOnRN(enter, next, dir);
+        if (finished) scheduleOnRN(commit, next, dir);
       });
     },
-    [selected, reduceMotion, opacity, offset, enter]
+    [selected, reduceMotion, opacity, offset, commit]
   );
 
   return { mode, selected, select, transition: { opacity, offset } as Transition };
