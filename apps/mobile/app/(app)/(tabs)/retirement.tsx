@@ -47,6 +47,9 @@ import {
   useModeTransition,
 } from "@/components/retirement/ModeSwitch";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useIsPremium } from "@/hooks/useIsPremium";
+import { PAYWALL_SOURCES } from "@/lib/analytics";
+import { useRouter } from "expo-router";
 
 // ── Small components ────────────────────────────────────────────────────────────
 
@@ -285,6 +288,19 @@ export default function RetirementScreen() {
   const { height: screenH, isTablet, wideContentWidth } = useResponsive();
   const entries = useFinanceStore((st) => st.entries);
   const { mode, selected, select, transition } = useModeTransition("retirement");
+  const router = useRouter();
+  const { isPremium } = useIsPremium();
+  const scrollRef = useRef<ScrollView>(null);
+  // Every mode switch starts the new mode from the top of the page.
+  const selectMode = (next: typeof selected) => {
+    // 理財規劃是 Premium 功能：免費帳號改導向訂閱頁，停在退休計劃。
+    if (next === "finance" && !isPremium) {
+      router.push(`/paywall?source=${PAYWALL_SOURCES.FINANCE_PLANNING}`);
+      return;
+    }
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    select(next);
+  };
   const salary = useSalary();
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [initialized, setInitialized] = useState(false);
@@ -543,6 +559,7 @@ export default function RetirementScreen() {
   return (
     <SafeAreaView style={s.root} edges={["top"]}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           s.scroll,
           isTablet && { width: wideContentWidth, alignSelf: "center" },
@@ -592,7 +609,7 @@ export default function RetirementScreen() {
           )}
         </ModeTransitionView>
 
-        <ModeToggle value={selected} onChange={select} />
+        <ModeToggle value={selected} onChange={selectMode} />
 
         <ModeTransitionView transition={transition}>
           {mode === "finance" ? (

@@ -67,6 +67,8 @@ export const PAYWALL_SOURCES = {
   DIVIDEND_FORM: "dividend_form",
   /** 股利再投資時的 Premium 提示。 */
   DIVIDEND_REINVEST: "dividend_reinvest",
+  /** 退休頁切換到「理財規劃」模式（Premium 功能）。 */
+  FINANCE_PLANNING: "finance_planning",
   /** 沒帶 source 就進到訂閱頁（例如深連結，或未來新增入口時漏帶）。 */
   UNKNOWN: "unknown",
 } as const;
