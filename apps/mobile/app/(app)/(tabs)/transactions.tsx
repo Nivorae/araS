@@ -15,6 +15,15 @@ import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
+import { SegmentedToggle, type SegmentOption } from "@/components/SegmentedToggle";
+
+type ChartView = "trend" | "allocation" | "dividends";
+
+const VIEWS: SegmentOption<ChartView>[] = [
+  { key: "trend", label: "走勢" },
+  { key: "allocation", label: "配置" },
+  { key: "dividends", label: "股息" },
+];
 
 const RANGES: { key: NetWorthRange; label: string }[] = [
   { key: "6m", label: "6M" },
@@ -27,7 +36,7 @@ export default function TransactionsScreen() {
   const { height: screenH, isTablet, contentWidth, wideContentWidth } = useResponsive();
   const { isPremium } = useIsPremium();
   const { fetchNetWorthHistory } = useFinanceActions();
-  const [view, setView] = useState<"trend" | "allocation" | "dividends">("trend");
+  const [view, setView] = useState<ChartView>("trend");
   const [range, setRange] = useState<NetWorthRange>("6m");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   // Identifies the newest request so a superseded one can't clear the spinner
@@ -133,40 +142,27 @@ export default function TransactionsScreen() {
             the free/premium check must also happen server-side (GET
             /api/entries/allocation and the dividend write endpoints both
             return 403), this is just the fast UX path. */}
-        <View style={s.toggleRow}>
-          <Pressable
-            style={[s.toggleBtn, view === "trend" && s.toggleBtnActive]}
-            onPress={() => setView("trend")}
-          >
-            <Text style={[s.toggleText, view === "trend" && s.toggleTextActive]}>走勢</Text>
-          </Pressable>
-          <Pressable
-            style={[s.toggleBtn, view === "allocation" && s.toggleBtnActive]}
-            onPress={() => {
+        <SegmentedToggle
+          options={VIEWS}
+          value={view}
+          onPress={(next) => {
+            if (next === "allocation" || next === "dividends") {
               if (!isPremium) {
-                router.push(`/paywall?source=${PAYWALL_SOURCES.ALLOCATION_TAB}`);
+                router.push(
+                  `/paywall?source=${
+                    next === "allocation"
+                      ? PAYWALL_SOURCES.ALLOCATION_TAB
+                      : PAYWALL_SOURCES.DIVIDEND_TAB
+                  }`
+                );
                 return;
               }
-              setEverVisitedAllocation(true);
-              setView("allocation");
-            }}
-          >
-            <Text style={[s.toggleText, view === "allocation" && s.toggleTextActive]}>配置</Text>
-          </Pressable>
-          <Pressable
-            style={[s.toggleBtn, view === "dividends" && s.toggleBtnActive]}
-            onPress={() => {
-              if (!isPremium) {
-                router.push(`/paywall?source=${PAYWALL_SOURCES.DIVIDEND_TAB}`);
-                return;
-              }
-              setEverVisitedDividends(true);
-              setView("dividends");
-            }}
-          >
-            <Text style={[s.toggleText, view === "dividends" && s.toggleTextActive]}>股息</Text>
-          </Pressable>
-        </View>
+              if (next === "allocation") setEverVisitedAllocation(true);
+              else setEverVisitedDividends(true);
+            }
+            setView(next);
+          }}
+        />
       </View>
 
       {/* Chart zone — fills remaining height. All visited panes stay mounted;
@@ -235,17 +231,6 @@ const s = StyleSheet.create({
   valueNum: { fontSize: 15, fontWeight: "700" },
   valueLabel: { fontSize: 11, color: "#8e8e93" },
   periodLabel: { fontSize: 11, color: "#c7c7cc" },
-  toggleRow: {
-    flexDirection: "row",
-    backgroundColor: "#e5e5ea",
-    borderRadius: 20,
-    padding: 3,
-    gap: 3,
-  },
-  toggleBtn: { paddingVertical: 6, paddingHorizontal: 18, borderRadius: 17 },
-  toggleBtnActive: { backgroundColor: "#ffffff" },
-  toggleText: { fontSize: 13, fontWeight: "600", color: "#8e8e93" },
-  toggleTextActive: { color: "#1c1c1e" },
   chartZone: {
     flex: 1,
     paddingHorizontal: 30,

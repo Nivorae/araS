@@ -71,6 +71,7 @@ App 裡每一個進入訂閱頁的入口都會帶上 source，這樣「哪個入
 | `insurance_form`    | 新增／編輯保單時的 Premium 提示             |
 | `dividend_form`     | 新增股利紀錄時的 Premium 提示               |
 | `dividend_reinvest` | 股利再投資時的 Premium 提示                 |
+| `finance_planning`  | 退休頁切換到「理財規劃」模式（免費帳號）    |
 | `unknown`           | 沒帶 source（深連結，或未來新增入口時漏帶） |
 
 `unknown` 是刻意保留的防呆值：漏帶 source 時事件不會消失，只會落在這一格，

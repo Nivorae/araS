@@ -25,7 +25,7 @@
 ### A. 小修改（純 JS / UI / bug）→ OTA 熱更新，跳過審核
 
 ```
-改 code → pnpm start 在 Expo Go 測 → eas update --branch production → 使用者重開 App 就更新
+改 code → pnpm start 在 Expo Go 測 → eas update --branch production --environment production → 使用者重開 App 就更新（SDK 57 起必須帶 --environment，且只讀 EAS 後台的環境變數，不讀 .env.production）
 ```
 
 > ⚠️ **EAS Update（OTA）要先做一次性設定**：裝 `expo-updates`、設定 channel，且 production build

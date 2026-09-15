@@ -12,13 +12,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import type { Entry } from "@repo/shared";
 import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useInvestmentMarketValues } from "@/hooks/useInvestmentMarketValues";
 import { formatCurrency } from "@/lib/format";
+import { chartedEntries } from "@/lib/chartedEntries";
 import { CATEGORIES, getNodeIcon } from "@/lib/categoryConfig";
 import {
   CategoryCardStack,
@@ -63,6 +64,16 @@ export default function AssetsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [priceNonce, setPriceNonce] = useState(0);
   const cardStackRef = useRef<CategoryCardStackHandle>(null);
+  // 這個分頁在 _layout 關掉了換頁的淡入滑動，改由卡片堆疊自己在每次回到這頁時
+  // 一張一張彈上來。第一次 focus 就是初次掛載，不播。
+  const [entranceKey, setEntranceKey] = useState(0);
+  const focusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focusedOnce.current) setEntranceKey((k) => k + 1);
+      focusedOnce.current = true;
+    }, [])
+  );
 
   // Live market values for stock-backed investments (item 11). Investment totals
   // are shown at market value (cost + total P&L), not cost. `marketLoading` lets
@@ -91,11 +102,12 @@ export default function AssetsScreen() {
   const netShift = useRef(new Animated.Value(0)).current;
 
   // net worth
+  // 「納入圖表」關閉的項目不計入 Net Worth 與分類卡總額（卡片裡照樣列出），
+  // 跟資產損益頁的天秤、走勢圖用同一套 chartedEntries 規則。
   const netWorth = useMemo(() => {
-    const assets = displayEntries
-      .filter((e) => e.topCategory !== "負債")
-      .reduce((s, e) => s + e.value, 0);
-    const liabilities = displayEntries
+    const charted = chartedEntries(displayEntries);
+    const assets = charted.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0);
+    const liabilities = charted
       .filter((e) => e.topCategory === "負債")
       .reduce((s, e) => s + e.value, 0);
     return assets - liabilities;
@@ -118,7 +130,7 @@ export default function AssetsScreen() {
           textColor: cfg.textColor,
           isLiability: cfg.isLiability,
           entries: catEntries,
-          total: catEntries.reduce((s, e) => s + e.value, 0),
+          total: chartedEntries(catEntries).reduce((s, e) => s + e.value, 0),
         },
       ];
     });
@@ -245,6 +257,7 @@ export default function AssetsScreen() {
           {containerH === 0 ? null : (
             <CategoryCardStack
               ref={cardStackRef}
+              entranceKey={entranceKey}
               categories={stackCategories}
               hideBalance={hideBalance}
               collapsedOffset={containerH * COLLAPSED_DROP_RATIO}

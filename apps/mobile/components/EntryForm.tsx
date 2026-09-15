@@ -118,7 +118,7 @@ export function EntryForm({
   onSaved,
 }: EntryFormProps) {
   const { isTablet, contentWidth } = useResponsive();
-  const { addEntry, updateEntry, fetchAll } = useFinanceActions();
+  const { addEntry, updateEntry, setEntryIncludeInChart, fetchAll } = useFinanceActions();
   const entries = useFinanceStore((s) => s.entries);
   const api = useApi();
   const apiRef = useRef(api);
@@ -357,6 +357,22 @@ export function EntryForm({
   ]);
   const finalDate = isLoan ? loanValues.startDate : date;
 
+  // 已存在的項目：「納入圖表」切換即存，不必再按儲存 —— 使用者直覺把它當成設定
+  // 開關，切完就按返回。先樂觀更新畫面，失敗再彈回；連點時只讓最後一次決定結果。
+  const chartToggleToken = useRef(0);
+  const handleIncludeInChartChange = async (next: boolean) => {
+    setIncludeInChart(next);
+    if (!isEdit || !entryId) return;
+    const token = ++chartToggleToken.current;
+    try {
+      await setEntryIncludeInChart(entryId, next);
+    } catch (e) {
+      if (chartToggleToken.current !== token) return;
+      setIncludeInChart(!next);
+      setError(e instanceof Error ? e.message : "納入圖表設定儲存失敗");
+    }
+  };
+
   // ── Submit ────────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (isLoan && !validateLoan()) return;
@@ -529,7 +545,9 @@ export function EntryForm({
                 {submitting ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={s.previewSaveText}>新增</Text>
+                  // 只改基本資料（名稱、納入圖表…）時沒有新增任何東西，寫「新增」
+                  // 會讓人以為這頁不用存、開關切了就生效，按返回就把改動丟掉了。
+                  <Text style={s.previewSaveText}>{editBasicInfoOnly ? "儲存" : "新增"}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -880,7 +898,7 @@ export function EntryForm({
                   <Text style={s.rowLabel}>納入圖表</Text>
                   <Switch
                     value={includeInChart}
-                    onValueChange={setIncludeInChart}
+                    onValueChange={handleIncludeInChartChange}
                     trackColor={{ false: "#e5e5ea", true: "#66788E" }}
                     thumbColor="#ffffff"
                     ios_backgroundColor="#e5e5ea"

@@ -679,7 +679,7 @@ const s = StyleSheet.create({
     flexDirection: "column",
   },
   growDetailScroll: { flex: 1 },
-  growEditFill: StyleSheet.absoluteFillObject,
+  growEditFill: StyleSheet.absoluteFill,
   closeBtnWrap: {
     position: "absolute",
     top: 14,

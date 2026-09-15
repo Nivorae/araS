@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import * as Sentry from "@sentry/react-native";
 
 // Triggering a refetch on every focus is not enough on its own: React Navigation

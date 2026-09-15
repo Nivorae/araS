@@ -17,7 +17,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { CATEGORIES } from "@/lib/categoryConfig";
 import iconPng from "../assets/icon.png";
 

@@ -8,11 +8,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0a0a0f"
-    },
     "runtimeVersion": {
       "policy": "fingerprint"
     },
@@ -40,7 +35,12 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "ara-s-web.vercel.app" }],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "ara-s-web.vercel.app"
+            }
+          ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
@@ -50,7 +50,21 @@
       "expo-secure-store",
       "expo-apple-authentication",
       "expo-notifications",
-      "@sentry/react-native"
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "使用 Face ID 解鎖 araS，保護你的資產資料" }
+      ],
+      "@sentry/react-native",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 390,
+          "resizeMode": "contain",
+          "backgroundColor": "#0a0a0f"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -58,12 +72,24 @@
     "extra": {
       "router": {},
       "whatsNew": {
-        "id": "2026-09-01-monthly-reminder",
+        "id": "2026-09-15-app-lock-finance-planning",
         "sections": [
           {
             "title": "新功能",
             "items": [
-              "每月記帳提醒：可在「設定」開啟，並自訂每月提醒的時間，到點由手機本機發出通知"
+              "新增臉部辨識／指紋解鎖：可在「設定」開啟，開啟後每次打開 App 或離開超過 1 分鐘再回來都需要解鎖，辨識失敗可改用手機密碼",
+              "退休頁新增「理財規劃」模式（Premium）：輸入月薪與每月被動收入，依每月總收入試算投資儲蓄、開支上限、緊急預備金等五項建議金額，點任一項可查看計算說明；金額輸入自動加上千分位逗號"
+            ]
+          },
+          {
+            "title": "優化",
+            "items": [
+              "「退休計劃」與「理財規劃」切換加入滑動轉場，切換後自動回到頁面頂端",
+              "切換分頁時加入進場動畫：資產頁的分類卡片一張張彈上來、退休頁重新播放進場動畫、資產損益頁滑入",
+              "資產損益頁的「走勢／配置／股息」切換按鈕加入滑動動畫",
+              "新增帳戶時，分類卡片的展開與收合改為滑順的抽屜動畫",
+              "「納入圖表」開關切換後立即儲存；關閉的資產不再計入首頁的淨資產與分類卡總額，資產配置分析也會即時更新",
+              "編輯帳戶頁的儲存按鈕文字由「新增」改為「儲存」，避免誤以為沒有儲存鍵"
             ]
           }
         ]
