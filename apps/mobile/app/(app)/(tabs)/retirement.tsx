@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
@@ -49,7 +49,7 @@ import {
 import { useResponsive } from "@/hooks/useResponsive";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 // ── Small components ────────────────────────────────────────────────────────────
 
@@ -291,6 +291,22 @@ export default function RetirementScreen() {
   const router = useRouter();
   const { isPremium } = useIsPremium();
   const scrollRef = useRef<ScrollView>(null);
+  // 這個分頁在 _layout 關掉了換頁的淡入滑動，改成每次切回來都重播自己的進場：
+  // 換 key 讓「有進場動畫的那幾塊」重新掛載 —— 小豬的水位從 0 漲上來、指標卡依序
+  // 浮入（理財規劃模式則是錢包放大、試算卡浮入）。刻意不整頁重新掛載：圖表、
+  // 敏感度分析、壓力測試很重，全部重建會讓 JS 忙一陣子才開始播動畫，切進來會頓
+  // 一下。第一次 focus 就是初次掛載，動畫本來就會跑，不再多換一次 key。
+  const [entranceKey, setEntranceKey] = useState(0);
+  const focusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focusedOnce.current) {
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+        setEntranceKey((k) => k + 1);
+      }
+      focusedOnce.current = true;
+    }, [])
+  );
   // Every mode switch starts the new mode from the top of the page.
   const selectMode = (next: typeof selected) => {
     // 理財規劃是 Premium 功能：免費帳號改導向訂閱頁，停在退休計劃。
@@ -570,7 +586,7 @@ export default function RetirementScreen() {
         {/* Header — same height in both modes so switching doesn't shift the page */}
         <ModeTransitionView transition={transition}>
           {mode === "retirement" ? (
-            <View style={[s.header, { height: screenH * 0.42 }]}>
+            <View key={entranceKey} style={[s.header, { height: screenH * 0.42 }]}>
               <View style={{ alignItems: "center", marginBottom: 4 }}>
                 <Text style={[s.h1, isTablet && s.h1Tablet]}>退休計劃</Text>
                 <Text style={[s.h1sub, isTablet && s.h1subTablet]}>財務自由追蹤與模擬</Text>
@@ -586,7 +602,7 @@ export default function RetirementScreen() {
               </View>
             </View>
           ) : (
-            <View style={[s.header, { height: screenH * 0.42 }]}>
+            <View key={entranceKey} style={[s.header, { height: screenH * 0.42 }]}>
               <View style={{ alignItems: "center", marginBottom: 4 }}>
                 <Text style={[s.h1, isTablet && s.h1Tablet]}>理財規劃</Text>
                 <Text style={[s.h1sub, isTablet && s.h1subTablet]}>依月薪規劃儲蓄與開支</Text>
@@ -614,6 +630,7 @@ export default function RetirementScreen() {
         <ModeTransitionView transition={transition}>
           {mode === "finance" ? (
             <SalaryCalculator
+              key={entranceKey}
               salaryStr={salary.salaryStr}
               onChangeSalary={salary.setSalaryStr}
               passiveStr={salary.passiveStr}
@@ -623,7 +640,7 @@ export default function RetirementScreen() {
           ) : (
             <>
               {/* 2×2 metric cards */}
-              <View style={s.grid}>
+              <View key={entranceKey} style={s.grid}>
                 <MetricCard
                   label="目標總額"
                   value={fmtWan(calcs.tt)}

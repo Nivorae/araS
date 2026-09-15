@@ -38,6 +38,9 @@ interface Props {
   /** Fired while a scrub gesture is active so the parent can pause its
    *  pull-to-refresh scroll and avoid a gesture tug-of-war. */
   onScrubActiveChange?: (active: boolean) => void;
+  /** 值一變就重播進場：卡片從區塊下方一張一張彈上來回到堆疊位置。初次掛載不播
+   *  （卡片照舊直接就位），所以呼叫端只在「再次進入畫面」時遞增它。 */
+  entranceKey?: number;
 }
 
 export interface CategoryCardStackHandle {
@@ -75,6 +78,8 @@ export const STACK_SPRING_CLOSE = {
 // Content fades in shortly after the card opens. On collapse the fade-out is
 // stretched to span the whole re-stack: the incoming cards wipe up over the list
 // while it dims, so there's never a "solid colour, no content" ghost window.
+// 進場時每張卡之間的間隔。
+const ENTRANCE_STAGGER = 60;
 const CONTENT_MOUNT_DELAY = 110;
 const CONTENT_FADE_IN = 250;
 const CONTENT_FADE_OUT = 300;
@@ -91,6 +96,7 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       onAddClick,
       collapsedOffset = 0,
       onScrubActiveChange,
+      entranceKey = 0,
     },
     ref
   ) {
@@ -170,6 +176,29 @@ export const CategoryCardStack = forwardRef<CategoryCardStackHandle, Props>(
       if (anims.length) Animated.parallel(anims).start();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedName, zoneHeight, total, collapsedOffset]);
+
+    // 進場：先把每張卡放到區塊下方，再從最後面那張（堆疊最上緣）開始依序彈回
+    // 原位，前面的卡一張張疊上來。有卡片展開時不播 —— 那時其他卡本來就在畫面外，
+    // 重播只會把展開的那張也拉走。
+    const lastEntranceKey = useRef(entranceKey);
+    useEffect(() => {
+      if (lastEntranceKey.current === entranceKey) return;
+      lastEntranceKey.current = entranceKey;
+      if (zoneHeight === 0 || selectedName !== null) return;
+      const offScreenY = Math.round(zoneHeight * 1.3);
+      const order = [...categories.keys()].reverse();
+      order.forEach((index) => yMap.current[categories[index]!.name]!.setValue(offScreenY));
+      Animated.stagger(
+        ENTRANCE_STAGGER,
+        order.map((index) =>
+          Animated.spring(yMap.current[categories[index]!.name]!, {
+            toValue: collapsedOffset + TOP_INSET + (total - 1 - index) * spacing,
+            ...STACK_SPRING_OPEN,
+          })
+        )
+      ).start();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [entranceKey]);
 
     const clearTimers = () => {
       if (openTimer.current) clearTimeout(openTimer.current);
