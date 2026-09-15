@@ -38,11 +38,13 @@ export interface SalaryRule {
   detail: ModalContent;
 }
 
-/** 以月薪推算的五條理財經驗法則。非有限或負數的輸入一律視為 0。 */
-export function salaryRules(salary: number): SalaryRule[] {
-  const s = Number.isFinite(salary) && salary > 0 ? salary : 0;
-  const salaryStep = { label: "目前月薪", value: fmtNtd(s) };
-  const annualStep = { label: "× 12 個月（年薪）", value: fmtNtd(s * 12) };
+/**
+ * 以每月總收入（月薪 + 被動收入）推算的五條理財經驗法則。非有限或負數的輸入一律視為 0。
+ */
+export function salaryRules(salary: number, passiveIncome: number): SalaryRule[] {
+  const s = monthlyIncomeTotal(salary, passiveIncome);
+  const salaryStep = { label: "每月總收入（月薪 + 被動收入）", value: fmtNtd(s) };
+  const annualStep = { label: "× 12 個月（年收入）", value: fmtNtd(s * 12) };
 
   const rule = (
     key: string,
@@ -63,41 +65,41 @@ export function salaryRules(salary: number): SalaryRule[] {
     rule(
       "save",
       "每月投資或儲蓄",
-      "月薪 × 0.3",
+      "總收入 × 0.3",
       s * 0.3,
-      "每月先把三成薪水撥去投資或儲蓄，剩下的才拿來花。這是累積資產的基本比例，收入穩定後可以再逐步提高。",
+      "每月先把三成收入撥去投資或儲蓄，剩下的才拿來花。這是累積資產的基本比例，收入穩定後可以再逐步提高。",
       [salaryStep, { label: "× 30%" }]
     ),
     rule(
       "spend",
       "每月開支上限",
-      "月薪 × 0.6",
+      "總收入 × 0.6",
       s * 0.6,
-      "日常生活開支控制在月薪六成以內，保留空間給儲蓄與突發支出，避免月光。",
+      "日常生活開支控制在總收入六成以內，保留空間給儲蓄與突發支出，避免月光。",
       [salaryStep, { label: "× 60%" }]
     ),
     rule(
       "emergency",
       "緊急預備金",
-      "月薪 × 3",
+      "總收入 × 3",
       s * 3,
-      "至少備妥三個月薪水的現金，應付失業、醫療等突發狀況。建議放在隨時能動用的活存，不要拿去投資。",
+      "至少備妥三個月總收入的現金，應付失業、醫療等突發狀況。建議放在隨時能動用的活存，不要拿去投資。",
       [salaryStep, { label: "× 3 個月" }]
     ),
     rule(
       "principal",
       "穩定 6% 報酬工具所需本金",
-      "月薪 × 12 ÷ 6%",
+      "總收入 × 12 ÷ 6%",
       (s * 12) / 0.06,
-      "如果想靠年化 6% 的穩定報酬（例如高股息或債券）產生和目前年薪一樣的收入，需要投入的本金。",
+      "如果想靠年化 6% 的穩定報酬（例如高股息或債券）產生和目前年收入一樣的現金流，需要投入的本金。",
       [salaryStep, annualStep, { label: "÷ 6% 年化報酬" }]
     ),
     rule(
       "noWork",
       "無法工作時的緊急現金流",
-      "月薪 × 12 × 5",
+      "總收入 × 12 × 5",
       s * 12 * 5,
-      "萬一因傷病長期無法工作，準備五年份的年薪作為現金流，讓生活與家人不受影響。可搭配失能險分擔。",
+      "萬一因傷病長期無法工作，準備五年份的年收入作為現金流，讓生活與家人不受影響。可搭配失能險分擔。",
       [salaryStep, annualStep, { label: "× 5 年" }]
     ),
   ];
