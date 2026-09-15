@@ -119,8 +119,11 @@ For JS/UI/logic-only changes. No version bump, no App Store Connect, no review.
 
 ```bash
 cd apps/mobile
-eas update --branch production --clear-cache --message "…"
+eas update --branch production --environment production --clear-cache --message "…"
 ```
+
+(`--environment` is mandatory since SDK 57 and reads EAS-hosted env vars, not
+`.env.production` — see the ⚠️ note under Gotchas.)
 
 - Do **NOT** change `app.json` `version` (see Step 0.5) — but DO confirm it with
   the user first.
@@ -549,6 +552,15 @@ the thing they rejected — can still be running the embedded bundle.
   active sandbox subscription → restored + paywall flips) before resubmitting
   for review.
 
+- **⚠️ SDK 57 (2026-09): `eas update` now requires `--environment`, and with
+  that flag it does NOT read `.env` / `.env.production` at all** — only the
+  variables stored in the EAS dashboard for that environment
+  (docs.expo.dev/eas/environment-variables/usage). The `.env.production`
+  mechanism below stops working. Before the first post-upgrade OTA, copy every
+  `EXPO_PUBLIC_*` from `.env.production` into EAS
+  (`eas env:create --environment production …`, visibility "plain text" for
+  public keys), then dry-run and grep the bundle as in the checklist. Skipping
+  this ships a bundle with no API URL / Clerk key.
 - **`eas update` ignores `eas.json`'s `env` blocks** — those apply to `eas build`
   only. It bundles at `NODE_ENV=production` and inlines whatever `EXPO_PUBLIC_*`
   Expo's dotenv chain resolves. A 2026-07-09 OTA shipped the LAN dev URL to every
