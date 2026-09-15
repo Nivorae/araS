@@ -285,7 +285,6 @@ export default function RetirementScreen() {
   const entries = useFinanceStore((st) => st.entries);
   const { mode, selected, select, transition } = useModeTransition("retirement");
   const salary = useSalary();
-  const monthlySave = salary.rules.find((r) => r.key === "save")?.value ?? 0;
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [initialized, setInitialized] = useState(false);
   const [showParams, setShowParams] = useState(true);
@@ -581,12 +580,12 @@ export default function RetirementScreen() {
                 <Wallet
                   size={80}
                   strokeWidth={1.5}
-                  color={monthlySave > 0 ? "#374254" : "#e5e5ea"}
+                  color={salary.total > 0 ? "#374254" : "#e5e5ea"}
                 />
               </Reanimated.View>
               <View style={{ alignItems: "center" }}>
-                <Text style={[s.goalPct, { color: "#374254" }]}>{fmtNtd(monthlySave)}</Text>
-                <Text style={s.goalLabel}>每月建議儲蓄</Text>
+                <Text style={[s.goalPct, { color: "#374254" }]}>{fmtNtd(salary.total)}</Text>
+                <Text style={s.goalLabel}>每月總收入</Text>
               </View>
             </View>
           )}
@@ -599,6 +598,8 @@ export default function RetirementScreen() {
             <SalaryCalculator
               salaryStr={salary.salaryStr}
               onChangeSalary={salary.setSalaryStr}
+              passiveStr={salary.passiveStr}
+              onChangePassive={salary.setPassiveStr}
               rules={salary.rules}
             />
           ) : (

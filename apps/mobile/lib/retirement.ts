@@ -19,6 +19,13 @@ export interface ModalContent {
 
 export const STORAGE_KEY = "retirement_params_v1";
 export const SALARY_STORAGE_KEY = "retirement_salary_v1";
+export const PASSIVE_INCOME_STORAGE_KEY = "retirement_passive_income_v1";
+
+/** 月薪 + 每月被動收入。非有限或負數的輸入一律視為 0。 */
+export function monthlyIncomeTotal(salary: number, passiveIncome: number): number {
+  const pos = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
+  return pos(salary) + pos(passiveIncome);
+}
 
 export interface SalaryRule {
   key: string;
