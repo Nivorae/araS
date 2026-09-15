@@ -101,6 +101,41 @@ Play Console 端（**只能由你在後台做**）：
       雙來源。在那之前 Android 免費使用者受 `FREE_ENTRY_LIMIT = 20` 限制且
       無解鎖途徑，保單／資產配置／股息同理
 
+### C. Expo SDK 54 → 57 升級（`feature/upgrade-expo-sdk-57`）
+
+起因：iPhone 上的 Expo Go 自動更新成 SDK 57，iOS 無法裝回舊版，SDK 54 專案打不開。
+
+- [x] expo 57.0.22 / React Native 0.86.3 / React 19.2.3，`expo install --fix`，
+      expo-doctor 21/21
+- [x] 根目錄 `pnpm.overrides` 的 `react-native-worklets` 0.5.1 → 0.10.1
+- [x] `splash` 欄位已移除 → 改用 `expo-splash-screen` plugin（`imageWidth: 390`
+      維持原本 logo 大小）
+- [x] expo-router 不再依賴 React Navigation：`useIsFocused` 改從
+      `expo-router/react-navigation` 匯入，移除 `@react-navigation/native`
+- [x] `StyleSheet.absoluteFillObject` 在 RN 0.86 移除 → `absoluteFill`
+- [x] `eas.json` 的 Node 20.18.0 → 22.13.0（SDK 56 起最低 20.19.4）
+- [x] type-check / lint / web 240 測試 / iOS production bundle export 通過
+- [ ] **Expo Go 真機測試**：登入（`@clerk/clerk-expo` 仍是 2.x，已改名為
+      `@clerk/expo`，若登入壞掉就要遷移）、首頁、資產編輯、退休頁、設定、通知
+- [ ] iOS 最低版本升到 **16.4**（原 15.1），更舊的 iPhone 將無法安裝新版
+- [ ] ⚠️ **OTA 設定要先搬家**：`eas update` 現在必須帶 `--environment`，且
+      **不讀 `.env.production`**，只用 EAS 後台的環境變數。第一次 OTA 前要把
+      `.env.production` 的 `EXPO_PUBLIC_*` 全部 `eas env:create --environment
+production`，再 dry-run grep bundle
+- [ ] 升級後原生指紋改變：**1.4 使用者收不到從這個分支發的任何 OTA**，要發
+      新 binary（`eas build` + 送審）；要緊急修 1.4 只能從升級前的 commit 發
+- [x] Expo Go（SDK 57）真機：開啟、Clerk 登入正常（2026-09-15）
+
+### D. 生物辨識解鎖 + 薪資理財試算（目前與 C 在同一個工作區，commit 時分開）
+
+- [x] 設定頁「臉部辨識／指紋解鎖」（`expo-local-authentication` ~57.0.3）：冷啟動、
+      背景超過 1 分鐘回來需解鎖，失敗可改用手機密碼
+- [x] 退休頁「薪資理財試算」下拉區塊（五條月薪公式，月薪存 AsyncStorage）
+- [ ] 真機驗：Face ID 視窗不會解鎖後又立刻鎖回；Android 指紋
+- [ ] **「納入圖表」關閉後再編輯又變回開啟** —— 尚未找到原因。後端已用
+      `apps/web/tests/api/entries.include-in-chart.route.test.ts` 證實 PUT 會寫入
+      `false`，client 靜態追過也沒發現遺漏；需要真機重現
+
 ## 已完成但還沒放出來的功能
 
 ### 基金淨值 — 程式碼在 develop 上，入口關著
