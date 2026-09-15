@@ -101,6 +101,43 @@ Play Console 端（**只能由你在後台做**）：
       雙來源。在那之前 Android 免費使用者受 `FREE_ENTRY_LIMIT = 20` 限制且
       無解鎖途徑，保單／資產配置／股息同理
 
+### C. Expo SDK 54 → 57 升級（`feature/upgrade-expo-sdk-57`）
+
+起因：iPhone 上的 Expo Go 自動更新成 SDK 57，iOS 無法裝回舊版，SDK 54 專案打不開。
+
+- [x] expo 57.0.22 / React Native 0.86.3 / React 19.2.3，`expo install --fix`，
+      expo-doctor 21/21
+- [x] 根目錄 `pnpm.overrides` 的 `react-native-worklets` 0.5.1 → 0.10.1
+- [x] `splash` 欄位已移除 → 改用 `expo-splash-screen` plugin（`imageWidth: 390`
+      維持原本 logo 大小）
+- [x] expo-router 不再依賴 React Navigation：`useIsFocused` 改從
+      `expo-router/react-navigation` 匯入，移除 `@react-navigation/native`
+- [x] `StyleSheet.absoluteFillObject` 在 RN 0.86 移除 → `absoluteFill`
+- [x] `eas.json` 的 Node 20.18.0 → 22.13.0（SDK 56 起最低 20.19.4）
+- [x] type-check / lint / web 240 測試 / iOS production bundle export 通過
+- [ ] **Expo Go 真機測試**：登入（`@clerk/clerk-expo` 仍是 2.x，已改名為
+      `@clerk/expo`，若登入壞掉就要遷移）、首頁、資產編輯、退休頁、設定、通知
+- [ ] iOS 最低版本升到 **16.4**（原 15.1），更舊的 iPhone 將無法安裝新版
+- [ ] ⚠️ **OTA 設定要先搬家**：`eas update` 現在必須帶 `--environment`，且
+      **不讀 `.env.production`**，只用 EAS 後台的環境變數。第一次 OTA 前要把
+      `.env.production` 的 `EXPO_PUBLIC_*` 全部 `eas env:create --environment
+production`，再 dry-run grep bundle
+- [ ] 升級後原生指紋改變：**1.4 使用者收不到從這個分支發的任何 OTA**，要發
+      新 binary（`eas build` + 送審）；要緊急修 1.4 只能從升級前的 commit 發
+- [x] Expo Go（SDK 57）真機：開啟、Clerk 登入正常（2026-09-15）
+
+### D. 生物辨識解鎖 + 薪資理財試算（目前與 C 在同一個工作區，commit 時分開）
+
+- [x] 設定頁「臉部辨識／指紋解鎖」（`expo-local-authentication` ~57.0.3）：冷啟動、
+      背景超過 1 分鐘回來需解鎖，失敗可改用手機密碼
+- [x] 退休頁「薪資理財試算」下拉區塊（五條月薪公式，月薪存 AsyncStorage）
+- [ ] 真機驗：Face ID 視窗不會解鎖後又立刻鎖回；Android 指紋
+- [x] **「納入圖表」關閉後再編輯又變回開啟** —— 原因找到了（2026-09-15）：開關
+      不會自動存，要按預覽卡右側的按鈕，但「編輯帳戶」模式那顆按鈕寫的是「新增」，
+      使用者以為沒有儲存鍵、直接按返回，改動就被丟掉（dev DB 證實當天沒有任何寫入）。
+      已改成編輯時顯示「儲存」，且已存在的項目切換開關即自動儲存；首頁 Net Worth
+      與分類卡總額也改為排除關閉的項目；資產配置分頁改為項目異動就重抓。真機確認通過
+
 ## 已完成但還沒放出來的功能
 
 ### 基金淨值 — 程式碼在 develop 上，入口關著
@@ -163,10 +200,37 @@ indexnow`（每次 production 部署後手動跑一次；之後可接進部署�
 - [x] 外部連結 ×3：App Store 行銷/支援網址、Play 商店網站欄、LINE 官方帳號
 - [x] 正式 App Store 連結 `https://apps.apple.com/tw/app/id6785747999` 已換進
       下載按鈕 / `SAME_AS` / `llms.txt` / `llms-full.txt`（開發者 = Li KO CHUAN）
-- [ ] **開 `develop → main` PR** 讓 PR #126 上 production（GA 才開始收數據）
-- [ ] PR #126 上 production 後：GSC 對 `/`、`/about` 重新「要求索引」；跑一次
-      `pnpm --filter @repo/web indexnow`
+- [x] **開 `develop → main` PR** 讓 PR #126 上 production（GA 已在線上收數據，
+      線上原始碼可見 `G-TPJ0VV0L6V`）
+- [ ] Safe Browsing 解除後（見下一節）：GSC 對 `/`、`/about`、`/support`、
+      `/terms` 重新「要求索引」；跑一次 `pnpm --filter @repo/web indexnow`
 - [ ] 之後每 1~2 週看 GSC 成效報表
+
+### Safe Browsing「不實網頁」誤判（2026-09-08 發生、2026-09-09 解除）
+
+GSC 安全性問題報「**不實網頁 / social engineering**」（無範例網址），Chrome 對
+所有訪客顯示整頁紅色警告、搜尋排名被降權。
+
+**不是入侵。** 逐行檢查線上 `/` 與 `/sign-in` 的原始碼，所有 `<script src>` 只有
+`/_next/*`、`clerk.arasasset.com`、`googletagmanager.com`，無 iframe、無混淆碼、
+無注入導向；下載按鈕全指向真正的 App Store 網址。
+
+**觸發點是舊版 `/sign-in`**：手工拼的 Google 四色 logo + 假 LINE「L」圓圈按鈕，
+放在一個幾乎沒有搜尋權重的網域上，被分類器判成「假冒 Google 釣帳號」。自製
+OAuth 按鈕本來也違反 Google 品牌規範。
+
+修正（都已上 production）：
+
+- [x] PR #128：`/sign-in` 改用 Clerk 官方 `<SignIn>` 元件（`/sign-up` 早就是），
+      OAuth 按鈕由 Clerk 用各家官方品牌渲染
+- [x] PR #129：CSP 補上 `https://clerk.arasasset.com`。原本 `script-src` /
+      `connect-src` 只放行 dev 的 `*.clerk.accounts.dev`，production 的 Clerk
+      網域從來沒進去 —— 舊登入頁的按鈕是純 React 畫的所以看不出來，`<SignIn>`
+      完全依賴 clerk-js，被擋就整頁空白
+- [x] GSC「要求審查」送出 → 通過，警告與降權解除
+
+**教訓**：任何新的外部 script／XHR 目標都要同時進 `script-src` **和**
+`connect-src`，CSP 擋掉時不會有 console 以外的任何提示（已記進 `CLAUDE.md`）。
 
 品牌權威（off-site，分數最低、槓桿最大，全部無法用 code 解決）：
 

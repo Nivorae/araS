@@ -373,7 +373,7 @@ export default function PaywallScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#0e1424", overflow: "hidden" },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(8,10,18,0.78)" },
+  overlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(8,10,18,0.78)" },
   safe: { flex: 1 },
 
   // Top hero — kept compact so the bottom sheet has room to fit its content

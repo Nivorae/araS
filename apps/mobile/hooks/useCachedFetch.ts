@@ -15,7 +15,12 @@ export interface CachedFetchState<T> {
 // keeps it fresh — no flash, no refetch-on-every-tab-switch.
 const caches = new Map<string, unknown>();
 
-export function useCachedFetch<T>(endpoint: string): CachedFetchState<T> {
+/**
+ * `revalidateKey` 一變就在背景重抓（照樣先顯示快取值）。呼叫端的畫面常常掛載後
+ * 就不再卸載（例如資產損益頁的分頁用 display:none 保活），只靠掛載時抓一次的話，
+ * 資料改了之後會一直停在舊值。
+ */
+export function useCachedFetch<T>(endpoint: string, revalidateKey?: unknown): CachedFetchState<T> {
   const api = useApi();
   const cached = caches.has(endpoint) ? (caches.get(endpoint) as T) : null;
   const [data, setData] = useState<T | null>(cached);
@@ -43,7 +48,7 @@ export function useCachedFetch<T>(endpoint: string): CachedFetchState<T> {
     return () => {
       active = false;
     };
-  }, [api, endpoint]);
+  }, [api, endpoint, revalidateKey]);
 
   return { data, loading, error };
 }

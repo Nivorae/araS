@@ -8,11 +8,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0a0a0f"
-    },
     "runtimeVersion": {
       "policy": "fingerprint"
     },
@@ -40,7 +35,12 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "ara-s-web.vercel.app" }],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "ara-s-web.vercel.app"
+            }
+          ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
@@ -50,7 +50,21 @@
       "expo-secure-store",
       "expo-apple-authentication",
       "expo-notifications",
-      "@sentry/react-native"
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "使用 Face ID 解鎖 araS，保護你的資產資料" }
+      ],
+      "@sentry/react-native",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 390,
+          "resizeMode": "contain",
+          "backgroundColor": "#0a0a0f"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
