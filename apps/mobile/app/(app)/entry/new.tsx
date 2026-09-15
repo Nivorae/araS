@@ -1,19 +1,24 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Reanimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import {
+  type StyleProp,
+  type ViewStyle,
   Animated,
-  LayoutAnimation,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Image,
   type ImageSourcePropType,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  UIManager,
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -31,10 +36,6 @@ import { useResponsive } from "@/hooks/useResponsive";
 import linePayCard from "../../../assets/wallet-line-pay.png";
 import applePayCard from "../../../assets/wallet-apple-pay.png";
 import jkoPayCard from "../../../assets/wallet-jko-pay.png";
-
-if (Platform.OS === "android") {
-  UIManager.setLayoutAnimationEnabledExperimental?.(true);
-}
 
 const H_PADDING = 16;
 
@@ -57,15 +58,6 @@ const H_PADDING = 16;
 const TOP_FLEX = 15;
 const GAP_FLEX = 0;
 const STACK_FLEX = 85;
-
-/**
- * 卡片彼此重疊多少。堆疊感全靠這個負的 marginTop —— 每張卡的圓角上緣壓在前一
- * 張卡的下緣上，像 Wallet 的卡片堆。第一張不套用。
- *
- * 它不影響卡片的可見高度（那個由 STACK_FLEX 區塊平分而來），只決定露出多少
- * 下一張卡的顏色。
- */
-const CARD_OVERLAP = 28;
 
 /** 展開時子項目下方的呼吸空間。算高度時要一起算進去。 */
 const EXPANDED_PAD_BOTTOM = 24;
@@ -205,6 +197,20 @@ export default function NewEntryScreen() {
     state.level === "root" && state.expanded ? subHeight + EXPANDED_PAD_BOTTOM : 0;
   const band =
     stackHeight > 0 ? Math.max(MIN_BAND, (stackHeight - expandedExtra) / CATEGORIES.length) : 0;
+  // 沒有卡片展開時的標題列高度 —— 卡片內標題框固定用這個高度，展開時的差額用
+  // transform 位移補回去，不去改任何 layout 尺寸。
+  const restBand = stackHeight > 0 ? Math.max(MIN_BAND, stackHeight / CATEGORIES.length) : 0;
+  // 每張卡的頂端位置 = 前面每張卡「露出來的高度」加總。卡片本身都一樣高、彼此
+  // 疊著，後面的卡蓋住前面卡的下半部，所以移動卡片就等於決定前一張露出多少。
+  const cardTops: number[] = [];
+  let stackedHeight = 0;
+  for (const c of CATEGORIES) {
+    cardTops.push(stackedHeight);
+    stackedHeight +=
+      band + (state.level === "root" && state.expanded === c.name ? expandedExtra : 0);
+  }
+  // 子項目多到觸發 MIN_BAND 地板時內容會超出容器，那時仍要能捲動。
+  const contentHeight = Math.max(stackHeight, stackedHeight);
 
   /**
    * 每個分類的子項目區高度，key 是分類名稱。由下面的隱形量測層在掛載時一次
@@ -237,7 +243,6 @@ export default function NewEntryScreen() {
     // 有量測層之後，正常情況這裡的 guard 會提早 return（快取值就是實際值），
     // 走到這行只剩「量測層量完後版面寬度又變了」之類的情況 —— 例如 iPad 旋轉
     // 讓 chip 換行行數改變。那時仍要修正，並補排一次動畫。
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSubHeight(h);
   };
 
@@ -293,7 +298,6 @@ export default function NewEntryScreen() {
   };
 
   const handleTopCategoryPress = (topCat: TopCategory) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const alreadyExpanded = state.level === "root" && state.expanded === topCat.name;
     // 收合歸零，否則 band 會一直扣著上一張的展開高度不還回來；展開則優先用
     // 快取值，量過的卡片就能一個 pass 直接到位。
@@ -309,7 +313,6 @@ export default function NewEntryScreen() {
    */
   const collapseAll = () => {
     if (state.level !== "root" || !state.expanded) return;
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSubHeight(0);
     setState({ level: "root", expanded: null });
   };
@@ -318,11 +321,10 @@ export default function NewEntryScreen() {
   // 的返回鍵那樣直接離開整個畫面。
   const handleDrillBack = () => {
     if (state.level !== "drill") return;
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setState({ level: "root", expanded: state.topCat.name });
   };
 
-  const title = state.level === "drill" ? state.title : "新增帳戶";
+  const title = state.level === "drill" ? state.title : "新增資產";
   const centered = isTablet ? { width: contentWidth, alignSelf: "center" as const } : null;
 
   const headerBlock = (
@@ -375,7 +377,7 @@ export default function NewEntryScreen() {
           /* 滿版堆疊：contentContainer 不留左右 padding，卡片自己貼齊兩側。 */
           <ScrollView
             style={s.scroll}
-            contentContainerStyle={[s.stackBody, centered]}
+            contentContainerStyle={centered}
             // 這疊卡片的設計是「永遠剛好填滿容器」（展開時由六張一起讓出空間），
             // 所以正常情況根本不需要捲動。留著 iOS 的彈性回捲只會讓使用者一拖就
             // 把整疊拉動、放開再彈回來，看起來像沒對齊。
@@ -385,49 +387,50 @@ export default function NewEntryScreen() {
             bounces={false}
             overScrollMode="never"
           >
-            {CATEGORIES.map((topCat, idx) => {
-              const isExpanded = state.expanded === topCat.name;
-              // 最後一張沒有下一張壓上來，所以不需要那段被蓋住的下緣補償，
-              // 並補圓下緣兩角讓整疊有明確的結尾。
-              const isLast = idx === CATEGORIES.length - 1;
-              const pale = isPaleColor(topCat.color);
-              // 被下一張蓋住的那段要額外撐出來，卡片的「可見高度」才等於 band。
-              const hiddenPad = isLast ? 0 : CARD_OVERLAP;
-              return (
-                <View
-                  key={topCat.name}
-                  style={[
-                    s.card,
-                    { backgroundColor: topCat.color },
-                    // 後面的卡片要壓在前面的卡片上，堆疊順序才對。
-                    { zIndex: idx + 1 },
-                    // 展開時額外給子項目一點下緣呼吸空間。
-                    { paddingBottom: hiddenPad + (isExpanded ? EXPANDED_PAD_BOTTOM : 0) },
-                    idx > 0 && { marginTop: -CARD_OVERLAP },
-                    pale && s.cardPale,
-                    isLast && s.cardLast,
-                    isLast && pale && s.cardLastPale,
-                  ]}
-                >
-                  <TouchableOpacity
-                    onPress={() => handleTopCategoryPress(topCat)}
-                    // minHeight 而非 height —— 展開時內容比 band 高，要能長出去。
-                    style={[s.cardTop, { minHeight: band }]}
-                    activeOpacity={0.85}
+            {/* 整疊的外框負責下緣圓角（原本是最後一張卡自己圓），因為卡片現在都
+                一樣高、最後一張會延伸到框外被裁掉。 */}
+            <View
+              style={[
+                s.stackFrame,
+                { height: contentHeight },
+                isPaleColor(CATEGORIES[CATEGORIES.length - 1]!.color) && s.stackFramePale,
+              ]}
+            >
+              {CATEGORIES.map((topCat, idx) => {
+                const isExpanded = state.expanded === topCat.name;
+                return (
+                  <ExpandableCard
+                    key={topCat.name}
+                    expanded={isExpanded}
+                    top={cardTops[idx]!}
+                    band={band}
+                    restBand={restBand}
+                    style={[
+                      s.card,
+                      { backgroundColor: topCat.color, height: contentHeight },
+                      // 後面的卡片要壓在前面的卡片上，堆疊順序才對。
+                      { zIndex: idx + 1 },
+                      isPaleColor(topCat.color) && s.cardPale,
+                    ]}
+                    header={
+                      <TouchableOpacity
+                        onPress={() => handleTopCategoryPress(topCat)}
+                        style={s.cardTopFill}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[s.cardTitle, { color: topCat.textColor }]} numberOfLines={1}>
+                          {topCat.name}
+                        </Text>
+                      </TouchableOpacity>
+                    }
                   >
-                    <Text style={[s.cardTitle, { color: topCat.textColor }]} numberOfLines={1}>
-                      {topCat.name}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {isExpanded && (
-                    <View style={s.subWrap} onLayout={onSubLayout}>
+                    <View style={s.subWrap} onLayout={isExpanded ? onSubLayout : undefined}>
                       {chipsFor(topCat)}
                     </View>
-                  )}
-                </View>
-              );
-            })}
+                  </ExpandableCard>
+                );
+              })}
+            </View>
           </ScrollView>
         )}
       </View>
@@ -455,6 +458,80 @@ export default function NewEntryScreen() {
         </View>
       )}
     </SafeAreaView>
+  );
+}
+
+/** 卡片展開／收合的補間時間與曲線。 */
+const EXPAND_TIMING = { duration: 320, easing: Easing.out(Easing.cubic) };
+
+/**
+ * 可展開的大類卡片。
+ *
+ * 動畫只動 transform，不動任何 layout 尺寸：每張卡一樣高、絕對定位疊在一起，
+ * 後面的卡蓋住前面卡的下半部。展開時只是把這張之後的卡往下移（translateY），
+ * 被蓋住的子項目自然就露出來；收合時卡片移回去，子項目又被蓋回去。
+ *
+ * 上一版是逐幀補間 minHeight／height／paddingBottom，六張卡每一幀都要重排版面、
+ * iOS 還要重畫卡片陰影，在 JS 與 UI 兩邊來回，切換時會卡。transform 在 UI thread
+ * 上直接合成，不觸發排版。（更早用的 LayoutAnimation 則是在 SDK 57 的新架構下
+ * 根本不會動。）
+ *
+ * 標題框與子項目區塊固定用「沒有卡片展開時」的標題列高度（restBand）排版；展開時
+ * 標題列變矮的差額同樣用 translateY 補：標題往上移一半保持置中，子項目往上移一整
+ * 段貼齊標題列下緣。
+ */
+function ExpandableCard({
+  expanded,
+  top,
+  band,
+  restBand,
+  style,
+  header,
+  children,
+}: {
+  expanded: boolean;
+  /** 這張卡的頂端位置（前面每張卡露出高度的加總）。 */
+  top: number;
+  /** 目前的標題列高度。 */
+  band: number;
+  /** 沒有卡片展開時的標題列高度，卡片內容以它排版。 */
+  restBand: number;
+  style: StyleProp<ViewStyle>;
+  header: ReactNode;
+  children: ReactNode;
+}) {
+  const topSV = useSharedValue(top);
+  const bandSV = useSharedValue(band);
+
+  useEffect(() => {
+    topSV.value = withTiming(top, EXPAND_TIMING);
+  }, [top, topSV]);
+  useEffect(() => {
+    bandSV.value = withTiming(band, EXPAND_TIMING);
+  }, [band, bandSV]);
+
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ translateY: topSV.value }] }));
+  const headerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (bandSV.value - restBand) / 2 }],
+  }));
+  const bodyStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: bandSV.value - restBand }],
+  }));
+
+  return (
+    <Reanimated.View style={[style, cardStyle]}>
+      <Reanimated.View style={[s.cardHeader, { height: restBand }, headerStyle]}>
+        {header}
+      </Reanimated.View>
+      <Reanimated.View
+        style={[s.cardBody, { top: restBand }, bodyStyle]}
+        pointerEvents={expanded ? "auto" : "none"}
+        accessibilityElementsHidden={!expanded}
+        importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
+      >
+        {children}
+      </Reanimated.View>
+    </Reanimated.View>
   );
 }
 
@@ -666,14 +743,26 @@ const s = StyleSheet.create({
   placeholder: { width: 40 },
 
   scroll: { flex: 1 },
-  // 內容剛好等於容器高度時這兩個都不影響；卡片展開後內容變高就正常捲動。
-  stackBody: { flexGrow: 1, justifyContent: "flex-end" },
+  // 整疊的外框：高度由卡片位置算出，負責裁切與整疊的下緣圓角。
+  stackFrame: {
+    overflow: "hidden",
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  stackFramePale: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#d8d8de",
+  },
 
   card: {
-    // 滿版：不設左右 margin，只圓上緣兩角 —— 下緣會被下一張卡蓋住，圓了也看不到。
+    // 滿版、絕對定位疊在一起，位置全靠 translateY。只圓上緣兩角 —— 下緣被下一張
+    // 卡或外框蓋住，圓了也看不到。
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 20,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -685,18 +774,12 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#d8d8de",
   },
-  cardLast: {
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-  },
-  cardLastPale: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#d8d8de",
-  },
 
-  // 卡片列只剩名稱：alignItems 讓它在 band 的高度內垂直置中，
-  // cardTitle 的 flex:1 + textAlign 讓它水平置中並在過長時截斷。
-  cardTop: { flexDirection: "row", alignItems: "center" },
+  // 標題列與子項目區塊都絕對定位；左右內距要和量測層的 measureCard 一致。
+  cardHeader: { position: "absolute", top: 0, left: 20, right: 20, flexDirection: "row" },
+  // 可點範圍撐滿整個標題列，文字在裡面垂直置中。
+  cardTopFill: { flex: 1, flexDirection: "row", alignItems: "center" },
+  cardBody: { position: "absolute", left: 20, right: 20 },
   cardTitle: {
     flex: 1,
     fontSize: 22,
