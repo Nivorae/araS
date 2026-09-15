@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { ChevronRight } from "lucide-react-native";
 import {
   PASSIVE_INCOME_STORAGE_KEY,
   SALARY_STORAGE_KEY,
+  fmtNtd,
   monthlyIncomeTotal,
   salaryRules,
   type SalaryRule,
 } from "@/lib/retirement";
-
-export const fmtNtd = (v: number) => `NT$ ${Math.round(v).toLocaleString("zh-TW")}`;
+import { InfoModal } from "@/components/retirement/InfoModal";
 
 /** 一個以字串形式持久化到 AsyncStorage 的金額輸入。 */
 function usePersistedAmount(key: string) {
@@ -44,7 +45,10 @@ export function useSalary() {
   return { salaryStr, setSalaryStr, passiveStr, setPassiveStr, total, rules };
 }
 
-/** 退休頁「理財規劃」模式的薪資理財試算：輸入月薪與被動收入，列出五條經驗法則的建議金額。 */
+/**
+ * 退休頁「理財規劃」模式的薪資理財試算：輸入月薪與被動收入，列出五條經驗法則的
+ * 建議金額；點任一條會開啟與退休指標卡相同的說明抽屜。
+ */
 export function SalaryCalculator({
   salaryStr,
   onChangeSalary,
@@ -58,23 +62,30 @@ export function SalaryCalculator({
   onChangePassive: (v: string) => void;
   rules: SalaryRule[];
 }) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  // Looked up on every render so the sheet reflects edits to the salary.
+  const openRule = rules.find((r) => r.key === openKey) ?? null;
+
   return (
     <View style={s.card}>
       <Text style={s.title}>薪資理財試算</Text>
       <Text style={s.sub}>依月薪推算儲蓄、開支與預備金</Text>
 
-      <AmountInput
-        label="目前月薪"
-        placeholder="輸入月薪"
-        value={salaryStr}
-        onChange={onChangeSalary}
-      />
-      <AmountInput
-        label="每月被動收入"
-        placeholder="輸入被動收入"
-        value={passiveStr}
-        onChange={onChangePassive}
-      />
+      <View style={s.inputGroup}>
+        <AmountInput
+          label="目前月薪"
+          placeholder="輸入月薪"
+          value={salaryStr}
+          onChange={onChangeSalary}
+        />
+        <View style={s.inputDivider} />
+        <AmountInput
+          label="每月被動收入"
+          placeholder="輸入被動收入"
+          value={passiveStr}
+          onChange={onChangePassive}
+        />
+      </View>
 
       {rules.map((r, i) => (
         <Animated.View
@@ -82,17 +93,30 @@ export function SalaryCalculator({
           entering={FadeInDown.delay(80 + i * 45)
             .springify()
             .damping(18)}
-          style={s.ruleRow}
         >
-          <View style={{ flex: 1 }}>
-            <Text style={s.ruleTitle}>{r.title}</Text>
-            <Text style={s.ruleFormula}>{r.formula}</Text>
-          </View>
-          <Text style={s.ruleValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            {fmtNtd(r.value)}
-          </Text>
+          <Pressable
+            style={({ pressed }) => [s.ruleRow, pressed && s.ruleRowPressed]}
+            onPress={() => setOpenKey(r.key)}
+            accessibilityRole="button"
+            accessibilityHint="顯示計算說明"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={s.ruleTitle}>{r.title}</Text>
+              <Text style={s.ruleFormula}>{r.formula}</Text>
+            </View>
+            <Text style={s.ruleValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {fmtNtd(r.value)}
+            </Text>
+            <ChevronRight size={14} color="#c7c7cc" />
+          </Pressable>
         </Animated.View>
       ))}
+
+      <InfoModal
+        visible={openRule !== null}
+        content={openRule?.detail ?? null}
+        onClose={() => setOpenKey(null)}
+      />
     </View>
   );
 }
@@ -141,15 +165,18 @@ const s = StyleSheet.create({
   },
   title: { fontSize: 15, fontWeight: "600", color: "#1c1c1e" },
   sub: { fontSize: 12, color: "#8e8e93", marginTop: 2, marginBottom: 12 },
+  inputGroup: {
+    backgroundColor: "#f2f2f7",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
+  inputDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#d1d1d6" },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#f2f2f7",
-    borderRadius: 12,
-    paddingHorizontal: 12,
     paddingVertical: 12,
-    marginBottom: 8,
   },
   inputLabel: { fontSize: 14, fontWeight: "500", color: "#1c1c1e" },
   inputRight: { flexDirection: "row", alignItems: "center", gap: 4 },
@@ -165,11 +192,12 @@ const s = StyleSheet.create({
   ruleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#f2f2f7",
     paddingVertical: 10,
   },
+  ruleRowPressed: { opacity: 0.5 },
   ruleTitle: { fontSize: 13, fontWeight: "500", color: "#1c1c1e" },
   ruleFormula: { fontSize: 11, color: "#8e8e93", marginTop: 2 },
   ruleValue: { fontSize: 15, fontWeight: "700", color: "#374254", maxWidth: "50%" },

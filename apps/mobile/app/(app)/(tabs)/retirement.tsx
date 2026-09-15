@@ -31,6 +31,7 @@ import { useFinanceStore } from "@/store/financeStore";
 import {
   DEFAULTS,
   STORAGE_KEY,
+  fmtNtd,
   fmtWan,
   sanitizeParams,
   type ModalContent,
@@ -39,7 +40,7 @@ import {
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { ProjectionChart, type ProjRow } from "@/components/retirement/ProjectionChart";
 import { InfoModal } from "@/components/retirement/InfoModal";
-import { SalaryCalculator, fmtNtd, useSalary } from "@/components/retirement/SalaryCalculator";
+import { SalaryCalculator, useSalary } from "@/components/retirement/SalaryCalculator";
 import {
   ModeToggle,
   ModeTransitionView,
