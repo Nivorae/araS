@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { SALARY_STORAGE_KEY, salaryRules, type SalaryRule } from "@/lib/retirement";
 
 export const fmtNtd = (v: number) => `NT$ ${Math.round(v).toLocaleString("zh-TW")}`;
@@ -59,8 +60,14 @@ export function SalaryCalculator({
         </View>
       </View>
 
-      {rules.map((r) => (
-        <View key={r.key} style={s.ruleRow}>
+      {rules.map((r, i) => (
+        <Animated.View
+          key={r.key}
+          entering={FadeInDown.delay(80 + i * 45)
+            .springify()
+            .damping(18)}
+          style={s.ruleRow}
+        >
           <View style={{ flex: 1 }}>
             <Text style={s.ruleTitle}>{r.title}</Text>
             <Text style={s.ruleFormula}>{r.formula}</Text>
@@ -68,7 +75,7 @@ export function SalaryCalculator({
           <Text style={s.ruleValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
             {fmtNtd(r.value)}
           </Text>
-        </View>
+        </Animated.View>
       ))}
     </View>
   );
