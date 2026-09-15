@@ -168,6 +168,21 @@ export function useFinanceActions() {
     [api]
   );
 
+  // 「納入圖表」開關切換即存。只把這一個欄位併回 store 裡原本那筆，而不是像
+  // updateEntry 整筆換掉 —— PUT 的回傳沒有列表 API 才有的 units／loan／insurance，
+  // 整筆換掉會讓首頁的投資市值、貸款資訊在下次 fetchAll 前消失。
+  const setEntryIncludeInChart = useCallback(
+    async (id: string, includeInChart: boolean) => {
+      const saved = await api.put<Entry>(`/api/entries/${id}`, { includeInChart });
+      const store = useFinanceStore.getState();
+      const current = store.entries.find((e) => e.id === id);
+      if (current) {
+        store.updateEntryLocal(id, { ...current, includeInChart: saved.includeInChart });
+      }
+    },
+    [api]
+  );
+
   const transferEntry = useCallback(
     async (data: TransferEntry) => {
       const result = await api.post<TransferResult>("/api/entries/transfer", data);
@@ -348,6 +363,7 @@ export function useFinanceActions() {
     fetchNetWorthHistory,
     addEntry,
     updateEntry,
+    setEntryIncludeInChart,
     transferEntry,
     deleteEntry,
     addTransaction,

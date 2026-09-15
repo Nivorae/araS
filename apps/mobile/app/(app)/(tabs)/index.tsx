@@ -19,6 +19,7 @@ import { useFinanceStore } from "@/store/financeStore";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useInvestmentMarketValues } from "@/hooks/useInvestmentMarketValues";
 import { formatCurrency } from "@/lib/format";
+import { chartedEntries } from "@/lib/chartedEntries";
 import { CATEGORIES, getNodeIcon } from "@/lib/categoryConfig";
 import {
   CategoryCardStack,
@@ -91,11 +92,12 @@ export default function AssetsScreen() {
   const netShift = useRef(new Animated.Value(0)).current;
 
   // net worth
+  // 「納入圖表」關閉的項目不計入 Net Worth 與分類卡總額（卡片裡照樣列出），
+  // 跟資產損益頁的天秤、走勢圖用同一套 chartedEntries 規則。
   const netWorth = useMemo(() => {
-    const assets = displayEntries
-      .filter((e) => e.topCategory !== "負債")
-      .reduce((s, e) => s + e.value, 0);
-    const liabilities = displayEntries
+    const charted = chartedEntries(displayEntries);
+    const assets = charted.filter((e) => e.topCategory !== "負債").reduce((s, e) => s + e.value, 0);
+    const liabilities = charted
       .filter((e) => e.topCategory === "負債")
       .reduce((s, e) => s + e.value, 0);
     return assets - liabilities;
@@ -118,7 +120,7 @@ export default function AssetsScreen() {
           textColor: cfg.textColor,
           isLiability: cfg.isLiability,
           entries: catEntries,
-          total: catEntries.reduce((s, e) => s + e.value, 0),
+          total: chartedEntries(catEntries).reduce((s, e) => s + e.value, 0),
         },
       ];
     });
