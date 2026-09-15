@@ -85,7 +85,7 @@ export default function UpdateBanner() {
 
 const s = StyleSheet.create({
   // 掛在 root 的絕對定位層：填滿螢幕但不吃事件，只有 banner 本身可以被點。
-  wrap: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", zIndex: 200 },
+  wrap: { ...StyleSheet.absoluteFill, justifyContent: "flex-end", zIndex: 200 },
   banner: {
     flexDirection: "row",
     alignItems: "center",

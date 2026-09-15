@@ -646,10 +646,7 @@ export default function EntryDetailScreen() {
         {/* Full-screen wrapper: backdrop + sheet aligned to bottom */}
         <View style={s.modalWrapper}>
           {/* Backdrop — tap to dismiss */}
-          <Pressable
-            style={StyleSheet.absoluteFillObject}
-            onPress={() => setEditingHistory(null)}
-          />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setEditingHistory(null)} />
 
           {/* Sheet — rendered on top of backdrop */}
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
