@@ -23,6 +23,7 @@ import {
   PiggyBank,
   Target,
   TrendingUp,
+  Wallet,
   type LucideIcon,
 } from "lucide-react-native";
 import { useFinanceStore } from "@/store/financeStore";
@@ -37,6 +38,7 @@ import {
 import { NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { ProjectionChart, type ProjRow } from "@/components/retirement/ProjectionChart";
 import { InfoModal } from "@/components/retirement/InfoModal";
+import { SalaryCalculator, fmtNtd, useSalary } from "@/components/retirement/SalaryCalculator";
 import { useResponsive } from "@/hooks/useResponsive";
 
 // ── Small components ────────────────────────────────────────────────────────────
@@ -259,11 +261,42 @@ function WaterPiggy({ pct, color }: { pct: number; color: string }) {
   );
 }
 
+type Mode = "retirement" | "finance";
+
+const MODES: { key: Mode; label: string }[] = [
+  { key: "retirement", label: "退休計劃" },
+  { key: "finance", label: "理財規劃" },
+];
+
+function ModeToggle({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
+  return (
+    <View style={s.toggle}>
+      {MODES.map((m) => {
+        const active = m.key === value;
+        return (
+          <Pressable
+            key={m.key}
+            style={[s.toggleBtn, active && s.toggleBtnActive]}
+            onPress={() => onChange(m.key)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+          >
+            <Text style={[s.toggleText, active && s.toggleTextActive]}>{m.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export default function RetirementScreen() {
   const { height: screenH, isTablet, wideContentWidth } = useResponsive();
   const entries = useFinanceStore((st) => st.entries);
+  const [mode, setMode] = useState<Mode>("retirement");
+  const salary = useSalary();
+  const monthlySave = salary.rules.find((r) => r.key === "save")?.value ?? 0;
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [initialized, setInitialized] = useState(false);
   const [showParams, setShowParams] = useState(true);
@@ -528,441 +561,477 @@ export default function RetirementScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <View style={[s.header, { height: screenH * 0.42 }]}>
-          <View style={{ alignItems: "center", marginBottom: 4 }}>
-            <Text style={[s.h1, isTablet && s.h1Tablet]}>退休計劃</Text>
-            <Text style={[s.h1sub, isTablet && s.h1subTablet]}>財務自由追蹤與模擬</Text>
+        {/* Header — same height in both modes so switching doesn't shift the page */}
+        {mode === "retirement" ? (
+          <View style={[s.header, { height: screenH * 0.42 }]}>
+            <View style={{ alignItems: "center", marginBottom: 4 }}>
+              <Text style={[s.h1, isTablet && s.h1Tablet]}>退休計劃</Text>
+              <Text style={[s.h1sub, isTablet && s.h1subTablet]}>財務自由追蹤與模擬</Text>
+            </View>
+            {/* Fixed 80pt art — scaled as a unit on tablet, with margin to give
+                the extra size layout room `scale` alone does not reserve. */}
+            <Pressable onPress={() => setOpenModal("goal")} style={isTablet && s.piggyTablet}>
+              <WaterPiggy pct={calcs.goalPct} color={goalColor} />
+            </Pressable>
+            <View style={{ alignItems: "center" }}>
+              <Text style={[s.goalPct, { color: goalColor }]}>{calcs.goalPct.toFixed(1)}%</Text>
+              <Text style={s.goalLabel}>目標達成率</Text>
+            </View>
           </View>
-          {/* Fixed 80pt art — scaled as a unit on tablet, with margin to give
-              the extra size layout room `scale` alone does not reserve. */}
-          <Pressable onPress={() => setOpenModal("goal")} style={isTablet && s.piggyTablet}>
-            <WaterPiggy pct={calcs.goalPct} color={goalColor} />
-          </Pressable>
-          <View style={{ alignItems: "center" }}>
-            <Text style={[s.goalPct, { color: goalColor }]}>{calcs.goalPct.toFixed(1)}%</Text>
-            <Text style={s.goalLabel}>目標達成率</Text>
+        ) : (
+          <View style={[s.header, { height: screenH * 0.42 }]}>
+            <View style={{ alignItems: "center", marginBottom: 4 }}>
+              <Text style={[s.h1, isTablet && s.h1Tablet]}>理財規劃</Text>
+              <Text style={[s.h1sub, isTablet && s.h1subTablet]}>依月薪規劃儲蓄與開支</Text>
+            </View>
+            <View style={isTablet && s.piggyTablet}>
+              <Wallet size={80} strokeWidth={1.5} color={monthlySave > 0 ? "#374254" : "#e5e5ea"} />
+            </View>
+            <View style={{ alignItems: "center" }}>
+              <Text style={[s.goalPct, { color: "#374254" }]}>{fmtNtd(monthlySave)}</Text>
+              <Text style={s.goalLabel}>每月建議儲蓄</Text>
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* 2×2 metric cards */}
-        <View style={s.grid}>
-          <MetricCard
-            label="目標總額"
-            value={fmtWan(calcs.tt)}
-            unit="元"
-            sub={`${params.swr}% SWR 法則`}
-            color="#ffffff"
-            bg="#0e1424"
-            labelColor="rgba(255,255,255,0.45)"
-            iconColor="rgba(255,255,255,0.25)"
-            icon={Target}
-            onPress={() => setOpenModal("target")}
+        <ModeToggle value={mode} onChange={setMode} />
+
+        {mode === "finance" ? (
+          <SalaryCalculator
+            salaryStr={salary.salaryStr}
+            onChangeSalary={salary.setSalaryStr}
+            rules={salary.rules}
           />
-          <MetricCard
-            label="退休缺口"
-            value={calcs.gap === 0 ? "已達標" : fmtWan(calcs.gap)}
-            {...(calcs.gap === 0 ? {} : { unit: "元" })}
-            sub={calcs.gap === 0 ? "恭喜達成！" : "尚需累積"}
-            color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
-            bg="#ffffff"
-            icon={AlertTriangle}
-            onPress={() => setOpenModal("gap")}
-          />
-          <MetricCard
-            label="財務自由預測"
-            value={calcs.fiYear ? String(calcs.fiYear) : "100歲+"}
-            {...(calcs.fiYear ? { unit: "年" } : {})}
-            sub={
-              calcs.fiAge
-                ? `${calcs.fiAge}歲 · 距今${calcs.fiAge - params.currentAge}年`
-                : "尚未達標"
-            }
-            color={fiColor}
-            bg="#374254"
-            labelColor="rgba(255,255,255,0.45)"
-            iconColor="rgba(255,255,255,0.25)"
-            icon={Calendar}
-            onPress={() => setOpenModal("fi")}
-          />
-          <MetricCard
-            label="被動收入覆蓋"
-            value={calcs.passiveCoverage.toFixed(1)}
-            unit="%"
-            sub={`月 ${fmtWan(calcs.monthlyPassive)} 元`}
-            color={coverageColor}
-            bg="#C7C7D4"
-            icon={TrendingUp}
-            onPress={() => setOpenModal("passive")}
-          />
-        </View>
-
-        {/* 參數設定 */}
-        <View style={s.collapseCard}>
-          <Pressable style={s.collapseHead} onPress={() => setShowParams((v) => !v)}>
-            <Text style={s.collapseTitle}>參數設定</Text>
-            {showParams ? (
-              <ChevronUp size={16} color="#8e8e93" />
-            ) : (
-              <ChevronDown size={16} color="#8e8e93" />
-            )}
-          </Pressable>
-          {showParams && (
-            <View style={s.collapseBody}>
-              <Text style={s.groupLabel}>退休規劃</Text>
-              <NumberPickerInput
-                label="現在年齡"
-                value={params.currentAge}
-                onChange={(v) => setParam("currentAge", v)}
-                suffix="歲"
-                min={18}
-                max={80}
+        ) : (
+          <>
+            {/* 2×2 metric cards */}
+            <View style={s.grid}>
+              <MetricCard
+                label="目標總額"
+                value={fmtWan(calcs.tt)}
+                unit="元"
+                sub={`${params.swr}% SWR 法則`}
+                color="#ffffff"
+                bg="#0e1424"
+                labelColor="rgba(255,255,255,0.45)"
+                iconColor="rgba(255,255,255,0.25)"
+                icon={Target}
+                onPress={() => setOpenModal("target")}
               />
-              <NumberPickerInput
-                label="預計退休年齡"
-                value={params.retirementAge}
-                onChange={(v) => setParam("retirementAge", v)}
-                suffix="歲"
-                min={40}
-                max={85}
+              <MetricCard
+                label="退休缺口"
+                value={calcs.gap === 0 ? "已達標" : fmtWan(calcs.gap)}
+                {...(calcs.gap === 0 ? {} : { unit: "元" })}
+                sub={calcs.gap === 0 ? "恭喜達成！" : "尚需累積"}
+                color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
+                bg="#ffffff"
+                icon={AlertTriangle}
+                onPress={() => setOpenModal("gap")}
               />
-              <NumberInput
-                label="退休後每月生活費"
-                value={params.monthlyExpense}
-                onChange={(v) => setParam("monthlyExpense", v)}
-                prefix="NT$"
+              <MetricCard
+                label="財務自由預測"
+                value={calcs.fiYear ? String(calcs.fiYear) : "100歲+"}
+                {...(calcs.fiYear ? { unit: "年" } : {})}
+                sub={
+                  calcs.fiAge
+                    ? `${calcs.fiAge}歲 · 距今${calcs.fiAge - params.currentAge}年`
+                    : "尚未達標"
+                }
+                color={fiColor}
+                bg="#374254"
+                labelColor="rgba(255,255,255,0.45)"
+                iconColor="rgba(255,255,255,0.25)"
+                icon={Calendar}
+                onPress={() => setOpenModal("fi")}
               />
-              <NumberInput
-                label="政府退休金（月）"
-                value={params.govPension}
-                onChange={(v) => setParam("govPension", v)}
-                prefix="NT$"
-              />
-
-              <Text style={s.groupLabel}>通膨與報酬假設</Text>
-              <NumberInput
-                label="長期通膨率"
-                value={params.inflationRate}
-                onChange={(v) => setParam("inflationRate", v)}
-                suffix="%"
-              />
-              <NumberInput
-                label="積累期年化報酬"
-                value={params.accRate}
-                onChange={(v) => setParam("accRate", v)}
-                suffix="%"
-              />
-              <NumberInput
-                label="提領期年化報酬"
-                value={params.wdRate}
-                onChange={(v) => setParam("wdRate", v)}
-                suffix="%"
-              />
-              <NumberInput
-                label="安全提領率（SWR）"
-                value={params.swr}
-                onChange={(v) => setParam("swr", v)}
-                suffix="%"
-              />
-
-              <Text style={s.groupLabel}>持續投入</Text>
-              <NumberInput
-                label="每月定期投入"
-                value={params.monthlyContrib}
-                onChange={(v) => setParam("monthlyContrib", v)}
-                prefix="NT$"
+              <MetricCard
+                label="被動收入覆蓋"
+                value={calcs.passiveCoverage.toFixed(1)}
+                unit="%"
+                sub={`月 ${fmtWan(calcs.monthlyPassive)} 元`}
+                color={coverageColor}
+                bg="#C7C7D4"
+                icon={TrendingUp}
+                onPress={() => setOpenModal("passive")}
               />
             </View>
-          )}
-        </View>
 
-        {/* 資產整合 */}
-        <SectionCard title="資產整合與淨值計算">
-          <Row label="生息資產（投資）" value={`NT$ ${fmtWan(totalInvestment)}`} />
-          <Row label="流動資金" value={`NT$ ${fmtWan(liquidAssets)}`} />
-          <Row label="總資產" value={`NT$ ${fmtWan(totalAssets)}`} />
-          <Row label="負債（房貸等）" value={`NT$ ${fmtWan(totalLiabilities)}`} color="#ff3b30" />
-          <Row
-            label="淨資產"
-            value={`NT$ ${fmtWan(netAssets)}`}
-            color={netAssets >= 0 ? "#0e1424" : "#ff3b30"}
-          />
-          <Row label="退休目標總額" value={`NT$ ${fmtWan(calcs.tt)}`} />
-          <Row
-            label="退休缺口"
-            value={calcs.gap === 0 ? "已達標 ✓" : `NT$ ${fmtWan(calcs.gap)}`}
-            color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
-          />
-          <Text style={s.footnote}>
-            通膨調整後退休月支出：NT$ {fmtWan(Math.round(calcs.fme))} ／月 （今日購買力 NT${" "}
-            {fmtWan(params.monthlyExpense)}）
-          </Text>
-        </SectionCard>
+            {/* 參數設定 */}
+            <View style={s.collapseCard}>
+              <Pressable style={s.collapseHead} onPress={() => setShowParams((v) => !v)}>
+                <Text style={s.collapseTitle}>參數設定</Text>
+                {showParams ? (
+                  <ChevronUp size={16} color="#8e8e93" />
+                ) : (
+                  <ChevronDown size={16} color="#8e8e93" />
+                )}
+              </Pressable>
+              {showParams && (
+                <View style={s.collapseBody}>
+                  <Text style={s.groupLabel}>退休規劃</Text>
+                  <NumberPickerInput
+                    label="現在年齡"
+                    value={params.currentAge}
+                    onChange={(v) => setParam("currentAge", v)}
+                    suffix="歲"
+                    min={18}
+                    max={80}
+                  />
+                  <NumberPickerInput
+                    label="預計退休年齡"
+                    value={params.retirementAge}
+                    onChange={(v) => setParam("retirementAge", v)}
+                    suffix="歲"
+                    min={40}
+                    max={85}
+                  />
+                  <NumberInput
+                    label="退休後每月生活費"
+                    value={params.monthlyExpense}
+                    onChange={(v) => setParam("monthlyExpense", v)}
+                    prefix="NT$"
+                  />
+                  <NumberInput
+                    label="政府退休金（月）"
+                    value={params.govPension}
+                    onChange={(v) => setParam("govPension", v)}
+                    prefix="NT$"
+                  />
 
-        {/* 動態追蹤指標 */}
-        <SectionCard title="動態追蹤指標">
-          <View style={s.trackRow}>
-            <View>
-              <Text style={s.trackLabel}>財務自由日預測</Text>
-              <Text style={s.trackValue}>
-                {calcs.fiYear ? `${calcs.fiYear} 年（${calcs.fiAge}歲）` : "超過 100 歲"}
-              </Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={[s.trackTag, { color: fiColor }]}>
-                {calcs.fiAge !== null && calcs.fiAge <= params.retirementAge
-                  ? "退休前可達標"
-                  : "退休前未達標"}
-              </Text>
-              <Text style={s.trackHint}>
-                {calcs.fiAge !== null ? `距今 ${calcs.fiAge - params.currentAge} 年` : "—"}
-              </Text>
-            </View>
-          </View>
-          <View style={{ paddingVertical: 8 }}>
-            <View style={s.trackRowFlat}>
-              <View>
-                <Text style={s.trackLabel}>被動收入覆蓋率</Text>
-                <Text style={s.trackValue}>
-                  月收 NT$ {fmtWan(Math.round(calcs.monthlyPassive))}
-                </Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text
-                  style={[
-                    s.coverPct,
-                    { color: coverageColor === "#ffffff" ? "#1c1c1e" : coverageColor },
-                  ]}
-                >
-                  {calcs.passiveCoverage.toFixed(1)}%
-                </Text>
-                <Text style={s.trackHint}>4% 股息假設</Text>
-              </View>
-            </View>
-            <View style={s.progressTrack}>
-              <View
-                style={[
-                  s.progressFill,
-                  {
-                    width: `${calcs.passiveCoverage}%`,
-                    backgroundColor: coverageColor === "#ffffff" ? "#C7C7D4" : coverageColor,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        </SectionCard>
+                  <Text style={s.groupLabel}>通膨與報酬假設</Text>
+                  <NumberInput
+                    label="長期通膨率"
+                    value={params.inflationRate}
+                    onChange={(v) => setParam("inflationRate", v)}
+                    suffix="%"
+                  />
+                  <NumberInput
+                    label="積累期年化報酬"
+                    value={params.accRate}
+                    onChange={(v) => setParam("accRate", v)}
+                    suffix="%"
+                  />
+                  <NumberInput
+                    label="提領期年化報酬"
+                    value={params.wdRate}
+                    onChange={(v) => setParam("wdRate", v)}
+                    suffix="%"
+                  />
+                  <NumberInput
+                    label="安全提領率（SWR）"
+                    value={params.swr}
+                    onChange={(v) => setParam("swr", v)}
+                    suffix="%"
+                  />
 
-        {/* 資產成長趨勢圖 */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>資產成長趨勢圖</Text>
-          <Text style={s.sectionSub}>三種報酬情境下的資產路徑</Text>
-          <ProjectionChart data={projData} target={calcs.tt} retirementAge={params.retirementAge} />
-        </View>
-
-        {/* 敏感度分析 */}
-        <SectionCard title="敏感度分析">
-          <Text style={s.sectionSub}>
-            調整假設情境，即時觀察對財務自由年份的影響（不影響主要參數）
-          </Text>
-
-          <View style={{ marginTop: 12 }}>
-            <View style={s.sliderHead}>
-              <Text style={s.rowLabel}>年化報酬率</Text>
-              <Text style={s.sliderVal}>{sensRate.toFixed(1)}%</Text>
-            </View>
-            <Slider
-              minimumValue={1}
-              maximumValue={15}
-              step={0.5}
-              value={sensRate}
-              onValueChange={setSensRate}
-              minimumTrackTintColor="#374254"
-              maximumTrackTintColor="#e5e5ea"
-              thumbTintColor="#374254"
-            />
-            <View style={s.sliderEnds}>
-              <Text style={s.sliderEnd}>1%</Text>
-              <Text style={s.sliderEnd}>15%</Text>
-            </View>
-          </View>
-
-          <View style={{ marginTop: 8 }}>
-            <View style={s.sliderHead}>
-              <Text style={s.rowLabel}>退休年齡</Text>
-              <Text style={s.sliderVal}>{sensAge} 歲</Text>
-            </View>
-            <Slider
-              minimumValue={40}
-              maximumValue={75}
-              step={1}
-              value={sensAge}
-              onValueChange={(v) => setSensAge(Math.round(v))}
-              minimumTrackTintColor="#374254"
-              maximumTrackTintColor="#e5e5ea"
-              thumbTintColor="#374254"
-            />
-            <View style={s.sliderEnds}>
-              <Text style={s.sliderEnd}>40歲</Text>
-              <Text style={s.sliderEnd}>75歲</Text>
-            </View>
-          </View>
-
-          <View style={s.sensResult}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.trackHint}>假設情境財務自由</Text>
-              <Text style={s.sensValue}>
-                {sensCalc.fiYear ? `${sensCalc.fiYear} 年（${sensCalc.fiAge}歲）` : "100歲以上"}
-              </Text>
-              <Text style={s.trackHint}>目標：NT$ {fmtWan(Math.round(sensCalc.target))}</Text>
-            </View>
-            {sensCalc.delta !== null && (
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={s.trackHint}>vs 基準</Text>
-                <Text
-                  style={[
-                    s.sensDelta,
-                    {
-                      color:
-                        sensCalc.delta === 0
-                          ? "#8e8e93"
-                          : sensCalc.delta < 0
-                            ? "#0e1424"
-                            : "#ff3b30",
-                    },
-                  ]}
-                >
-                  {sensCalc.delta === 0
-                    ? "相同"
-                    : `${sensCalc.delta > 0 ? "+" : ""}${sensCalc.delta}年`}
-                </Text>
-              </View>
-            )}
-          </View>
-        </SectionCard>
-
-        {/* 壓力測試 */}
-        <SectionCard title="壓力測試">
-          <Text style={s.sectionSub}>模擬退休時發生意外事件，評估退休金可支撐年限</Text>
-          <View
-            style={[
-              s.stressCard,
-              { borderColor: "rgba(255,59,48,0.2)", backgroundColor: "rgba(255,59,48,0.05)" },
-            ]}
-          >
-            <AlertTriangle size={14} color="#ff3b30" style={{ marginTop: 2 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.stressTitle}>市場崩盤 −20%</Text>
-              <Text style={s.stressDesc}>退休當年資產縮水 20%，之後正常提領</Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text
-                style={[
-                  s.stressYears,
-                  {
-                    color:
-                      stress.crash20 >= 30
-                        ? "#0e1424"
-                        : stress.crash20 >= 20
-                          ? "#ff9500"
-                          : "#ff3b30",
-                  },
-                ]}
-              >
-                {stress.crash20 >= 60 ? "60年+" : `${stress.crash20}年`}
-              </Text>
-              <Text style={s.trackHint}>可支撐</Text>
-            </View>
-          </View>
-          <View
-            style={[
-              s.stressCard,
-              { borderColor: "rgba(255,149,0,0.2)", backgroundColor: "rgba(255,149,0,0.05)" },
-            ]}
-          >
-            <Activity size={14} color="#ff9500" style={{ marginTop: 2 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.stressTitle}>通膨劇增，生活費 ×1.5</Text>
-              <Text style={s.stressDesc}>退休後每年提領額提高 50%</Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text
-                style={[
-                  s.stressYears,
-                  {
-                    color:
-                      stress.highInfl >= 30
-                        ? "#0e1424"
-                        : stress.highInfl >= 20
-                          ? "#ff9500"
-                          : "#ff3b30",
-                  },
-                ]}
-              >
-                {stress.highInfl >= 60 ? "60年+" : `${stress.highInfl}年`}
-              </Text>
-              <Text style={s.trackHint}>可支撐</Text>
-            </View>
-          </View>
-        </SectionCard>
-
-        {/* 退休金流排程表 */}
-        <View style={s.collapseCard}>
-          <Pressable style={s.collapseHead} onPress={() => setShowSchedule((v) => !v)}>
-            <View>
-              <Text style={s.collapseTitle}>退休金流排程表</Text>
-              <Text style={s.sectionSub}>退休後每年提領與剩餘明細</Text>
-            </View>
-            {showSchedule ? (
-              <ChevronUp size={16} color="#8e8e93" />
-            ) : (
-              <ChevronDown size={16} color="#8e8e93" />
-            )}
-          </Pressable>
-          {showSchedule && (
-            <View style={s.collapseBody}>
-              {schedule.length === 0 ? (
-                <Text style={s.scheduleEmpty}>請先完成參數設定</Text>
-              ) : (
-                <>
-                  <View style={s.tableHead}>
-                    <Text style={[s.th, { flex: 1.2, textAlign: "left" }]}>年齡</Text>
-                    <Text style={[s.th, { flex: 1.4 }]}>年份</Text>
-                    <Text style={[s.th, { flex: 1.4 }]}>投報</Text>
-                    <Text style={[s.th, { flex: 1.4 }]}>提領</Text>
-                    <Text style={[s.th, { flex: 1.6 }]}>餘額</Text>
-                  </View>
-                  {schedule.map((row) => (
-                    <View key={row.age} style={s.tableRow}>
-                      <Text style={[s.td, { flex: 1.2, textAlign: "left", color: "#1c1c1e" }]}>
-                        {row.age}歲
-                      </Text>
-                      <Text style={[s.td, { flex: 1.4, color: "#8e8e93" }]}>{row.year}</Text>
-                      <Text style={[s.td, { flex: 1.4, color: "#0e1424" }]}>
-                        +{fmtWan(row.returns)}
-                      </Text>
-                      <Text style={[s.td, { flex: 1.4, color: "#ff3b30" }]}>
-                        -{fmtWan(row.withdrawal)}
-                      </Text>
-                      <Text
-                        style={[
-                          s.td,
-                          {
-                            flex: 1.6,
-                            fontWeight: "600",
-                            color: row.balance > 0 ? "#1c1c1e" : "#ff3b30",
-                          },
-                        ]}
-                      >
-                        {fmtWan(row.balance)}
-                      </Text>
-                    </View>
-                  ))}
-                </>
+                  <Text style={s.groupLabel}>持續投入</Text>
+                  <NumberInput
+                    label="每月定期投入"
+                    value={params.monthlyContrib}
+                    onChange={(v) => setParam("monthlyContrib", v)}
+                    prefix="NT$"
+                  />
+                </View>
               )}
             </View>
-          )}
-        </View>
+
+            {/* 資產整合 */}
+            <SectionCard title="資產整合與淨值計算">
+              <Row label="生息資產（投資）" value={`NT$ ${fmtWan(totalInvestment)}`} />
+              <Row label="流動資金" value={`NT$ ${fmtWan(liquidAssets)}`} />
+              <Row label="總資產" value={`NT$ ${fmtWan(totalAssets)}`} />
+              <Row
+                label="負債（房貸等）"
+                value={`NT$ ${fmtWan(totalLiabilities)}`}
+                color="#ff3b30"
+              />
+              <Row
+                label="淨資產"
+                value={`NT$ ${fmtWan(netAssets)}`}
+                color={netAssets >= 0 ? "#0e1424" : "#ff3b30"}
+              />
+              <Row label="退休目標總額" value={`NT$ ${fmtWan(calcs.tt)}`} />
+              <Row
+                label="退休缺口"
+                value={calcs.gap === 0 ? "已達標 ✓" : `NT$ ${fmtWan(calcs.gap)}`}
+                color={calcs.gap === 0 ? "#0e1424" : "#ff3b30"}
+              />
+              <Text style={s.footnote}>
+                通膨調整後退休月支出：NT$ {fmtWan(Math.round(calcs.fme))} ／月 （今日購買力 NT${" "}
+                {fmtWan(params.monthlyExpense)}）
+              </Text>
+            </SectionCard>
+
+            {/* 動態追蹤指標 */}
+            <SectionCard title="動態追蹤指標">
+              <View style={s.trackRow}>
+                <View>
+                  <Text style={s.trackLabel}>財務自由日預測</Text>
+                  <Text style={s.trackValue}>
+                    {calcs.fiYear ? `${calcs.fiYear} 年（${calcs.fiAge}歲）` : "超過 100 歲"}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[s.trackTag, { color: fiColor }]}>
+                    {calcs.fiAge !== null && calcs.fiAge <= params.retirementAge
+                      ? "退休前可達標"
+                      : "退休前未達標"}
+                  </Text>
+                  <Text style={s.trackHint}>
+                    {calcs.fiAge !== null ? `距今 ${calcs.fiAge - params.currentAge} 年` : "—"}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ paddingVertical: 8 }}>
+                <View style={s.trackRowFlat}>
+                  <View>
+                    <Text style={s.trackLabel}>被動收入覆蓋率</Text>
+                    <Text style={s.trackValue}>
+                      月收 NT$ {fmtWan(Math.round(calcs.monthlyPassive))}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text
+                      style={[
+                        s.coverPct,
+                        { color: coverageColor === "#ffffff" ? "#1c1c1e" : coverageColor },
+                      ]}
+                    >
+                      {calcs.passiveCoverage.toFixed(1)}%
+                    </Text>
+                    <Text style={s.trackHint}>4% 股息假設</Text>
+                  </View>
+                </View>
+                <View style={s.progressTrack}>
+                  <View
+                    style={[
+                      s.progressFill,
+                      {
+                        width: `${calcs.passiveCoverage}%`,
+                        backgroundColor: coverageColor === "#ffffff" ? "#C7C7D4" : coverageColor,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            </SectionCard>
+
+            {/* 資產成長趨勢圖 */}
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>資產成長趨勢圖</Text>
+              <Text style={s.sectionSub}>三種報酬情境下的資產路徑</Text>
+              <ProjectionChart
+                data={projData}
+                target={calcs.tt}
+                retirementAge={params.retirementAge}
+              />
+            </View>
+
+            {/* 敏感度分析 */}
+            <SectionCard title="敏感度分析">
+              <Text style={s.sectionSub}>
+                調整假設情境，即時觀察對財務自由年份的影響（不影響主要參數）
+              </Text>
+
+              <View style={{ marginTop: 12 }}>
+                <View style={s.sliderHead}>
+                  <Text style={s.rowLabel}>年化報酬率</Text>
+                  <Text style={s.sliderVal}>{sensRate.toFixed(1)}%</Text>
+                </View>
+                <Slider
+                  minimumValue={1}
+                  maximumValue={15}
+                  step={0.5}
+                  value={sensRate}
+                  onValueChange={setSensRate}
+                  minimumTrackTintColor="#374254"
+                  maximumTrackTintColor="#e5e5ea"
+                  thumbTintColor="#374254"
+                />
+                <View style={s.sliderEnds}>
+                  <Text style={s.sliderEnd}>1%</Text>
+                  <Text style={s.sliderEnd}>15%</Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: 8 }}>
+                <View style={s.sliderHead}>
+                  <Text style={s.rowLabel}>退休年齡</Text>
+                  <Text style={s.sliderVal}>{sensAge} 歲</Text>
+                </View>
+                <Slider
+                  minimumValue={40}
+                  maximumValue={75}
+                  step={1}
+                  value={sensAge}
+                  onValueChange={(v) => setSensAge(Math.round(v))}
+                  minimumTrackTintColor="#374254"
+                  maximumTrackTintColor="#e5e5ea"
+                  thumbTintColor="#374254"
+                />
+                <View style={s.sliderEnds}>
+                  <Text style={s.sliderEnd}>40歲</Text>
+                  <Text style={s.sliderEnd}>75歲</Text>
+                </View>
+              </View>
+
+              <View style={s.sensResult}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.trackHint}>假設情境財務自由</Text>
+                  <Text style={s.sensValue}>
+                    {sensCalc.fiYear ? `${sensCalc.fiYear} 年（${sensCalc.fiAge}歲）` : "100歲以上"}
+                  </Text>
+                  <Text style={s.trackHint}>目標：NT$ {fmtWan(Math.round(sensCalc.target))}</Text>
+                </View>
+                {sensCalc.delta !== null && (
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={s.trackHint}>vs 基準</Text>
+                    <Text
+                      style={[
+                        s.sensDelta,
+                        {
+                          color:
+                            sensCalc.delta === 0
+                              ? "#8e8e93"
+                              : sensCalc.delta < 0
+                                ? "#0e1424"
+                                : "#ff3b30",
+                        },
+                      ]}
+                    >
+                      {sensCalc.delta === 0
+                        ? "相同"
+                        : `${sensCalc.delta > 0 ? "+" : ""}${sensCalc.delta}年`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </SectionCard>
+
+            {/* 壓力測試 */}
+            <SectionCard title="壓力測試">
+              <Text style={s.sectionSub}>模擬退休時發生意外事件，評估退休金可支撐年限</Text>
+              <View
+                style={[
+                  s.stressCard,
+                  { borderColor: "rgba(255,59,48,0.2)", backgroundColor: "rgba(255,59,48,0.05)" },
+                ]}
+              >
+                <AlertTriangle size={14} color="#ff3b30" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.stressTitle}>市場崩盤 −20%</Text>
+                  <Text style={s.stressDesc}>退休當年資產縮水 20%，之後正常提領</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text
+                    style={[
+                      s.stressYears,
+                      {
+                        color:
+                          stress.crash20 >= 30
+                            ? "#0e1424"
+                            : stress.crash20 >= 20
+                              ? "#ff9500"
+                              : "#ff3b30",
+                      },
+                    ]}
+                  >
+                    {stress.crash20 >= 60 ? "60年+" : `${stress.crash20}年`}
+                  </Text>
+                  <Text style={s.trackHint}>可支撐</Text>
+                </View>
+              </View>
+              <View
+                style={[
+                  s.stressCard,
+                  { borderColor: "rgba(255,149,0,0.2)", backgroundColor: "rgba(255,149,0,0.05)" },
+                ]}
+              >
+                <Activity size={14} color="#ff9500" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.stressTitle}>通膨劇增，生活費 ×1.5</Text>
+                  <Text style={s.stressDesc}>退休後每年提領額提高 50%</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text
+                    style={[
+                      s.stressYears,
+                      {
+                        color:
+                          stress.highInfl >= 30
+                            ? "#0e1424"
+                            : stress.highInfl >= 20
+                              ? "#ff9500"
+                              : "#ff3b30",
+                      },
+                    ]}
+                  >
+                    {stress.highInfl >= 60 ? "60年+" : `${stress.highInfl}年`}
+                  </Text>
+                  <Text style={s.trackHint}>可支撐</Text>
+                </View>
+              </View>
+            </SectionCard>
+
+            {/* 退休金流排程表 */}
+            <View style={s.collapseCard}>
+              <Pressable style={s.collapseHead} onPress={() => setShowSchedule((v) => !v)}>
+                <View>
+                  <Text style={s.collapseTitle}>退休金流排程表</Text>
+                  <Text style={s.sectionSub}>退休後每年提領與剩餘明細</Text>
+                </View>
+                {showSchedule ? (
+                  <ChevronUp size={16} color="#8e8e93" />
+                ) : (
+                  <ChevronDown size={16} color="#8e8e93" />
+                )}
+              </Pressable>
+              {showSchedule && (
+                <View style={s.collapseBody}>
+                  {schedule.length === 0 ? (
+                    <Text style={s.scheduleEmpty}>請先完成參數設定</Text>
+                  ) : (
+                    <>
+                      <View style={s.tableHead}>
+                        <Text style={[s.th, { flex: 1.2, textAlign: "left" }]}>年齡</Text>
+                        <Text style={[s.th, { flex: 1.4 }]}>年份</Text>
+                        <Text style={[s.th, { flex: 1.4 }]}>投報</Text>
+                        <Text style={[s.th, { flex: 1.4 }]}>提領</Text>
+                        <Text style={[s.th, { flex: 1.6 }]}>餘額</Text>
+                      </View>
+                      {schedule.map((row) => (
+                        <View key={row.age} style={s.tableRow}>
+                          <Text style={[s.td, { flex: 1.2, textAlign: "left", color: "#1c1c1e" }]}>
+                            {row.age}歲
+                          </Text>
+                          <Text style={[s.td, { flex: 1.4, color: "#8e8e93" }]}>{row.year}</Text>
+                          <Text style={[s.td, { flex: 1.4, color: "#0e1424" }]}>
+                            +{fmtWan(row.returns)}
+                          </Text>
+                          <Text style={[s.td, { flex: 1.4, color: "#ff3b30" }]}>
+                            -{fmtWan(row.withdrawal)}
+                          </Text>
+                          <Text
+                            style={[
+                              s.td,
+                              {
+                                flex: 1.6,
+                                fontWeight: "600",
+                                color: row.balance > 0 ? "#1c1c1e" : "#ff3b30",
+                              },
+                            ]}
+                          >
+                            {fmtWan(row.balance)}
+                          </Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                </View>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <InfoModal
@@ -986,6 +1055,17 @@ const s = StyleSheet.create({
   piggyTablet: { transform: [{ scale: 1.3 }], marginVertical: 14 },
   goalPct: { fontSize: 20, fontWeight: "700" },
   goalLabel: { fontSize: 12, color: "#8e8e93" },
+
+  toggle: {
+    flexDirection: "row",
+    backgroundColor: "#e5e5ea",
+    borderRadius: 12,
+    padding: 3,
+  },
+  toggleBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10 },
+  toggleBtnActive: { backgroundColor: "#ffffff", ...cardShadow() },
+  toggleText: { fontSize: 14, fontWeight: "500", color: "#8e8e93" },
+  toggleTextActive: { fontWeight: "600", color: "#1c1c1e" },
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   metricCard: {

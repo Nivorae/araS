@@ -18,6 +18,36 @@ export interface ModalContent {
 }
 
 export const STORAGE_KEY = "retirement_params_v1";
+export const SALARY_STORAGE_KEY = "retirement_salary_v1";
+
+export interface SalaryRule {
+  key: string;
+  title: string;
+  formula: string;
+  value: number;
+}
+
+/** 以月薪推算的五條理財經驗法則。非有限或負數的輸入一律視為 0。 */
+export function salaryRules(salary: number): SalaryRule[] {
+  const s = Number.isFinite(salary) && salary > 0 ? salary : 0;
+  return [
+    { key: "save", title: "每月投資或儲蓄", formula: "月薪 × 0.3", value: s * 0.3 },
+    { key: "spend", title: "每月開支上限", formula: "月薪 × 0.6", value: s * 0.6 },
+    { key: "emergency", title: "緊急預備金", formula: "月薪 × 3", value: s * 3 },
+    {
+      key: "principal",
+      title: "穩定 6% 報酬工具所需本金",
+      formula: "月薪 × 12 ÷ 6%",
+      value: (s * 12) / 0.06,
+    },
+    {
+      key: "noWork",
+      title: "無法工作時的緊急現金流",
+      formula: "月薪 × 12 × 5",
+      value: s * 12 * 5,
+    },
+  ];
+}
 
 export const DEFAULTS: Params = {
   currentAge: 30,
