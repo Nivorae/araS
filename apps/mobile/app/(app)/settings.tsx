@@ -28,6 +28,7 @@ import {
   CreditCard,
   LogOut,
   Loader,
+  ScanFace,
   Trash2,
   type LucideIcon,
 } from "lucide-react-native";
@@ -37,6 +38,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { parseWhatsNew } from "@/lib/whatsNew";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
 import { useMonthlyReminder } from "@/hooks/useMonthlyReminder";
+import { useAppLockSetting } from "@/hooks/useAppLockSetting";
 import { TimePickerModal, formatTime } from "@/components/TimePickerModal";
 import { describeScheduledReminders } from "@/lib/notifications";
 
@@ -261,6 +263,7 @@ export default function SettingsScreen() {
   const api = useApi();
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
   const reminder = useMonthlyReminder();
+  const appLock = useAppLockSetting();
   const [timePickerOpen, setTimePickerOpen] = useState(false);
 
   /**
@@ -492,6 +495,16 @@ export default function SettingsScreen() {
               disabled={reminder.loading}
               onValueChange={(next) => void reminder.toggle(next)}
               onHintPress={() => setTimePickerOpen(true)}
+            />
+            <SettingSwitchCard
+              icon={ScanFace}
+              label={`${appLock.label}解鎖`}
+              hint="開啟 App 或離開超過 1 分鐘後需解鎖"
+              color="#FFFFFF"
+              textColor="#1c1c1e"
+              value={appLock.enabled}
+              disabled={appLock.loading}
+              onValueChange={(next) => void appLock.toggle(next)}
             />
             <SettingCard
               icon={Trash2}
