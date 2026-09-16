@@ -18,7 +18,6 @@
       },
       "ios": {
         "resourceClass": "m-medium",
-        "image": "macos-sequoia-15.6-xcode-26.0",
         "simulator": false
       },
       "android": {
@@ -40,8 +39,7 @@
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
-        "resourceClass": "m-medium",
-        "image": "macos-sequoia-15.6-xcode-26.0"
+        "resourceClass": "m-medium"
       },
       "android": {
         "buildType": "app-bundle"

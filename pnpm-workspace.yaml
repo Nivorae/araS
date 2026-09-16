@@ -17,5 +17,5 @@ overrides:
 # 跳過腳本不影響 sharp 本身：實際用到的二進位檔是 @img/sharp-* 這些一般相依套件，
 # install 腳本只做驗證。1.4 是在舊映像（macOS Sequoia + Node 20）上建的，那時腳本
 # 還跑得過，所以這個問題直到換映像才出現。
-ignoredBuiltDependencies:
+neverBuiltDependencies:
   - sharp
