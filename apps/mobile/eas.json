@@ -24,7 +24,7 @@
         "buildType": "apk"
       },
       "node": "22.13.0",
-      "pnpm": "9.14.2"
+      "pnpm": "10.16.1"
     },
     "production": {
       "autoIncrement": true,
@@ -45,7 +45,7 @@
         "buildType": "app-bundle"
       },
       "node": "22.13.0",
-      "pnpm": "9.14.2"
+      "pnpm": "10.16.1"
     }
   },
   "submit": {
