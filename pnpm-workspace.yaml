@@ -1,3 +1,21 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# pnpm 10+ 只讀這裡，不再讀 package.json 的 `pnpm` 欄位（pnpm 9 仍讀 package.json，
+# 兩邊要一起改）。
+overrides:
+  serialize-javascript: ">=7.0.3"
+  effect: ">=3.20.0"
+  flatted: ">=3.4.2"
+  react-native-worklets: "0.10.1"
+
+# sharp 只有網頁版（Next.js 圖片最佳化）在用，mobile 完全沒碰。但 EAS 的 iOS
+# 打包會安裝整個 workspace 的相依套件，它的 install 腳本在新的 macOS 建置映像上
+# 找不到對應的預編譯檔、改成從原始碼編譯然後失敗，整個打包就停在安裝階段。
+#
+# 跳過腳本不影響 sharp 本身：實際用到的二進位檔是 @img/sharp-* 這些一般相依套件，
+# install 腳本只做驗證。1.4 是在舊映像（macOS Sequoia + Node 20）上建的，那時腳本
+# 還跑得過，所以這個問題直到換映像才出現。
+ignoredBuiltDependencies:
+  - sharp
