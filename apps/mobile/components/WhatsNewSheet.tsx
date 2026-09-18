@@ -100,7 +100,16 @@ export default function WhatsNewSheet() {
 
 const s = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  // 文案長度不受控（發版時想寫幾行就幾行），所以把上限設在 sheet 本身（相對螢幕
+  // 高度的百分比，跟 DividendForm/FundPickerSheet 同套寫法），讓 ScrollView 用
+  // flex 撐滿剩餘空間再自己捲動 —— 固定死一個像素值的 ScrollView maxHeight 會
+  // 蓋掉捲動手勢，長文案就會被卡住滑不到底。
+  sheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "80%",
+  },
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
   handle: {
     width: 36,
@@ -117,9 +126,7 @@ const s = StyleSheet.create({
     textAlign: "center",
     marginVertical: 14,
   },
-  // 文案長度不受控（發版時想寫幾行就幾行），所以給一個上限並讓它自己捲動，
-  // 不讓 sheet 長到把按鈕推出畫面外。
-  body: { paddingHorizontal: 20, maxHeight: 320 },
+  body: { paddingHorizontal: 20 },
   bodyContent: { gap: 18, paddingBottom: 4 },
   // 區塊之間留 18，區塊內的項目只留 6 —— 靠間距而不是分隔線來分組，標題才不會
   // 看起來像跟著上一組的最後一行。

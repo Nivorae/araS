@@ -4,27 +4,24 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-09-16
+最後整理：2026-09-18
 
 ## 下一步
 
-**1.5 的程式碼已經全部進 `main`**（PR #133 → `develop`，PR #134 → `main`，
-2026-09-15）：Expo SDK 57 升級、生物辨識解鎖、理財規劃、網頁版 SEO/GA 都在上面。
-`app.json` 版號已是 **1.5**，`extra.whatsNew.id` = `2026-09-15-app-lock-finance-planning`。
+**1.5 已通過 Apple 審核並上線，release PR #135 已合併回 `main`**（2026-09-18）。
+build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
 
-現在有兩條互不相干的路：
+- **真機驗證剩餘項目** —— Face ID 已確認正常（2026-09-18）。剩 Android
+  指紋解鎖、通知點回首頁、Android `SUBSCRIPTIONS_SUPPORTED` 沒影響 iOS 付費流程。
+- **B. Android 封閉測試** —— 使用者決定暫緩，先不處理（2026-09-18）。純
+  Play Console 後台操作，不碰程式碼，細節仍留在下方備查。
 
-- **A. 1.5 已上傳 ASC，等你在後台送審** —— build 17 建置成功並已 `eas submit`
-  （2026-09-16）。剩下的是 ASC 後台操作：新增 1.5 版本、填更新說明、選 build 17、
-  送出審查。另外 `develop` 還有 6 個 commit 沒回 `main`，要開 release PR。
-- **B. Android 封閉測試的 12 人門檻** —— 14 天的時鐘要等人數到位才起算，
-  在那之前每一天都是白費的。純 Play Console 後台操作，不碰程式碼。
+⚠️ SDK 57 改了原生指紋，**1.5 之後的更新必須走 native build + 送審，不能 OTA**，
+直到下一次 OTA 前置作業（見下方「第一次 OTA 前必做」）完成。1.4 的使用者收不到
+從現在的 `main`／`develop` 發的任何更新；要緊急修 1.4 只能從 SDK 57 升級前的
+commit 發 OTA。
 
-⚠️ SDK 57 改了原生指紋，**1.5 必須走 native build + 送審，不能 OTA**。1.4 的
-使用者收不到從現在的 `main`／`develop` 發的任何更新；要緊急修 1.4 只能從
-SDK 57 升級前的 commit 發 OTA。
-
-## A. 1.5 iOS binary —— 已打包並上傳 ASC（2026-09-16）
+## A. 1.5 iOS binary —— 已上線（2026-09-18）
 
 build **17**（commit `9781a80`，version 1.5，SDK 57）建置成功並已 `eas submit`
 上傳到 App Store Connect。1.4 之後連續六次失敗（build 11–16）的原因是兩個不同的問題：
@@ -54,10 +51,8 @@ sharp，不受影響。
 
 剩下的步驟：
 
-- [ ] 等 Apple 處理完 binary（約 5–10 分鐘，會寄信）
-- [ ] ASC → 新增版本 **1.5**（不是「新增平台」）→ 填「此版本新增功能」（用
-      `CHANGELOG.md` 的 1.5 區段）→ **建置版本選 17** → 送出審查
-- [ ] 開 `develop → main` 的 release PR（CI 只在 base 是 `main` 的 PR 上跑）
+- [x] Apple 審核通過，1.5 已上線（2026-09-18）
+- [x] `develop → main` 的 release PR（#135）已合併（2026-09-18）
 
 ⚠️ `overrides` 與 `ignoredOptionalDependencies` 同時存在於 `package.json` 和
 `pnpm-workspace.yaml`，**兩邊要一起改**：pnpm 10+ 只讀 workspace、pnpm 9 只讀
@@ -71,8 +66,7 @@ build 17 是在這個狀態下建成的。下次 native build 前再一起補。
 
 ### 1.5 真機驗證（要 TestFlight 或 development build）
 
-- [ ] Face ID 解鎖：視窗不會解鎖後又立刻鎖回。**Expo Go 在 iOS 不支援 Face ID**
-      （只會跳手機密碼），驗不到
+- [x] Face ID 解鎖：正常
 - [ ] Android 指紋解鎖
 - [ ] 點通知回首頁。Expo Go 裡通知掛在 Expo Go 名下，完全滑掉時點擊只會開
       Expo Go 首頁，不是程式的問題
