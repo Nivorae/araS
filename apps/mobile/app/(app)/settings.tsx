@@ -586,12 +586,24 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={() => setNotesOpen(false)}
       >
-        <Pressable style={s.backdrop} onPress={() => setNotesOpen(false)}>
-          <Pressable
-            style={[s.notesCard, { marginTop: insets.top + AVATAR_SIZE + 20 }]}
-            onPress={() => {}}
-          >
-            <Text style={s.notesTitle}>更新內容</Text>
+        {/* 這裡曾經是全螢幕的 Pressable（點背景關閉），但它會跟下面深層的
+            ScrollView 搶手勢，導致打開後往下滑常常沒反應，要來回滑好幾次、
+            幾秒後才會恢復正常（2026-09 用一個內容很長的測試 Modal 隔離驗證
+            過：拿掉背景這層 Pressable 的 onPress 才會消失，跟內層 Pressable、
+            Modal 的進場轉場都無關）。改用右上角的「✕」當唯一的關閉方式。 */}
+        <View style={s.backdrop}>
+          <View style={[s.notesCard, { marginTop: insets.top + AVATAR_SIZE + 20 }]}>
+            <View style={s.notesHeader}>
+              <Text style={s.notesTitle}>更新內容</Text>
+              <Pressable
+                onPress={() => setNotesOpen(false)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="關閉"
+              >
+                <Text style={s.notesClose}>✕</Text>
+              </Pressable>
+            </View>
             <ScrollView style={s.notesScroll}>
               {whatsNew ? (
                 whatsNew.sections.map((section) => (
@@ -608,8 +620,8 @@ export default function SettingsScreen() {
                 <Text style={s.notesItem}>目前沒有更新內容</Text>
               )}
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -732,7 +744,14 @@ const s = StyleSheet.create({
     shadowRadius: 20,
     elevation: 12,
   },
-  notesTitle: { fontSize: 17, fontWeight: "700", color: "#1c1c1e", marginBottom: 10 },
+  notesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  notesTitle: { fontSize: 17, fontWeight: "700", color: "#1c1c1e" },
+  notesClose: { fontSize: 16, color: "#8e8e93", paddingLeft: 12 },
   notesScroll: { flexGrow: 0 },
   notesSection: { marginBottom: 14 },
   notesSectionTitle: { fontSize: 14, fontWeight: "700", color: "#374254", marginBottom: 6 },
