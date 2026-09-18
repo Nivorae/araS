@@ -1,3 +1,26 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# pnpm 10+ 只讀這裡，不再讀 package.json 的 `pnpm` 欄位（pnpm 9 仍讀 package.json，
+# 兩邊要一起改）。本機是 pnpm 9、EAS 建置用 pnpm 10，所以兩份都要維護。
+overrides:
+  serialize-javascript: ">=7.0.3"
+  effect: ">=3.20.0"
+  flatted: ">=3.4.2"
+  react-native-worklets: "0.10.1"
+
+# sharp 是 next 的 optionalDependency，整個 repo 只有 apps/web/scripts/gen-icons.mjs
+# 用得到（一次性產圖示，不在 build 流程裡）。留著它會讓 EAS 的 iOS 打包掛掉：
+# EAS 會安裝整個 workspace，而 sharp 的 install script 在新的 macOS 建置映像
+# (macos-tahoe-26.5-xcode-26.6) 上找不到預編譯檔、改從原始碼編譯然後失敗，
+# 整包 build 停在安裝階段。
+#
+# 這裡用 ignoredOptionalDependencies 而不是 ignoredBuiltDependencies：後者是
+# build script 的黑名單，但 EAS 的 pnpm install 是在「允許所有 build script」的
+# 模式下跑的，黑名單會被蓋過去（實測無效）。ignoredOptionalDependencies 是解析
+# 階段的設定、直接寫進 lockfile，所以 --frozen-lockfile 的安裝根本看不到 sharp。
+#
+# Vercel 上 Next.js 的圖片最佳化用的是平台自己提供的 sharp，不受影響。
+ignoredOptionalDependencies:
+  - sharp

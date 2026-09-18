@@ -23,7 +23,8 @@
       "android": {
         "buildType": "apk"
       },
-      "node": "22.13.0"
+      "node": "22.13.0",
+      "pnpm": "10.16.1"
     },
     "production": {
       "autoIncrement": true,
@@ -43,7 +44,8 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "node": "22.13.0"
+      "node": "22.13.0",
+      "pnpm": "10.16.1"
     }
   },
   "submit": {
