@@ -23,6 +23,7 @@ import { formatCurrency } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 import { TopGlassNav, NAV_CLEARANCE } from "@/components/TopGlassNav";
 import { InsuranceForm } from "@/components/InsuranceForm";
+import { InsurerLogo } from "@/components/InsurerLogo";
 
 const UNKNOWN = "不確定";
 const CARD_RADIUS = 22;
@@ -397,9 +398,12 @@ export default function InsuranceOverviewScreen() {
                         <Text style={[s.policyType, { color: theme.text }]}>
                           {INSURANCE_TYPE_LABELS[ins.insuranceType]}
                         </Text>
-                        <Text style={[s.policyInsurer, { color: theme.muted }]} numberOfLines={2}>
-                          {ins.insurer}
-                        </Text>
+                        <View style={s.insurerRow}>
+                          <InsurerLogo name={ins.insurer} size={18} />
+                          <Text style={[s.policyInsurer, { color: theme.muted }]} numberOfLines={2}>
+                            {ins.insurer}
+                          </Text>
+                        </View>
                         {/* Plain conditional render, not an Animated opacity toggle —
                             covers the source card while its content is shown in the
                             grown overlay instead. A native-driven prop (this card's
@@ -494,9 +498,15 @@ export default function InsuranceOverviewScreen() {
                   <Text style={[s.policyType, { color: expandedTheme.text }]}>
                     {INSURANCE_TYPE_LABELS[expanded.insuranceType]}
                   </Text>
-                  <Text style={[s.policyInsurer, { color: expandedTheme.muted }]} numberOfLines={2}>
-                    {expanded.insurer}
-                  </Text>
+                  <View style={s.insurerRow}>
+                    <InsurerLogo name={expanded.insurer} size={18} />
+                    <Text
+                      style={[s.policyInsurer, { color: expandedTheme.muted }]}
+                      numberOfLines={2}
+                    >
+                      {expanded.insurer}
+                    </Text>
+                  </View>
                 </Animated.View>
 
                 {/* Detail content fades in below the header once the card has mostly grown. */}
@@ -647,7 +657,14 @@ const s = StyleSheet.create({
     elevation: 8,
   },
   policyType: { fontSize: 24, fontWeight: "800", textAlign: "center" },
-  policyInsurer: { fontSize: 15, fontWeight: "600", marginTop: 6, textAlign: "center" },
+  policyInsurer: { fontSize: 15, fontWeight: "600", textAlign: "center" },
+  insurerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 6,
+  },
 
   // Grow-in-place detail overlay. Same background colour as the collapsed
   // card throughout — only position/size animate, nothing cross-fades.

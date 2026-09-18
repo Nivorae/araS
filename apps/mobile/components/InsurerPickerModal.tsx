@@ -3,6 +3,7 @@ import { FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronLeft, Search } from "lucide-react-native";
 import { INSURER_LIST } from "@repo/shared";
+import { InsurerLogo } from "./InsurerLogo";
 
 const OTHER_LABEL = "其他（自行填寫）";
 
@@ -70,6 +71,7 @@ export function InsurerPickerModal({ visible, selected, onClose, onSelect }: Pro
                 style={s.row}
                 activeOpacity={0.7}
               >
+                {!isOther && <InsurerLogo name={item} size={28} />}
                 <Text style={[s.rowLabel, isSelected && s.rowLabelActive, isOther && s.otherLabel]}>
                   {item}
                 </Text>
@@ -121,7 +123,14 @@ const s = StyleSheet.create({
     backgroundColor: "#e5e5ea",
     marginHorizontal: 16,
   },
-  row: { paddingHorizontal: 20, paddingVertical: 14, backgroundColor: "#fff" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: "#fff",
+  },
   rowLabel: { fontSize: 15, color: "#1c1c1e" },
   rowLabelActive: { fontWeight: "700", color: "#374254" },
   otherLabel: { color: "#374254", fontWeight: "600" },
