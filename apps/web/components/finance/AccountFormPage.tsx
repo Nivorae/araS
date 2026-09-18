@@ -423,6 +423,7 @@ export function AccountFormPage({
             startDate: new Date(loanValues.startDate).toISOString(),
             gracePeriodMonths: parseInt(loanValues.gracePeriodMonths) || 0,
             repaymentType: loanValues.repaymentType,
+            includeInChart,
           }),
         });
         if (!res.ok) throw new Error("貸款建立失敗");
