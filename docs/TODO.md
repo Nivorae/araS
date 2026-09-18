@@ -75,11 +75,25 @@ build 17 是在這個狀態下建成的。下次 native build 前再一起補。
 
 ### 第一次 OTA 前必做（SDK 57 之後的新規則）
 
-- [ ] `eas update` 現在必須帶 `--environment production`，且**不讀
-      `.env.production`**，只用 EAS 後台的環境變數。要把 `.env.production` 的
-      `EXPO_PUBLIC_*` 全部 `eas env:create --environment production`，再
-      dry-run grep bundle 確認沒有 LAN 位址
+- [x] EAS 後台 production 環境變數已補齊（2026-09-18，見下方事故記錄）
 - [ ] iOS 最低版本升到 **16.4**（原 15.1），更舊的 iPhone 將無法安裝新版
+
+### ⚠️ 事故記錄：2026-09-18 第一次 OTA 漏帶環境變數
+
+SDK 57 之後第一次 `eas update` 直接踩上這個清單本來就列著、但因為 1.5 是走
+native build 上架、升級以來沒發過 OTA 而一直沒補的坑：EAS 後台 production
+環境變數是空的，`eas update --environment production` 打出的 bundle 沒有
+`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`，App 一啟動就拋錯（`app/_layout.tsx:86-90`
+的 `if (!publishableKey) throw`）。已補上 6 個 `EXPO_PUBLIC_*` 變數
+（`eas env:create production ...`，plaintext）並重發一次 OTA 蓋掉壞版本，
+重發後已用 dry-run grep 確認 bundle 內容正常。
+
+**之後每次 OTA 前都要做**：`eas env:list --environment production` 確認變數
+還在（帳號設定被清或換專案時可能再次消失），發布指令的輸出開頭要看到
+`Environment variables ... loaded from the "production" environment on EAS:`
+列出全部變數名稱，而不是 `No environment variables ... found`。發完後務必
+grep dist bundle 驗證關鍵字串（Clerk key 前綴、API URL host）真的有進去，
+不能只看指令 exit code 0 就當作成功。
 
 ## B. Android 首次上架 Google Play（純免費版）
 
