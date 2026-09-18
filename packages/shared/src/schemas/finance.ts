@@ -51,6 +51,7 @@ export const CreateLoanSchema = z.object({
   startDate: z.string(),
   gracePeriodMonths: z.number().int().min(0).default(0),
   repaymentType: RepaymentTypeSchema,
+  includeInChart: z.boolean().optional(),
 });
 export type CreateLoan = z.infer<typeof CreateLoanSchema>;
 
@@ -67,6 +68,7 @@ export const UpdateLoanSchema = z.object({
   startDate: z.string().optional(),
   gracePeriodMonths: z.number().int().min(0).optional(),
   repaymentType: RepaymentTypeSchema.optional(),
+  includeInChart: z.boolean().optional(),
 });
 export type UpdateLoan = z.infer<typeof UpdateLoanSchema>;
 

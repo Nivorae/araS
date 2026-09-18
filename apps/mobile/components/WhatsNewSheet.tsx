@@ -68,7 +68,14 @@ export default function WhatsNewSheet() {
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={handleClose}>
-      <Pressable style={s.backdrop} onPress={handleClose}>
+      {/* 這裡曾經是全螢幕的 Pressable（點背景關閉），但它會跟下面深層的
+          ScrollView 搶手勢——同一個觸控要嘛被背景那個大範圍 Pressable 判定成
+          「按下去」，要嘛才輪到 ScrollView 當成拖曳，導致打開後往下滑常常沒
+          反應，要來回滑好幾次、幾秒後才會恢復正常（2026-09 用一個內容很長的
+          測試 Modal 隔離驗證過：拿掉背景這層 Pressable 的 onPress 才會消失，
+          跟內層包 ScrollView 的 Pressable、Modal 的進場轉場都無關）。改用
+          底部「知道了」按鈕當唯一的關閉方式。 */}
+      <View style={s.backdrop}>
         <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
           <View style={s.handle} />
           <Text style={s.title}>本次更新</Text>
@@ -93,7 +100,7 @@ export default function WhatsNewSheet() {
             </Pressable>
           </View>
         </Pressable>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
