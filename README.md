@@ -150,6 +150,7 @@ Route Handlers（`apps/web/app/api/**/route.ts`）負責 HTTP 解析、呼叫 Cl
 - **[apps/mobile/RELEASE.md](apps/mobile/RELEASE.md)** — Mobile App 上架後的發版流程、訂閱制規劃、擴容判斷
 - **[apps/mobile/UI-STRUCTURE.md](apps/mobile/UI-STRUCTURE.md)** — 手機 App 的頁面地圖與共用元件對照
 - **[docs/analytics.md](docs/analytics.md)** — 行為分析：埋了哪些事件、為什麼是這些、怎麼算出核心指標
+- **[docs/diagrams/aras-architecture.html](docs/diagrams/aras-architecture.html)** — 系統架構圖（可互動的獨立 HTML，直接用瀏覽器開）
 
 ## License
 
