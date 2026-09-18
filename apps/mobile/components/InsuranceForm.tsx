@@ -32,6 +32,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { ApiError } from "@/lib/api";
 import { InsurerPickerModal } from "./InsurerPickerModal";
+import { InsurerLogo } from "./InsurerLogo";
 import { CoverageItemPicker } from "./CoverageItemPicker";
 import { DatePickerModal } from "./DatePickerModal";
 import { parseISODate, toISODate, formatDisplayDate } from "@/lib/date";
@@ -347,9 +348,14 @@ export function InsuranceForm({
                     style={s.rowRight}
                     activeOpacity={0.7}
                   >
-                    <Text style={insurer ? s.rowValue : s.placeholderText}>
-                      {insurer || "未選擇"}
-                    </Text>
+                    {insurer ? (
+                      <View style={s.insurerValue}>
+                        <InsurerLogo name={insurer} size={22} />
+                        <Text style={s.rowValue}>{insurer}</Text>
+                      </View>
+                    ) : (
+                      <Text style={s.placeholderText}>未選擇</Text>
+                    )}
                     <ChevronRight size={16} color="#c7c7cc" />
                   </TouchableOpacity>
                 ) : (
@@ -643,6 +649,7 @@ const s = StyleSheet.create({
     justifyContent: "flex-end",
   },
   rowValue: { fontSize: 15, color: "#1c1c1e" },
+  insurerValue: { flexDirection: "row", alignItems: "center", gap: 6 },
   placeholderText: { fontSize: 15, color: "#c7c7cc" },
   inputRight: { flex: 1, textAlign: "right", fontSize: 15, color: "#1c1c1e" },
   switchModeRow: { paddingHorizontal: 20, paddingBottom: 8 },

@@ -1,42 +1,62 @@
+export interface InsurerItem {
+  code: string;
+  name: string;
+}
+
 // The 34 Taiwan insurers offered in the insurer <select>, plus a free-typed
-// "其他". UI constant only — the DB stores the resolved string, never an enum,
-// so adding/renaming an insurer never needs a migration. (Insurance spec)
-export const INSURER_LIST: string[] = [
-  "三商美邦人壽",
-  "中華郵政（壽險處）",
-  "中國信託產險",
-  "元大人壽",
-  "友邦人壽",
-  "台灣人壽",
-  "合作金庫人壽",
-  "安聯人壽",
-  "安達國際人壽",
-  "安達產險",
-  "宏泰人壽",
-  "明台產險",
-  "旺旺友聯產險",
-  "法國巴黎人壽",
-  "法國巴黎產險",
-  "泰安產險",
-  "保誠人壽",
-  "南山人壽",
-  "南山產險",
-  "第一金人壽",
-  "第一產險",
-  "國泰人壽",
-  "國泰世紀產險",
-  "凱基人壽",
-  "富邦人壽",
-  "富邦產險",
-  "華南產險",
-  "新光人壽",
-  "新光產險",
-  "新安東京海上產險",
-  "遠雄人壽",
-  "臺銀人壽",
-  "和泰產險",
-  "全球人壽",
+// "其他". UI constant only — the DB stores the resolved name string, never an
+// enum or the code below, so adding/renaming an insurer never needs a
+// migration. (Insurance spec) `code` only exists to key each insurer's logo
+// asset (served from apps/web/public/insurance/{code}.svg|png, same scheme as
+// the bank logos under public/banks) — see InsurerLogo in apps/mobile.
+export const INSURERS: InsurerItem[] = [
+  { code: "mercuries-life", name: "三商美邦人壽" },
+  { code: "chunghwa-post", name: "中華郵政（壽險處）" },
+  { code: "ctbc-property", name: "中國信託產險" },
+  { code: "yuanta-life", name: "元大人壽" },
+  { code: "aia", name: "友邦人壽" },
+  { code: "taiwan-life", name: "台灣人壽" },
+  { code: "tcb-life", name: "合作金庫人壽" },
+  { code: "allianz", name: "安聯人壽" },
+  { code: "chubb-life", name: "安達國際人壽" },
+  { code: "chubb-property", name: "安達產險" },
+  { code: "hontai-life", name: "宏泰人壽" },
+  { code: "mingtai", name: "明台產險" },
+  { code: "want-want-union", name: "旺旺友聯產險" },
+  { code: "cardif-life", name: "法國巴黎人壽" },
+  { code: "cardif-property", name: "法國巴黎產險" },
+  { code: "tai-an", name: "泰安產險" },
+  { code: "prudential", name: "保誠人壽" },
+  { code: "nan-shan-life", name: "南山人壽" },
+  { code: "nan-shan-property", name: "南山產險" },
+  { code: "first-life", name: "第一金人壽" },
+  { code: "first-insurance", name: "第一產險" },
+  { code: "cathay-life", name: "國泰人壽" },
+  { code: "cathay-century", name: "國泰世紀產險" },
+  { code: "kgi-life", name: "凱基人壽" },
+  { code: "fubon-life", name: "富邦人壽" },
+  { code: "fubon-property", name: "富邦產險" },
+  { code: "hua-nan-property", name: "華南產險" },
+  { code: "shin-kong-life", name: "新光人壽" },
+  { code: "shin-kong-property", name: "新光產險" },
+  { code: "sompo", name: "新安東京海上產險" },
+  { code: "farglory-life", name: "遠雄人壽" },
+  { code: "bot-life", name: "臺銀人壽" },
+  { code: "hotai-property", name: "和泰產險" },
+  { code: "global-life", name: "全球人壽" },
 ];
+
+export const INSURER_LIST: string[] = INSURERS.map((i) => i.name);
+
+const INSURER_CODE_BY_NAME: Record<string, string> = Object.fromEntries(
+  INSURERS.map((i) => [i.name, i.code])
+);
+
+/** Looks up an insurer's logo-asset code by its display name. Free-typed
+ * (「其他」) names have no code, so callers must handle `undefined`. */
+export function getInsurerCode(name: string): string | undefined {
+  return INSURER_CODE_BY_NAME[name];
+}
 
 export const INSURANCE_TYPES = [
   "LIFE",
