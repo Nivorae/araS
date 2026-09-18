@@ -1,0 +1,8 @@
+# apps/mobile/eas.json and .gitignore are hashed as raw file bytes by
+# @expo/fingerprint (runtimeVersion policy "fingerprint"). Windows'
+# core.autocrlf=true checks them out with CRLF, which differs from the LF
+# bytes EAS's build environment uses — producing a fingerprint mismatch with
+# no error anywhere (incident: 2026-09-18). Force LF so a Windows checkout's
+# fingerprint can match a build's.
+apps/mobile/eas.json text eol=lf
+apps/mobile/.gitignore text eol=lf
