@@ -95,6 +95,38 @@ native build 上架、升級以來沒發過 OTA 而一直沒補的坑：EAS 後�
 grep dist bundle 驗證關鍵字串（Clerk key 前綴、API URL host）真的有進去，
 不能只看指令 exit code 0 就當作成功。
 
+修完環境變數重發後，OTA 的 runtime version（fingerprint）跟已上架的 build 17
+**還是對不上**——這是同一次事故裡的第二個獨立問題，比環境變數更根本：
+
+1. **`app.json` 的 `extra`（含 `whatsNew`）預設會被算進 fingerprint。**
+   `@expo/fingerprint` 的預設 `sourceSkips` 沒有排除 `extra`，所以只要照
+   `/mobile-release`、`/git:changelog --ota` 教的方式在發 OTA 前順手更新
+   `whatsNew` 文案，fingerprint 就一定會跟已經上架、用舊 `whatsNew` 內容建出來
+   的 native binary 兜不起來——OTA 因此送不到任何人手上，而且完全沒有錯誤訊息。
+   已加 `apps/mobile/fingerprint.config.js`（`sourceSkips:
+["ExpoConfigExtraSection"]`）排除 `extra`，但**這個設定只對下一次 native
+   build（1.6+）生效**——build 17 的 fingerprint 已經用舊規則烤進 binary
+   裡，回溯不了。所以 2026-09-18 這次 OTA 的 `whatsNew` 被迫還原成 build 17
+   當時的舊內容（沒有新的「本次更新」彈窗），只有程式碼本身的修正送出去。
+   **1.6 native build 之後**才能安心恢復「OTA 前更新 whatsNew」這個習慣。
+2. **`apps/mobile/eas.json` 在 Windows 上被 `core.autocrlf` 轉成 CRLF**，但
+   git 裡存的、EAS 雲端建置環境用的是 LF——這個檔案被當原始位元組算進
+   fingerprint，換行符不同雜湊值就不同。已加 `.gitattributes` 強制這個檔案
+   （與 `apps/mobile/.gitignore`）用 LF checkout。
+
+**用官方指令驗證，不要自己手動比對**：`eas fingerprint:compare --build-id
+<真正在架上的 build id> --environment production` 會直接告訴你本機現在的
+fingerprint 跟指定 build 是否一致，比自己 grep bundle 猜測可靠。`eas
+build:list --platform ios --limit 5 --json --non-interactive` 可以查到目前
+上架 build 的 id 與它的 `runtimeVersion`。
+
+⚠️ **`fingerprint.config.js` 存在於工作目錄時會改變本機算 fingerprint 的方式**
+——只要它在，任何一次 `eas fingerprint:compare` 或 `eas update` 算出來的值都
+會跟「當初沒有這個設定檔時建出來的 build」對不上。1.6 native build 上架、
+拿到新的 fingerprint 基準之前，若要對照 1.5（build 17）驗證或發 OTA，必須
+暫時把這個檔案移出目錄（`mv fingerprint.config.js fingerprint.config.js.disabled`），
+用完再移回來——它已經 commit 在 git 裡，本機搬移不影響版本控制。
+
 ## B. Android 首次上架 Google Play（純免費版）
 
 決策：**首發不含訂閱付費**。後端零 Google Play 購買處理（`apps/web/services`
