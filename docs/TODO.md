@@ -16,6 +16,15 @@ build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
 - **B. Android 封閉測試** —— 使用者決定暫緩，先不處理（2026-09-18）。純
   Play Console 後台操作，不碰程式碼，細節仍留在下方備查。
 
+- **示範模式（Demo Mode）** —— 讓免費使用者用內建資料試用所有 Premium 功能。
+  程式已寫完，在 `feature/demo-mode`（2026-09-30），自動檢查全過，**還沒做實機
+  驗證、還沒 commit**。實機清單在 `docs/superpowers/plans/2026-09-30-demo-mode.md`
+  的 Task 8 Step 5；其中 `<Stack key>` 重新掛載後的落點，與橫幅下方的安全區間距，
+  是寫程式時無法確認的兩件事，出問題都在 `apps/mobile/app/(app)/_layout.tsx`。
+  純 JS 改動；走 OTA 還是 native build 由 `/mobile-release` 判斷。之後後端若改了
+  `apps/web/services/*` 的計算邏輯，`apps/mobile/lib/demo/engine.ts` 要跟著改
+  （兩份實作，見 `docs/superpowers/specs/2026-09-30-demo-mode-design.md`）。
+
 ⚠️ SDK 57 改了原生指紋，**1.5 之後的更新必須走 native build + 送審，不能 OTA**，
 直到下一次 OTA 前置作業（見下方「第一次 OTA 前必做」）完成。1.4 的使用者收不到
 從現在的 `main`／`develop` 發的任何更新；要緊急修 1.4 只能從 SDK 57 升級前的

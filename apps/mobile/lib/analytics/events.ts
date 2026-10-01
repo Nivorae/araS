@@ -23,9 +23,16 @@ export const ANALYTICS_EVENTS = {
   SUBSCRIBE_CLICKED: "subscribe_clicked",
   /** 金流回報購買成功。 */
   SUBSCRIBE_SUCCESS: "subscribe_success",
+  /** 進入示範模式。 */
+  DEMO_ENTERED: "demo_entered",
+  /** 離開示範模式，不論原因。 */
+  DEMO_EXITED: "demo_exited",
 } as const;
 
 export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS];
+
+/** 離開示範模式的原因。`sign_out` 是示範中登出。 */
+export type DemoExitReason = "manual" | "upgrade" | "timeout" | "sign_out";
 
 /**
  * 每個事件允許帶的參數。
@@ -43,6 +50,9 @@ export interface AnalyticsEventProperties {
   [ANALYTICS_EVENTS.PAYWALL_VIEWED]: { trigger_source: PaywallSource };
   [ANALYTICS_EVENTS.SUBSCRIBE_CLICKED]: { plan: string };
   [ANALYTICS_EVENTS.SUBSCRIBE_SUCCESS]: { plan: string; is_trial: boolean };
+  /** `trigger_source` 是進入示範的入口，沿用訂閱頁的 source 值。 */
+  [ANALYTICS_EVENTS.DEMO_ENTERED]: { trigger_source: PaywallSource };
+  [ANALYTICS_EVENTS.DEMO_EXITED]: { reason: DemoExitReason; seconds_in_demo: number };
 }
 
 /**
@@ -69,6 +79,8 @@ export const PAYWALL_SOURCES = {
   DIVIDEND_REINVEST: "dividend_reinvest",
   /** 退休頁切換到「理財規劃」模式（Premium 功能）。 */
   FINANCE_PLANNING: "finance_planning",
+  /** 示範模式橫幅上的「升級」。用來量示範模式帶來多少付費。 */
+  DEMO_BANNER: "demo_banner",
   /** 沒帶 source 就進到訂閱頁（例如深連結，或未來新增入口時漏帶）。 */
   UNKNOWN: "unknown",
 } as const;

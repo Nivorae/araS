@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { ApiError, useApi } from "@/lib/api";
 import { useFinanceStore } from "@/store/financeStore";
+import { useDemoStore } from "@/store/demoStore";
 import type {
   Entry,
   EntryHistory,
@@ -41,6 +42,15 @@ const netWorthHistoryInFlight = new Map<
   { epoch: number; promise: Promise<NetWorthPoint[] | null> }
 >();
 
+/** 進出示範模式時呼叫，丟掉還在飛的淨值請求。 */
+export function clearNetWorthHistoryInFlight(): void {
+  netWorthHistoryInFlight.clear();
+}
+
+// 進出示範模式時，前一個狀態發出的請求可能還沒回來。回應寫進 store 之前用這個
+// 確認「現在」跟「發請求時」是同一個狀態，否則真實資料會蓋掉示範資料（或反過來）。
+const currentGeneration = () => useDemoStore.getState().generation;
+
 export function useFinanceActions() {
   const api = useApi();
 
@@ -61,10 +71,12 @@ export function useFinanceActions() {
   // so new transactions appear in this session rather than on the next launch.
   // It usually creates nothing, so the refresh is rare.
   const processRecurrencesInBackground = useCallback(async () => {
+    const generation = currentGeneration();
     try {
       const result = await api.post<{ created: number }>("/api/recurrences/process", {});
       if (!result?.created) return;
       const [recurrences, transactions] = await readRecurrenceSlices();
+      if (currentGeneration() !== generation) return;
       useFinanceStore.getState().setData({ recurrences, transactions });
     } catch {
       // Best-effort: a failed cron step must never surface on the loaded screen.
@@ -72,6 +84,7 @@ export function useFinanceActions() {
   }, [api, readRecurrenceSlices]);
 
   const fetchAll = useCallback(async () => {
+    const generation = currentGeneration();
     const { setLoading, setError, setData } = useFinanceStore.getState();
     setLoading(true);
     setError(null);
@@ -83,12 +96,15 @@ export function useFinanceActions() {
         api.get<PortfolioItem[]>("/api/portfolio"),
         readRecurrenceSlices(),
       ]);
+      if (currentGeneration() !== generation) return;
       setData({ entries, portfolio, recurrences, transactions });
       void processRecurrencesInBackground();
     } catch (e) {
+      if (currentGeneration() !== generation) return;
       setError(e instanceof Error ? e.message : "Failed to load data");
     } finally {
-      useFinanceStore.getState().setLoading(false);
+      // 過期的請求不碰 loading：那是新狀態的 fetchAll 在管的。
+      if (currentGeneration() === generation) useFinanceStore.getState().setLoading(false);
     }
   }, [api, readRecurrenceSlices, processRecurrencesInBackground]);
 
@@ -97,8 +113,10 @@ export function useFinanceActions() {
   // resource — a second consumer can call this instead of re-rolling the fetch.
   const fetchEntryHistory = useCallback(
     async (id: string): Promise<EntryHistory[] | null> => {
+      const generation = currentGeneration();
       try {
         const rows = await api.get<EntryHistory[]>(`/api/entries/${id}/history`);
+        if (currentGeneration() !== generation) return null;
         useFinanceStore.getState().setEntryHistory(id, rows);
         return rows;
       } catch {

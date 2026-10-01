@@ -37,15 +37,17 @@ araS 是一支已在 App Store 上架的個人資產記錄 App（Expo / React Na
 不准出現事件名稱的字串字面量**。原因很實際：事件名稱一旦送出就是歷史資料的
 key，打錯字不會報錯，只會讓漏斗默默少算一段。
 
-| 事件                   | 觸發時機                                                    | 參數                                                                  | 用途                                                  |
-| ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------- |
-| `app_open`             | App 進入前景：冷啟動，或從背景（`background`）回到 `active` | `is_first_open: boolean`<br>另有共通參數 `environment`、`app_version` | 漏斗的分母。`is_first_open` 為真的使用者數 = 新安裝數 |
-| `onboarding_complete`  | 在登入頁按 ? 開啟三步說明，滑到最後一頁按「開始使用」       | `steps_completed: number`                                             | 有多少人主動看完說明                                  |
-| `first_record_created` | 這台裝置**生涯第一筆**資產紀錄寫入成功，只會發生一次        | `seconds_since_first_open: number`                                    | **Activation**，整條漏斗最重要的一個事件              |
-| `record_created`       | 每一次成功新增資產／負債紀錄                                | `record_type: string`（頂層分類：流動資金／投資／不動產／負債…）      | 使用深度；哪一類資產最常被記                          |
-| `paywall_viewed`       | 訂閱頁真的顯示在畫面上                                      | `trigger_source: string`（見下表）                                    | 有多少人碰到付費牆、從哪個入口碰到                    |
-| `subscribe_clicked`    | 點擊訂閱 CTA，**不論後續成功、取消或失敗**                  | `plan: string`（`ANNUAL`／`MONTHLY`…）                                | 訂閱頁本身的說服力                                    |
-| `subscribe_success`    | 金流（RevenueCat / StoreKit）回報購買成功                   | `plan: string`、`is_trial: boolean`                                   | 真正的付費轉換                                        |
+| 事件                   | 觸發時機                                                    | 參數                                                                                        | 用途                                                  |
+| ---------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `app_open`             | App 進入前景：冷啟動，或從背景（`background`）回到 `active` | `is_first_open: boolean`<br>另有共通參數 `environment`、`app_version`                       | 漏斗的分母。`is_first_open` 為真的使用者數 = 新安裝數 |
+| `onboarding_complete`  | 在登入頁按 ? 開啟三步說明，滑到最後一頁按「開始使用」       | `steps_completed: number`                                                                   | 有多少人主動看完說明                                  |
+| `first_record_created` | 這台裝置**生涯第一筆**資產紀錄寫入成功，只會發生一次        | `seconds_since_first_open: number`                                                          | **Activation**，整條漏斗最重要的一個事件              |
+| `record_created`       | 每一次成功新增資產／負債紀錄                                | `record_type: string`（頂層分類：流動資金／投資／不動產／負債…）                            | 使用深度；哪一類資產最常被記                          |
+| `paywall_viewed`       | 訂閱頁真的顯示在畫面上                                      | `trigger_source: string`（見下表）                                                          | 有多少人碰到付費牆、從哪個入口碰到                    |
+| `subscribe_clicked`    | 點擊訂閱 CTA，**不論後續成功、取消或失敗**                  | `plan: string`（`ANNUAL`／`MONTHLY`…）                                                      | 訂閱頁本身的說服力                                    |
+| `subscribe_success`    | 金流（RevenueCat / StoreKit）回報購買成功                   | `plan: string`、`is_trial: boolean`                                                         | 真正的付費轉換                                        |
+| `demo_entered`         | 進入示範模式                                                | `trigger_source: string`（同下表）                                                          | 哪個入口最多人想先試                                  |
+| `demo_exited`          | 離開示範模式，不論原因                                      | `reason: string`（`manual`／`upgrade`／`timeout`／`sign_out`）<br>`seconds_in_demo: number` | 試了多久、是主動升級還是放著不管                      |
 
 > **關於 `onboarding_complete` 的重要前提：** 這支 App 沒有強制的新手引導流程。
 > 登入頁（Logo + 三顆 OAuth 按鈕）就是第一個畫面，說明是右上角 ? 按鈕開啟的
@@ -56,6 +58,12 @@ key，打錯字不會報錯，只會讓漏斗默默少算一段。
 > 這裡是 7 個事件。原始需求寫「六個事件」但表格列了 7 行；`subscribe_clicked`
 > 與 `subscribe_success` 是兩個不同時機、缺一不可 —— 前者量訂閱頁的說服力、
 > 後者量金流的完成率，兩者之間的落差就是「想買但沒買成」。所以 7 個全部實作。
+>
+> **示範模式中的事件：** 後來加的 `demo_entered`／`demo_exited` 不屬於這條漏斗。
+> 示範資料不是真的記帳，所以示範中新增資產**不送** `record_created` 與
+> `first_record_created`（後者每台裝置一生只送一次，被示範觸發會永久弄壞那台
+> 裝置的啟用數據）。示範中也不會出現 `paywall_viewed` —— 按橫幅的「升級」會先
+> 離開示範，付費牆是在離開之後才顯示，`trigger_source` 為 `demo_banner`。
 
 ### `trigger_source` 的可能值
 
@@ -72,6 +80,7 @@ App 裡每一個進入訂閱頁的入口都會帶上 source，這樣「哪個入
 | `dividend_form`     | 新增股利紀錄時的 Premium 提示               |
 | `dividend_reinvest` | 股利再投資時的 Premium 提示                 |
 | `finance_planning`  | 退休頁切換到「理財規劃」模式（免費帳號）    |
+| `demo_banner`       | 示範模式橫幅上的「升級」                    |
 | `unknown`           | 沒帶 source（深連結，或未來新增入口時漏帶） |
 
 `unknown` 是刻意保留的防呆值：漏帶 source 時事件不會消失，只會落在這一格，
@@ -162,6 +171,19 @@ Paywall 曝光率 = paywall_viewed 的使用者數 ÷ first_record_created 的�
 
 > 註：分子分母都算**使用者數（unique users）**，不是事件次數。同一個人看 5 次
 > 訂閱頁只算 1 個人 —— 用事件次數會讓猶豫不決的人把分母灌爆。
+
+### 示範模式轉換率
+
+```
+示範轉換率 = trigger_source = demo_banner 的 subscribe_success 使用者數 ÷ demo_entered 的使用者數
+```
+
+「進過示範模式的人裡，有多少從示範直接升級。」
+
+搭配 `demo_exited` 的 `reason` 拆開看：`upgrade` 佔比是示範的說服力；`timeout`
+佔比高代表人進來看一眼就放著不管；`seconds_in_demo` 的中位數太短則是示範資料
+沒有引起興趣。這個數字會低估示範的效果 —— 離開示範後隔天才從別的入口訂閱的人
+不會被算進來。
 
 ---
 

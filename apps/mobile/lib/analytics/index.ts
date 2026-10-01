@@ -3,7 +3,12 @@
  * 不要直接指向底下的檔案，更不要直接 import `posthog-react-native`。
  */
 export { ANALYTICS_EVENTS, PAYWALL_SOURCES, toPaywallSource } from "./events";
-export type { AnalyticsEvent, AnalyticsEventProperties, PaywallSource } from "./events";
+export type {
+  AnalyticsEvent,
+  AnalyticsEventProperties,
+  DemoExitReason,
+  PaywallSource,
+} from "./events";
 export { initAnalytics, ANALYTICS_ENVIRONMENT, ANALYTICS_DEBUG } from "./client";
 export { track } from "./track";
 export { trackAppOpen, trackRecordCreated } from "./funnel";

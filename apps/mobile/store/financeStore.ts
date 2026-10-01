@@ -36,6 +36,8 @@ export interface FinanceState {
   ) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  /** 進出示範模式時清空所有資料，真實資料與示範資料才不會互相漏到對方的畫面上。 */
+  reset: () => void;
 
   setEntryHistory: (entryId: string, rows: EntryHistory[]) => void;
   setNetWorthHistory: (range: NetWorthRange, points: NetWorthPoint[]) => void;
@@ -72,6 +74,21 @@ export const useFinanceStore = create<FinanceState>()((set) => ({
   setData: (data) => set({ ...data, lastFetchedAt: Date.now() }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+
+  // epoch 照樣往上加而不是歸零：還在飛的淨值請求靠它判斷自己是不是過期了。
+  reset: () =>
+    set((s) => ({
+      entries: [],
+      transactions: [],
+      portfolio: [],
+      recurrences: [],
+      netWorthHistory: {},
+      netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
+      historyByEntry: {},
+      loading: false,
+      error: null,
+      lastFetchedAt: null,
+    })),
 
   setEntryHistory: (entryId, rows) =>
     set((s) => ({ historyByEntry: { ...s.historyByEntry, [entryId]: rows } })),

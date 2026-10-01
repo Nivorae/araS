@@ -29,11 +29,14 @@ import {
   LogOut,
   Loader,
   ScanFace,
+  Sparkles,
   Trash2,
   type LucideIcon,
 } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
+import { enterDemo } from "@/lib/demo/session";
+import { useDemoStore } from "@/store/demoStore";
 import { useResponsive } from "@/hooks/useResponsive";
 import { parseWhatsNew } from "@/lib/whatsNew";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
@@ -262,6 +265,9 @@ export default function SettingsScreen() {
   const { user } = useUser();
   const api = useApi();
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
+  // 示範模式中 isPremium 恆為 true，但那不是真的訂閱：訂閱、刪帳號、模擬升級
+  // 這些作用在真實帳號上的項目全部藏起來。
+  const demoActive = useDemoStore((s) => s.engine !== null);
   const reminder = useMonthlyReminder();
   const appLock = useAppLockSetting();
   const [timePickerOpen, setTimePickerOpen] = useState(false);
@@ -431,7 +437,7 @@ export default function SettingsScreen() {
                 subscribed on iPhone is premium on Android too and should still
                 see their status — but a free Android user must not be offered
                 an upgrade that cannot be bought. */}
-            {SUBSCRIPTIONS_SUPPORTED || isPremium || premiumLoading ? (
+            {!demoActive && (SUBSCRIPTIONS_SUPPORTED || isPremium || premiumLoading) ? (
               <SettingCard
                 icon={isPremium ? Check : Loader}
                 label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
@@ -444,7 +450,18 @@ export default function SettingsScreen() {
             {/* Only for subscribers — there is nothing to manage otherwise. A
                 user who has cancelled but is still inside the paid period is
                 still premium, so they keep seeing it until the term ends. */}
-            {isPremium ? (
+            {/* 還沒撞到付費牆、但想先看看 Premium 長什麼樣子的人的入口。沒有商店的
+                平台不顯示：示範完也買不到，只是白白吊人胃口。 */}
+            {SUBSCRIPTIONS_SUPPORTED && !demoActive && !isPremium && !premiumLoading ? (
+              <SettingCard
+                icon={Sparkles}
+                label="體驗完整功能"
+                color="#FFFFFF"
+                textColor="#374254"
+                onPress={() => enterDemo(PAYWALL_SOURCES.SETTINGS_CARD)}
+              />
+            ) : null}
+            {isPremium && !demoActive ? (
               <SettingCard
                 icon={CreditCard}
                 label="管理訂閱"
@@ -462,24 +479,28 @@ export default function SettingsScreen() {
                   textColor="#ffffff"
                   onPress={() => void showScheduledReminders()}
                 />
-                <SettingCard
-                  icon={Check}
-                  label="模擬升級（僅開發模式）"
-                  color="#34C759"
-                  textColor="#ffffff"
-                  loading={devToggling}
-                  disabled={devToggling}
-                  onPress={() => simulatePremium("activate")}
-                />
-                <SettingCard
-                  icon={Trash2}
-                  label="模擬取消（僅開發模式）"
-                  color="#FF9500"
-                  textColor="#ffffff"
-                  loading={devToggling}
-                  disabled={devToggling}
-                  onPress={() => simulatePremium("deactivate")}
-                />
+                {!demoActive ? (
+                  <>
+                    <SettingCard
+                      icon={Check}
+                      label="模擬升級（僅開發模式）"
+                      color="#34C759"
+                      textColor="#ffffff"
+                      loading={devToggling}
+                      disabled={devToggling}
+                      onPress={() => simulatePremium("activate")}
+                    />
+                    <SettingCard
+                      icon={Trash2}
+                      label="模擬取消（僅開發模式）"
+                      color="#FF9500"
+                      textColor="#ffffff"
+                      loading={devToggling}
+                      disabled={devToggling}
+                      onPress={() => simulatePremium("deactivate")}
+                    />
+                  </>
+                ) : null}
               </>
             ) : null}
             {/* Local scheduled notification, off by default — the permission
@@ -506,18 +527,22 @@ export default function SettingsScreen() {
               disabled={appLock.loading}
               onValueChange={(next) => void appLock.toggle(next)}
             />
-            <SettingCard
-              icon={Trash2}
-              label={deleting ? "刪除中…" : "刪除帳號"}
-              color="#FFFFFF"
-              textColor="#ff3b30"
-              loading={deleting}
-              disabled={deleting}
-              onPress={confirmDelete}
-            />
+            {!demoActive ? (
+              <SettingCard
+                icon={Trash2}
+                label={deleting ? "刪除中…" : "刪除帳號"}
+                color="#FFFFFF"
+                textColor="#ff3b30"
+                loading={deleting}
+                disabled={deleting}
+                onPress={confirmDelete}
+              />
+            ) : null}
           </View>
 
-          <Text style={s.dangerHint}>永久刪除帳號與所有資料，無法復原。</Text>
+          {!demoActive ? (
+            <Text style={s.dangerHint}>永久刪除帳號與所有資料，無法復原。</Text>
+          ) : null}
 
           <View style={s.versionBlock}>
             {versionLines(updateStatus).map((line) => (
