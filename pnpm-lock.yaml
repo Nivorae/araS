@@ -69,8 +69,8 @@ importers:
   apps/mobile:
     dependencies:
       "@clerk/clerk-expo":
-        specifier: ^2.19.31
-        version: 2.19.31(fcn5whxjexew5pkc42fzdxsxai)
+        specifier: ^2.20.0
+        version: 2.20.0(fcn5whxjexew5pkc42fzdxsxai)
       "@expo/dom-webview":
         specifier: ~57.0.1
         version: 57.0.1(expo@57.0.22)(react-native@0.86.3(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)
@@ -1671,10 +1671,10 @@ packages:
       }
     engines: { node: ">=20.9.0" }
 
-  "@clerk/clerk-expo@2.19.31":
+  "@clerk/clerk-expo@2.20.0":
     resolution:
       {
-        integrity: sha512-w3npdpbgmOQ2ybFuNo5XGauHJ1eq8ID76Y3l2zjj9wvawPCA3UKdPvPwFdR6ukVzd+ktzhTbFnKUeIM4vXe/6w==,
+        integrity: sha512-wMN2PsEfuan96QXCtmqmesYtW64iHgJ0rQkQxtEUa41T3vjax7zyZIAsI29ioiIJysedt7DlZxG4UpPpiu7JtQ==,
       }
     engines: { node: ">=18.17.0" }
     deprecated: "@clerk/clerk-expo is deprecated. Migrate to @clerk/expo by following the Core 3 upgrade guide https://clerk.com/docs/guides/development/upgrading/upgrade-guides/core-3"
@@ -15471,7 +15471,7 @@ snapshots:
       - react
       - react-dom
 
-  "@clerk/clerk-expo@2.19.31(fcn5whxjexew5pkc42fzdxsxai)":
+  "@clerk/clerk-expo@2.20.0(fcn5whxjexew5pkc42fzdxsxai)":
     dependencies:
       "@clerk/clerk-js": 5.128.0(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(@types/react@19.2.14)(bs58@6.0.0)(bufferutil@4.1.0)(immer@11.1.4)(react-dom@19.2.3(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.0)(@react-native/metro-config@0.86.0(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@5.9.3)(use-sync-external-store@1.7.0(react@19.2.3))(utf-8-validate@6.0.6)(zod@3.25.76)
       "@clerk/clerk-react": 5.61.10(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -18395,7 +18395,7 @@ snapshots:
 
   "@types/connect@3.4.38":
     dependencies:
-      "@types/node": 22.20.4
+      "@types/node": 12.20.55
 
   "@types/conventional-commits-parser@5.0.2":
     dependencies:
@@ -18509,11 +18509,11 @@ snapshots:
 
   "@types/ws@7.4.7":
     dependencies:
-      "@types/node": 22.20.4
+      "@types/node": 12.20.55
 
   "@types/ws@8.18.2":
     dependencies:
-      "@types/node": 22.20.4
+      "@types/node": 26.6.3
 
   "@types/yargs-parser@21.0.3": {}
 
