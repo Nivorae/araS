@@ -49,7 +49,8 @@ import {
 import { useResponsive } from "@/hooks/useResponsive";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { isDemoActive } from "@/store/demoStore";
 
 // ── Small components ────────────────────────────────────────────────────────────
 
@@ -317,6 +318,13 @@ export default function RetirementScreen() {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
     select(next);
   };
+  // 示範模式的落點：從「理財規劃」付費牆進示範的人，直接切到理財規劃。
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  useEffect(() => {
+    if (modeParam === "finance" && isPremium) select("finance");
+    // select 會隨目前模式換新：放進依賴的話，使用者切回退休計劃時又會被切回來。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeParam, isPremium]);
   const salary = useSalary();
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [initialized, setInitialized] = useState(false);
@@ -347,9 +355,11 @@ export default function RetirementScreen() {
     })();
   }, []);
 
-  // Persist on change
+  // Persist on change。示範模式中不寫：這些參數存在手機本機、不經過 API，寫下去
+  // 的話示範裡亂調的數字會留到離開之後。
   useEffect(() => {
-    if (initialized) AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(params)).catch(() => {});
+    if (initialized && !isDemoActive())
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(params)).catch(() => {});
   }, [params, initialized]);
 
   // sync sensitivity sliders when params change

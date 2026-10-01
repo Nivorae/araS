@@ -15,6 +15,11 @@ export interface CachedFetchState<T> {
 // keeps it fresh — no flash, no refetch-on-every-tab-switch.
 const caches = new Map<string, unknown>();
 
+/** 進出示範模式時呼叫：快取以 endpoint 為 key，不清的話兩邊的資料會共用同一格。 */
+export function clearCachedFetch(): void {
+  caches.clear();
+}
+
 /**
  * `revalidateKey` 一變就在背景重抓（照樣先顯示快取值）。呼叫端的畫面常常掛載後
  * 就不再卸載（例如資產損益頁的分頁用 display:none 保活），只靠掛載時抓一次的話，

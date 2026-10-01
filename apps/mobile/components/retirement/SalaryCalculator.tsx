@@ -12,6 +12,7 @@ import {
   type SalaryRule,
 } from "@/lib/retirement";
 import { InfoModal } from "@/components/retirement/InfoModal";
+import { isDemoActive } from "@/store/demoStore";
 
 /** 一個以字串形式持久化到 AsyncStorage 的金額輸入。 */
 function usePersistedAmount(key: string) {
@@ -27,8 +28,9 @@ function usePersistedAmount(key: string) {
       .finally(() => setLoaded(true));
   }, [key]);
 
+  // 示範模式中不寫，理由同 retirement.tsx 的試算參數。
   useEffect(() => {
-    if (loaded) AsyncStorage.setItem(key, value).catch(() => {});
+    if (loaded && !isDemoActive()) AsyncStorage.setItem(key, value).catch(() => {});
   }, [key, value, loaded]);
 
   return [value, setValue] as const;

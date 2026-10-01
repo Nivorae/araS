@@ -1,6 +1,8 @@
 import { useAuth } from "@clerk/clerk-expo";
 import { useMemo, useRef } from "react";
 import type { ApiResponse } from "@repo/shared";
+import { createDemoApi } from "@/lib/demo/demoApi";
+import { useDemoStore } from "@/store/demoStore";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -114,5 +116,19 @@ export function useApi(): Api {
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
-  return useMemo(() => createApi((options) => getTokenRef.current(options)), []);
+  const real = useMemo(() => createApi((options) => getTokenRef.current(options)), []);
+  // 示範模式：同一個介面，但資料來自記憶體裡的引擎。兩種狀態各自是穩定的參考，
+  // 只有進出示範那一刻才換 —— 上面那段「api 不能每次 render 換新」的理由照樣成立。
+  const engine = useDemoStore((s) => s.engine);
+  return useMemo(
+    () =>
+      engine
+        ? createDemoApi(
+            engine,
+            real,
+            (code, message, status) => new ApiError(code, message, status)
+          )
+        : real,
+    [engine, real]
+  );
 }

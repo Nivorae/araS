@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import type { NetWorthRange } from "@repo/shared";
 import { useFinanceStore } from "@/store/financeStore";
 import { chartedEntries } from "@/lib/chartedEntries";
@@ -53,6 +53,19 @@ export default function TransactionsScreen() {
   // other two mount lazily on first visit.
   const [everVisitedAllocation, setEverVisitedAllocation] = useState(false);
   const [everVisitedDividends, setEverVisitedDividends] = useState(false);
+  // 示範模式的落點：從「配置／股息」付費牆進示範的人，直接落在那個分頁。
+  // 免費帳號帶這個參數進來不生效，付費檢查照舊由下面的 onPress 負責。
+  const { view: viewParam } = useLocalSearchParams<{ view?: string }>();
+  useEffect(() => {
+    if (!isPremium) return;
+    if (viewParam === "allocation") {
+      setEverVisitedAllocation(true);
+      setView("allocation");
+    } else if (viewParam === "dividends") {
+      setEverVisitedDividends(true);
+      setView("dividends");
+    }
+  }, [viewParam, isPremium]);
   const entries = useFinanceStore((s) => s.entries);
   const netWorthHistory = useFinanceStore((s) => s.netWorthHistory);
 
