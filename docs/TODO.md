@@ -4,7 +4,7 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-09-18
+最後整理：2026-10-01
 
 ## 下一步
 
@@ -16,19 +16,16 @@ build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
 - **B. Android 封閉測試** —— 使用者決定暫緩，先不處理（2026-09-18）。純
   Play Console 後台操作，不碰程式碼，細節仍留在下方備查。
 
-- **示範模式（Demo Mode）** —— 讓免費使用者用內建資料試用所有 Premium 功能。
-  程式已寫完，在 `feature/demo-mode`（2026-09-30），自動檢查全過，**還沒做實機
-  驗證、還沒 commit**。實機清單在 `docs/superpowers/plans/2026-09-30-demo-mode.md`
-  的 Task 8 Step 5；其中 `<Stack key>` 重新掛載後的落點，與橫幅下方的安全區間距，
-  是寫程式時無法確認的兩件事，出問題都在 `apps/mobile/app/(app)/_layout.tsx`。
-  純 JS 改動；走 OTA 還是 native build 由 `/mobile-release` 判斷。之後後端若改了
-  `apps/web/services/*` 的計算邏輯，`apps/mobile/lib/demo/engine.ts` 要跟著改
-  （兩份實作，見 `docs/superpowers/specs/2026-09-30-demo-mode-design.md`）。
+- **1.6 native build** —— 要改原生層的項目都放在這一版，見下方「1.6 native build
+  前必做」。在它上架之前，`develop` 不能合入任何會改變 fingerprint 的東西。
+- **`@clerk/clerk-expo` 安全性更新（2.19.31 → 2.20.0）** —— fingerprint 不變、可走
+  OTA，但它是登入元件，**要先在手機上測登入／登出再合併**。
 
-⚠️ SDK 57 改了原生指紋，**1.5 之後的更新必須走 native build + 送審，不能 OTA**，
-直到下一次 OTA 前置作業（見下方「第一次 OTA 前必做」）完成。1.4 的使用者收不到
-從現在的 `main`／`develop` 發的任何更新；要緊急修 1.4 只能從 SDK 57 升級前的
-commit 發 OTA。
+⚠️ **對 1.5（build 17）發 OTA 可行，但 1.6 native build 之前有三個條件**
+（2026-09-18 與 2026-10-01 示範模式都照這樣發成功）：不要改 `app.json` 的 `whatsNew`；驗證或發布時
+暫移 `fingerprint.config.js`；發之前先用 `eas fingerprint:compare` 對 build 17
+確認一致。原因見下方事故記錄。SDK 57 改了原生指紋，1.4 的使用者收不到從現在的
+`main`／`develop` 發的任何更新；要緊急修 1.4 只能從 SDK 57 升級前的 commit 發 OTA。
 
 ## A. 1.5 iOS binary —— 已上線（2026-09-18）
 
@@ -58,20 +55,9 @@ sharp 全 repo 只有 `apps/web/scripts/gen-icons.mjs`（一次性產圖示）�
 重跑方式寫在那支檔案的開頭註解。Vercel 上 Next.js 的圖片最佳化用平台自己提供的
 sharp，不受影響。
 
-剩下的步驟：
-
-- [x] Apple 審核通過，1.5 已上線（2026-09-18）
-- [x] `develop → main` 的 release PR（#135）已合併（2026-09-18）
-
 ⚠️ `overrides` 與 `ignoredOptionalDependencies` 同時存在於 `package.json` 和
 `pnpm-workspace.yaml`，**兩邊要一起改**：pnpm 10+ 只讀 workspace、pnpm 9 只讀
 package.json，而本機的 `packageManager` 是 9.14.2、EAS 用的是 10.16.1。
-
-### 待補：expo patch 版本落後
-
-`expo@57.0.22`（建議 `~57.0.23`）與 `expo-notifications@57.0.18`（建議
-`~57.0.19`）各差一個 patch，EAS 的 `expo doctor` 會因此報錯，但**不擋 build**。
-build 17 是在這個狀態下建成的。下次 native build 前再一起補。
 
 ### 1.5 真機驗證（要 TestFlight 或 development build）
 
@@ -82,10 +68,18 @@ build 17 是在這個狀態下建成的。下次 native build 前再一起補。
 - [ ] Android 那組 `SUBSCRIPTIONS_SUPPORTED` 改動沒有影響 iOS 的付費流程
       （理論上 iOS 恆為 true、行為不變，但沒實機驗過）
 
-### 第一次 OTA 前必做（SDK 57 之後的新規則）
+### 1.6 native build 前必做
 
-- [x] EAS 後台 production 環境變數已補齊（2026-09-18，見下方事故記錄）
+這些都會改變 fingerprint，合進 `develop` 之後就不能再對 1.5 發 OTA，所以要等決定
+打 1.6 時才合併。
+
 - [ ] iOS 最低版本升到 **16.4**（原 15.1），更舊的 iPhone 將無法安裝新版
+- [ ] Expo 套件對齊 SDK 建議版本（`npx expo install --check`，2026-10-01 列出：
+      `expo` 57.0.22→57.0.26、`expo-notifications`、`expo-router`、`expo-updates`、
+      `expo-constants`、`expo-auth-session`、`expo-linking`、`@expo/metro-runtime`）。
+      EAS 的 `expo doctor` 會因此報錯，但**不擋 build**
+- [ ] 1.6 上架後，`fingerprint.config.js` 的新規則生效，可以恢復「發 OTA 前更新
+      `whatsNew`」，並刪掉上方 OTA 的三個條件
 
 ### ⚠️ 事故記錄：2026-09-18 第一次 OTA 漏帶環境變數
 
@@ -219,8 +213,8 @@ effect 另有 `if (!visible) return`）。
 
 剩下的全是帳號類手工事項：
 
-- [ ] GSC 對 `/`、`/about`、`/support`、`/terms` 重新「要求索引」；跑一次
-      `pnpm --filter @repo/web indexnow`（Safe Browsing 誤判已於 09-09 解除）
+- [ ] GSC 對 `/`、`/about`、`/support`、`/terms` 重新「要求索引」（IndexNow 已於
+      2026-10-01 送出；Safe Browsing 誤判已於 09-09 解除）
 - [ ] Google Play 商店資訊「網站」欄填 `arasasset.com`（App Store 已填）
 - [ ] 開一個 LinkedIn 或 FB 專頁 + 一個 Threads/IG，全部串進 `page.tsx` 的
       `SAME_AS`
@@ -231,15 +225,14 @@ effect 另有 `if (!visible) return`）。
 
 ## 技術債（不阻塞任何事）
 
-- [ ] **`pnpm audit` 報 92 個弱點**（3 critical / 52 high，2026-09-01 觀察）。
-      全是傳遞依賴、不是自己的程式碼：主要是 `ajv@8.18.0 > fast-uri@3.1.0`，
-      經由 `@commitlint/config-validator`（開發工具）與
-      `@ducanh2912/next-pwa > webpack > schema-utils` 進來。CI 的
-      `pnpm audit --audit-level=high` 步驟不阻擋建置（job 仍然 success），
-      所以不影響發版。之後單獨排一次依賴升級處理。
-- [ ] root `package.json` 還叫 `production-template`、描述寫的是
-      「React + Express monorepo」—— 腳手架殘留，root 是 private 沒人消費，
-      但看起來很怪。
+- [ ] **`pnpm audit` 剩 1 個 high**：`deepmerge-ts@7`（`prisma` 的傳遞依賴），要升
+      Prisma 7 這個大版本才修得掉，暫不處理。2026-10-01 已用 `next` 15.5.27、
+      `vitest` 3.2.7 與 `overrides` 修掉其餘（4 critical / 73 high → 0 / 3，另兩個
+      是上方待手機驗證的 Clerk）。完整 audit 報告約 500MB，預設 heap 會 OOM，本機
+      要加 `NODE_OPTIONS=--max-old-space-size=8192`（CI 已加）。
+- [ ] **示範模式有兩份計算實作**：後端若改了 `apps/web/services/*` 的計算邏輯，
+      `apps/mobile/lib/demo/engine.ts` 要跟著改（見
+      `docs/superpowers/specs/2026-09-30-demo-mode-design.md`）。
 
 ## 已評估、暫不執行
 
