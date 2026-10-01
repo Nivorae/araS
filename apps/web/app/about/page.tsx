@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { JsonLd } from "@/components/json-ld";
 import { siteUrl } from "@/lib/site-url";
-import { breadcrumbJsonLd } from "@/lib/structured-data";
+import { FOUNDER_ALTERNATE_NAME, FOUNDER_SAME_AS, breadcrumbJsonLd } from "@/lib/structured-data";
 
 const CONTACT_EMAIL = "milk88084@gmail.com";
 
@@ -11,7 +11,9 @@ const founderJsonLd = {
   "@type": "Person",
   "@id": `${siteUrl}/#founder`,
   name: "KO CHUAN LI",
+  alternateName: FOUNDER_ALTERNATE_NAME,
   jobTitle: "前端工程師",
+  sameAs: FOUNDER_SAME_AS,
   description:
     "前端工程師，對 UI/UX 有強烈的設計美感，喜歡把介面質感往上提，目前獨力開發網頁與 App。",
   worksFor: { "@id": `${siteUrl}/#organization` },

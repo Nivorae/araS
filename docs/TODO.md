@@ -219,7 +219,10 @@ effect 另有 `if (!visible) return`）。
       `SAME_AS`
 - [ ] 投 Product Hunt + 1~2 個台灣 App 目錄
 - [ ] 爭取 ≥1 篇第三方台灣理財 App 介紹提到 araS（塔科女子 / 蘋果仁 / vocus）
-- [ ] 在 PTT Tech_Job / Dcard 理財 / Threads 發一篇真誠的「我做了這個」
+- [ ] 在 PTT Tech_Job / Dcard 理財 / Threads 發一篇真誠的「我做了這個」。Medium
+      已發兩篇（2026-09-09 上架紀錄、09-10 退休問題，作者「Max」，都用「araS」並連回
+      `arasasset.com`），已串進 founder 的 `sameAs` 與 `llms.txt`；之後新文章也一樣
+      要加進 `llms.txt`／`llms-full.txt` 的「開發者文章」
 - [ ] 之後每 1~2 週看 GSC 成效報表
 
 ## 技術債（不阻塞任何事）
