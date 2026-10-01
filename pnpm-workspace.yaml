@@ -9,6 +9,26 @@ overrides:
   effect: ">=3.20.0"
   flatted: ">=3.4.2"
   react-native-worklets: "0.10.1"
+  # 安全性修補（pnpm audit，2026-10-01）：只把有弱點的版本範圍拉到同一大版的修補版
+  "picomatch@<2.3.2": "^2.3.2"
+  "picomatch@>=4.0.0 <4.0.4": "^4.0.4"
+  "vite@>=6.0.0 <6.4.3": "^6.4.3"
+  "defu@<6.1.5": "^6.1.5"
+  "@babel/plugin-transform-modules-systemjs@<7.29.4": "^7.29.4"
+  "js-cookie@<3.0.7": "^3.0.7"
+  "form-data@>=4.0.0 <4.0.6": "^4.0.6"
+  "ws@>=8.0.0 <8.21.0": "^8.21.0"
+  "brace-expansion@<1.1.20": "^1.1.20"
+  "brace-expansion@>=2.0.0 <2.1.6": "^2.1.6"
+  "brace-expansion@>=4.0.0 <5.0.11": "^5.0.11"
+  "js-yaml@>=4.0.0 <4.3.2": "^4.3.2"
+  "shell-quote@<1.9.0": "^1.9.0"
+  "fast-uri@<3.1.7": "^3.1.7"
+  "postcss@<8.5.18": "^8.5.18"
+  "nanoid@<3.3.18": "^3.3.18"
+  "browserslist@<4.28.7": "^4.28.7"
+  "@xmldom/xmldom@<0.8.15": "^0.8.15"
+  "@xmldom/xmldom@>=0.9.0-0 <0.9.12": "^0.9.12"
 
 # sharp 是 next 的 optionalDependency，整個 repo 只有 apps/web/scripts/gen-icons.mjs
 # 用得到（一次性產圖示，不在 build 流程裡）。留著它會讓 EAS 的 iOS 打包掛掉：
