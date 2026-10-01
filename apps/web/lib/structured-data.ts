@@ -1,5 +1,13 @@
 import { siteUrl } from "./site-url";
 
+/**
+ * The founder's own profiles, for the Person node (`/#founder`) on both the
+ * homepage graph and /about. Personal accounts go here, not in the
+ * Organization's SAME_AS. The Medium byline is "Max", hence the alternateName.
+ */
+export const FOUNDER_ALTERNATE_NAME = "Max";
+export const FOUNDER_SAME_AS = ["https://medium.com/@dearno.3"];
+
 interface Crumb {
   /** Visible label. */
   name: string;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/json-ld";
 import { siteUrl } from "@/lib/site-url";
+import { FOUNDER_ALTERNATE_NAME, FOUNDER_SAME_AS } from "@/lib/structured-data";
 import { LANDING_FAQ } from "./landing-faq";
 import { LandingContent } from "./landing-content";
 
@@ -65,7 +66,9 @@ const jsonLd = {
         "@type": "Person",
         "@id": `${siteUrl}/#founder`,
         name: "KO CHUAN LI",
+        alternateName: FOUNDER_ALTERNATE_NAME,
         jobTitle: "前端工程師",
+        sameAs: FOUNDER_SAME_AS,
       },
       sameAs: SAME_AS,
     },

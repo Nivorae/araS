@@ -18,8 +18,8 @@ build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
 
 - **1.6 native build** —— 要改原生層的項目都放在這一版，見下方「1.6 native build
   前必做」。在它上架之前，`develop` 不能合入任何會改變 fingerprint 的東西。
-- **`@clerk/clerk-expo` 安全性更新（2.19.31 → 2.20.0）** —— fingerprint 不變、可走
-  OTA，但它是登入元件，**要先在手機上測登入／登出再合併**。
+- **`@clerk/clerk-expo` 安全性更新（2.19.31 → 2.20.0）** —— PR #147。fingerprint
+  不變、可走 OTA，但它是登入元件，**要先在手機上測登入／登出再合併**。
 
 ⚠️ **對 1.5（build 17）發 OTA 可行，但 1.6 native build 之前有三個條件**
 （2026-09-18 與 2026-10-01 示範模式都照這樣發成功）：不要改 `app.json` 的 `whatsNew`；驗證或發布時
@@ -73,11 +73,12 @@ package.json，而本機的 `packageManager` 是 9.14.2、EAS 用的是 10.16.1�
 這些都會改變 fingerprint，合進 `develop` 之後就不能再對 1.5 發 OTA，所以要等決定
 打 1.6 時才合併。
 
-- [ ] iOS 最低版本升到 **16.4**（原 15.1），更舊的 iPhone 將無法安裝新版
-- [ ] Expo 套件對齊 SDK 建議版本（`npx expo install --check`，2026-10-01 列出：
-      `expo` 57.0.22→57.0.26、`expo-notifications`、`expo-router`、`expo-updates`、
-      `expo-constants`、`expo-auth-session`、`expo-linking`、`@expo/metro-runtime`）。
-      EAS 的 `expo doctor` 會因此報錯，但**不擋 build**
+- [ ] Expo 套件對齊 SDK 建議版本 —— **PR #148 已備好、刻意未合併**（`npx expo
+install --fix`，`expo` 57.0.22→57.0.26 等 8 個）。打 1.6 時合併即可
+
+iOS 最低版本 16.4 不用另外做：SDK 57 的 prebuild 範本已寫死 16.4，2026-10-01 從
+build 17 的 IPA 讀到 `MinimumOSVersion = 16.4`，也就是 1.5 起就已經是 16.4。
+
 - [ ] 1.6 上架後，`fingerprint.config.js` 的新規則生效，可以恢復「發 OTA 前更新
       `whatsNew`」，並刪掉上方 OTA 的三個條件
 
@@ -213,14 +214,15 @@ effect 另有 `if (!visible) return`）。
 
 剩下的全是帳號類手工事項：
 
-- [ ] GSC 對 `/`、`/about`、`/support`、`/terms` 重新「要求索引」（IndexNow 已於
-      2026-10-01 送出；Safe Browsing 誤判已於 09-09 解除）
 - [ ] Google Play 商店資訊「網站」欄填 `arasasset.com`（App Store 已填）
 - [ ] 開一個 LinkedIn 或 FB 專頁 + 一個 Threads/IG，全部串進 `page.tsx` 的
       `SAME_AS`
 - [ ] 投 Product Hunt + 1~2 個台灣 App 目錄
 - [ ] 爭取 ≥1 篇第三方台灣理財 App 介紹提到 araS（塔科女子 / 蘋果仁 / vocus）
-- [ ] 在 PTT Tech_Job / Dcard 理財 / Threads 發一篇真誠的「我做了這個」
+- [ ] 在 PTT Tech_Job / Dcard 理財 / Threads 發一篇真誠的「我做了這個」。Medium
+      已發兩篇（2026-09-09 上架紀錄、09-10 退休問題，作者「Max」，都用「araS」並連回
+      `arasasset.com`），已串進 founder 的 `sameAs` 與 `llms.txt`；之後新文章也一樣
+      要加進 `llms.txt`／`llms-full.txt` 的「開發者文章」
 - [ ] 之後每 1~2 週看 GSC 成效報表
 
 ## 技術債（不阻塞任何事）
