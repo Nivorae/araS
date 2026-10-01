@@ -16,16 +16,15 @@ build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
 - **B. Android 封閉測試** —— 使用者決定暫緩，先不處理（2026-09-18）。純
   Play Console 後台操作，不碰程式碼，細節仍留在下方備查。
 
-- **1.6 native build** —— 要改原生層的項目都放在這一版，見下方「1.6 native build
-  前必做」。在它上架之前，`develop` 不能合入任何會改變 fingerprint 的東西。
-- **`@clerk/clerk-expo` 安全性更新（2.19.31 → 2.20.0）** —— PR #147。fingerprint
-  不變、可走 OTA，但它是登入元件，**要先在手機上測登入／登出再合併**。
+- **1.6 native build（2026-10-01 開始）** —— Expo 套件對齊（#148）與 Clerk 安全性
+  更新（#147）都已合併，版號 1.5 → 1.6，`whatsNew` 已改成 1.6 內容。見下方「1.6
+  送審」。
 
-⚠️ **對 1.5（build 17）發 OTA 可行，但 1.6 native build 之前有三個條件**
-（2026-09-18 與 2026-10-01 示範模式都照這樣發成功）：不要改 `app.json` 的 `whatsNew`；驗證或發布時
-暫移 `fingerprint.config.js`；發之前先用 `eas fingerprint:compare` 對 build 17
-確認一致。原因見下方事故記錄。SDK 57 改了原生指紋，1.4 的使用者收不到從現在的
-`main`／`develop` 發的任何更新；要緊急修 1.4 只能從 SDK 57 升級前的 commit 發 OTA。
+⚠️ **#148 合併後，`main`／`develop` 已無法再對 1.5（build 17）發 OTA**（fingerprint
+不同，1.5 收不到且沒有錯誤訊息）。1.6 上架前若要緊急修 1.5，只能從 #148（`85e3937`）
+之前的 commit 開 hotfix 分支發 OTA，並照舊三個條件：不要改
+`whatsNew`、暫移 `fingerprint.config.js`、先 `eas fingerprint:compare` 對 build 17。
+1.4 的使用者同樣收不到從現在的 `main`／`develop` 發的任何更新。
 
 ## A. 1.5 iOS binary —— 已上線（2026-09-18）
 
@@ -68,19 +67,22 @@ package.json，而本機的 `packageManager` 是 9.14.2、EAS 用的是 10.16.1�
 - [ ] Android 那組 `SUBSCRIPTIONS_SUPPORTED` 改動沒有影響 iOS 的付費流程
       （理論上 iOS 恆為 true、行為不變，但沒實機驗過）
 
-### 1.6 native build 前必做
+### 1.6 送審
 
-這些都會改變 fingerprint，合進 `develop` 之後就不能再對 1.5 發 OTA，所以要等決定
-打 1.6 時才合併。
+內容：Expo 套件對齊（#148）、Clerk 安全性更新（#147），加上 1.5 期間以 OTA 推送、
+但沒跳「本次更新」視窗的功能（示範模式、保單 logo、詳情頁重設計）——這些一起寫進
+1.6 的 `whatsNew` 與 `CHANGELOG.md`。
 
-- [ ] Expo 套件對齊 SDK 建議版本 —— **PR #148 已備好、刻意未合併**（`npx expo
-install --fix`，`expo` 57.0.22→57.0.26 等 8 個）。打 1.6 時合併即可
+- [ ] `eas build --profile production --platform ios`
+- [ ] `eas submit --platform ios --latest`
+- [ ] App Store Connect：「＋」→ 新增版本 1.6 → 貼 `CHANGELOG.md` 1.6 段落到
+      「此版本新增功能」→ 建置版本選新 build（**確認 build 號**）→ 送審
+- [ ] 上架後：`CHANGELOG.md` 改成「1.6（已上架）」；`fingerprint.config.js` 的新規則
+      生效，恢復「發 OTA 前更新 `whatsNew`」，刪掉上方 1.5 OTA 的三個條件與事故記錄
+      裡只適用 build 17 的段落
 
 iOS 最低版本 16.4 不用另外做：SDK 57 的 prebuild 範本已寫死 16.4，2026-10-01 從
 build 17 的 IPA 讀到 `MinimumOSVersion = 16.4`，也就是 1.5 起就已經是 16.4。
-
-- [ ] 1.6 上架後，`fingerprint.config.js` 的新規則生效，可以恢復「發 OTA 前更新
-      `whatsNew`」，並刪掉上方 OTA 的三個條件
 
 ### ⚠️ 事故記錄：2026-09-18 第一次 OTA 漏帶環境變數
 
