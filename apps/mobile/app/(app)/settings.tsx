@@ -29,11 +29,14 @@ import {
   LogOut,
   Loader,
   ScanFace,
+  Sparkles,
   Trash2,
   type LucideIcon,
 } from "lucide-react-native";
 import { ApiError, useApi } from "@/lib/api";
 import { useIsPremium } from "@/hooks/useIsPremium";
+import { enterDemo } from "@/lib/demo/session";
+import { useDemoStore } from "@/store/demoStore";
 import { useResponsive } from "@/hooks/useResponsive";
 import { parseWhatsNew } from "@/lib/whatsNew";
 import { PAYWALL_SOURCES } from "@/lib/analytics";
@@ -262,6 +265,9 @@ export default function SettingsScreen() {
   const { user } = useUser();
   const api = useApi();
   const { isPremium, loading: premiumLoading, refresh } = useIsPremium();
+  // 示範模式中 isPremium 恆為 true，但那不是真的訂閱：訂閱、刪帳號、模擬升級
+  // 這些作用在真實帳號上的項目全部藏起來。
+  const demoActive = useDemoStore((s) => s.engine !== null);
   const reminder = useMonthlyReminder();
   const appLock = useAppLockSetting();
   const [timePickerOpen, setTimePickerOpen] = useState(false);
@@ -431,7 +437,7 @@ export default function SettingsScreen() {
                 subscribed on iPhone is premium on Android too and should still
                 see their status — but a free Android user must not be offered
                 an upgrade that cannot be bought. */}
-            {SUBSCRIPTIONS_SUPPORTED || isPremium || premiumLoading ? (
+            {!demoActive && (SUBSCRIPTIONS_SUPPORTED || isPremium || premiumLoading) ? (
               <SettingCard
                 icon={isPremium ? Check : Loader}
                 label={premiumLoading ? "讀取中…" : isPremium ? "已升級 Premium" : "升級 Premium"}
@@ -444,7 +450,18 @@ export default function SettingsScreen() {
             {/* Only for subscribers — there is nothing to manage otherwise. A
                 user who has cancelled but is still inside the paid period is
                 still premium, so they keep seeing it until the term ends. */}
-            {isPremium ? (
+            {/* 還沒撞到付費牆、但想先看看 Premium 長什麼樣子的人的入口。沒有商店的
+                平台不顯示：示範完也買不到，只是白白吊人胃口。 */}
+            {SUBSCRIPTIONS_SUPPORTED && !demoActive && !isPremium && !premiumLoading ? (
+              <SettingCard
+                icon={Sparkles}
+                label="體驗完整功能"
+                color="#FFFFFF"
+                textColor="#374254"
+                onPress={() => enterDemo(PAYWALL_SOURCES.SETTINGS_CARD)}
+              />
+            ) : null}
+            {isPremium && !demoActive ? (
               <SettingCard
                 icon={CreditCard}
                 label="管理訂閱"
@@ -462,24 +479,28 @@ export default function SettingsScreen() {
                   textColor="#ffffff"
                   onPress={() => void showScheduledReminders()}
                 />
-                <SettingCard
-                  icon={Check}
-                  label="模擬升級（僅開發模式）"
-                  color="#34C759"
-                  textColor="#ffffff"
-                  loading={devToggling}
-                  disabled={devToggling}
-                  onPress={() => simulatePremium("activate")}
-                />
-                <SettingCard
-                  icon={Trash2}
-                  label="模擬取消（僅開發模式）"
-                  color="#FF9500"
-                  textColor="#ffffff"
-                  loading={devToggling}
-                  disabled={devToggling}
-                  onPress={() => simulatePremium("deactivate")}
-                />
+                {!demoActive ? (
+                  <>
+                    <SettingCard
+                      icon={Check}
+                      label="模擬升級（僅開發模式）"
+                      color="#34C759"
+                      textColor="#ffffff"
+                      loading={devToggling}
+                      disabled={devToggling}
+                      onPress={() => simulatePremium("activate")}
+                    />
+                    <SettingCard
+                      icon={Trash2}
+                      label="模擬取消（僅開發模式）"
+                      color="#FF9500"
+                      textColor="#ffffff"
+                      loading={devToggling}
+                      disabled={devToggling}
+                      onPress={() => simulatePremium("deactivate")}
+                    />
+                  </>
+                ) : null}
               </>
             ) : null}
             {/* Local scheduled notification, off by default — the permission
@@ -506,18 +527,22 @@ export default function SettingsScreen() {
               disabled={appLock.loading}
               onValueChange={(next) => void appLock.toggle(next)}
             />
-            <SettingCard
-              icon={Trash2}
-              label={deleting ? "刪除中…" : "刪除帳號"}
-              color="#FFFFFF"
-              textColor="#ff3b30"
-              loading={deleting}
-              disabled={deleting}
-              onPress={confirmDelete}
-            />
+            {!demoActive ? (
+              <SettingCard
+                icon={Trash2}
+                label={deleting ? "刪除中…" : "刪除帳號"}
+                color="#FFFFFF"
+                textColor="#ff3b30"
+                loading={deleting}
+                disabled={deleting}
+                onPress={confirmDelete}
+              />
+            ) : null}
           </View>
 
-          <Text style={s.dangerHint}>永久刪除帳號與所有資料，無法復原。</Text>
+          {!demoActive ? (
+            <Text style={s.dangerHint}>永久刪除帳號與所有資料，無法復原。</Text>
+          ) : null}
 
           <View style={s.versionBlock}>
             {versionLines(updateStatus).map((line) => (
@@ -586,12 +611,24 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={() => setNotesOpen(false)}
       >
-        <Pressable style={s.backdrop} onPress={() => setNotesOpen(false)}>
-          <Pressable
-            style={[s.notesCard, { marginTop: insets.top + AVATAR_SIZE + 20 }]}
-            onPress={() => {}}
-          >
-            <Text style={s.notesTitle}>更新內容</Text>
+        {/* 這裡曾經是全螢幕的 Pressable（點背景關閉），但它會跟下面深層的
+            ScrollView 搶手勢，導致打開後往下滑常常沒反應，要來回滑好幾次、
+            幾秒後才會恢復正常（2026-09 用一個內容很長的測試 Modal 隔離驗證
+            過：拿掉背景這層 Pressable 的 onPress 才會消失，跟內層 Pressable、
+            Modal 的進場轉場都無關）。改用右上角的「✕」當唯一的關閉方式。 */}
+        <View style={s.backdrop}>
+          <View style={[s.notesCard, { marginTop: insets.top + AVATAR_SIZE + 20 }]}>
+            <View style={s.notesHeader}>
+              <Text style={s.notesTitle}>更新內容</Text>
+              <Pressable
+                onPress={() => setNotesOpen(false)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="關閉"
+              >
+                <Text style={s.notesClose}>✕</Text>
+              </Pressable>
+            </View>
             <ScrollView style={s.notesScroll}>
               {whatsNew ? (
                 whatsNew.sections.map((section) => (
@@ -608,8 +645,8 @@ export default function SettingsScreen() {
                 <Text style={s.notesItem}>目前沒有更新內容</Text>
               )}
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -732,7 +769,14 @@ const s = StyleSheet.create({
     shadowRadius: 20,
     elevation: 12,
   },
-  notesTitle: { fontSize: 17, fontWeight: "700", color: "#1c1c1e", marginBottom: 10 },
+  notesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  notesTitle: { fontSize: 17, fontWeight: "700", color: "#1c1c1e" },
+  notesClose: { fontSize: 16, color: "#8e8e93", paddingLeft: 12 },
   notesScroll: { flexGrow: 0 },
   notesSection: { marginBottom: 14 },
   notesSectionTitle: { fontSize: 14, fontWeight: "700", color: "#374254", marginBottom: 6 },

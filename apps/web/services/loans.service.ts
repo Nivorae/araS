@@ -50,6 +50,7 @@ export class LoansService {
       startDate,
       gracePeriodMonths,
       repaymentType,
+      includeInChart,
     } = data;
 
     return prisma.$transaction(async (tx) => {
@@ -60,6 +61,7 @@ export class LoansService {
           topCategory: "負債",
           subCategory: category,
           value: totalAmount,
+          ...(includeInChart !== undefined && { includeInChart }),
         },
       });
 
@@ -122,9 +124,10 @@ export class LoansService {
         include: { entry: true },
       });
 
-      const entryUpdates: { name?: string; value?: number } = {};
+      const entryUpdates: { name?: string; value?: number; includeInChart?: boolean } = {};
       if (data.loanName !== undefined) entryUpdates.name = data.loanName;
       if (data.totalAmount !== undefined) entryUpdates.value = data.totalAmount;
+      if (data.includeInChart !== undefined) entryUpdates.includeInChart = data.includeInChart;
 
       if (Object.keys(entryUpdates).length > 0) {
         await tx.entry.update({

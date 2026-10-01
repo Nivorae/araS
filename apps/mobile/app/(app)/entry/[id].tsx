@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -47,12 +48,16 @@ const pnlColor = (v: number) => (v >= 0 ? PNL_UP : PNL_DOWN);
 function getCategoryColor(t: string) {
   return CATEGORIES.find((c) => c.name === t)?.color ?? "#374254";
 }
+function getCategoryTextColor(t: string) {
+  return CATEGORIES.find((c) => c.name === t)?.textColor ?? "#ffffff";
+}
 function formatDelta(d: number) {
   return `${d >= 0 ? "+" : ""}${formatCurrency(d)}`;
 }
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+// formatCurrency already prefixes "NT$" via Intl — split it off so the
+// header can render "NT$" as a small corner label instead of inline.
+function formatValueDigits(amount: number) {
+  return formatCurrency(amount).replace(/^[^\d-]+/, "");
 }
 function monthGroupLabel(iso: string) {
   const d = new Date(iso);
@@ -111,44 +116,119 @@ function reportUnexpectedError(e: unknown, context: string) {
 
 // ─── History Row ─────────────────────────────────────────────────────────────
 
+// Rows alternate sides: the 1st, 3rd, 5th... record in each month group is a
+// solid block (category color) flush to the left edge; the 2nd, 4th... is an
+// outlined block flush to the right edge — matching the requested zig-zag
+// layout instead of one continuous card.
 function HistoryRow({
   h,
   isLiability,
   currentPrice,
   onPress,
-  isFirst,
+  index,
+  color,
+  categoryTextColor,
 }: {
   h: EntryHistory;
   isLiability: boolean;
   currentPrice: number | null;
   onPress: () => void;
-  isFirst: boolean;
+  index: number;
+  color: string;
+  categoryTextColor: string;
 }) {
   const hasUnits = h.units != null && h.units > 0;
   const recordPnL = hasUnits && currentPrice != null ? h.units! * currentPrice - h.delta : null;
-  const deltaColor = h.delta >= 0 ? (isLiability ? "#ff3b30" : "#0e1424") : "#ff3b30";
+  const isOutlined = index % 2 === 1;
+  // Some categories (流動資金/負債/保險…) use a light background color, so
+  // categoryTextColor is already dark for those — reuse it instead of
+  // hardcoding white, or the text disappears against the light block.
+  const isLightCat = categoryTextColor.toLowerCase() === "#1c1c1e";
+  const needsDarkText = isOutlined || isLightCat;
+  const deltaColor = needsDarkText
+    ? h.delta >= 0
+      ? isLiability
+        ? "#ff3b30"
+        : "#0e1424"
+      : "#ff3b30"
+    : "#ffffff";
+  const date = new Date(h.createdAt);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const titleColor = needsDarkText ? "#1c1c1e" : "#ffffff";
+  const metaColor = needsDarkText ? "#8e8e93" : "rgba(255,255,255,0.85)";
+
+  // 進場動畫：左邊色塊從畫面左側滑入，右邊色塊從畫面右側滑入，各自只在
+  // mount 時跑一次。
+  const slideX = useRef(new Animated.Value(isOutlined ? 80 : -80)).current;
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(slideX, {
+        toValue: 0,
+        useNativeDriver: true,
+        speed: 14,
+        bounciness: 6,
+      }),
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dateBlock = (
+    <View style={s.rowDate}>
+      <Text style={[s.rowDateText, { color: titleColor }]}>{month}</Text>
+      <Text style={[s.rowDateText, { color: titleColor }]}>{day}</Text>
+    </View>
+  );
+
+  const contentBlock = (
+    <View style={s.rowContent}>
+      <Text style={[s.rowTitle, { color: titleColor }]} numberOfLines={1}>
+        {h.note ?? (h.delta >= 0 ? "新增" : "調整")}
+      </Text>
+      <Text style={[s.rowDelta, { color: deltaColor }]}>{formatDelta(h.delta)}</Text>
+      <Text style={[s.rowMeta, { color: metaColor }]}>餘額 {formatCurrency(h.balance)}</Text>
+      {hasUnits && (
+        <Text style={[s.rowMeta, { color: metaColor }]}>{h.units!.toLocaleString()} 股</Text>
+      )}
+      {recordPnL != null && (
+        <Text style={[s.rowMeta, { color: pnlColor(recordPnL) }]}>
+          盈虧 {formatDelta(recordPnL)}
+        </Text>
+      )}
+    </View>
+  );
 
   return (
-    <>
-      {!isFirst && <View style={s.separator} />}
-      {/* Tap a record to edit it. */}
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={s.historyRow}>
-        <View style={s.historyLeft}>
-          <Text style={s.historyNote}>{h.note ?? (h.delta >= 0 ? "新增" : "調整")}</Text>
-          <Text style={s.historyMeta}>{formatDate(h.createdAt)}</Text>
-          {hasUnits && <Text style={s.historyMeta}>{h.units!.toLocaleString()} 股</Text>}
-        </View>
-        <View style={s.historyRight}>
-          <Text style={[s.historyDelta, { color: deltaColor }]}>{formatDelta(h.delta)}</Text>
-          <Text style={s.historyMeta}>餘額 {formatCurrency(h.balance)}</Text>
-          {recordPnL != null && (
-            <Text style={[s.historyPnl, { color: pnlColor(recordPnL) }]}>
-              盈虧 {formatDelta(recordPnL)}
-            </Text>
-          )}
-        </View>
+    <Animated.View style={{ opacity: fade, transform: [{ translateX: slideX }] }}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.7}
+        style={[
+          s.historyRow,
+          isOutlined
+            ? [s.historyRowRight, s.historyRowOutline]
+            : [s.historyRowLeft, { backgroundColor: color }, isLightCat && s.historyRowOutline],
+        ]}
+      >
+        {isOutlined ? (
+          <>
+            {contentBlock}
+            {dateBlock}
+          </>
+        ) : (
+          <>
+            {dateBlock}
+            {contentBlock}
+          </>
+        )}
       </TouchableOpacity>
-    </>
+    </Animated.View>
   );
 }
 
@@ -248,11 +328,15 @@ export default function EntryDetailScreen() {
   // Stock price fetch — only re-runs when stockCode changes, not on every render
   const stockCode = entry?.stockCode;
   const subCategory = entry?.subCategory;
+  // Tracks the initial (and any) quote fetch so the header can show a spinner
+  // instead of silently sitting on the cost value until the market price lands.
+  const [stockPriceLoading, setStockPriceLoading] = useState(false);
   useEffect(() => {
     if (!isStockEntry || !stockCode || !subCategory) return;
     const yfSymbol = buildYfSymbol(subCategory, stockCode);
     if (!yfSymbol) return;
     let active = true;
+    setStockPriceLoading(true);
     (async () => {
       try {
         const data = await apiRef.current.rawGet<{ price: number; currency?: string }>(
@@ -277,6 +361,8 @@ export default function EntryDetailScreen() {
       } catch {
         // Keep whatever price was already on screen — a failed refresh
         // shouldn't blank out the P&L.
+      } finally {
+        if (active) setStockPriceLoading(false);
       }
     })();
     return () => {
@@ -456,6 +542,7 @@ export default function EntryDetailScreen() {
   }
 
   const color = getCategoryColor(entry.topCategory);
+  const categoryTextColor = getCategoryTextColor(entry.topCategory);
   const isLiability = entry.topCategory === "負債";
   const isWhiteCat = color.toUpperCase() === "#FFFFFF";
 
@@ -509,32 +596,39 @@ export default function EntryDetailScreen() {
       >
         {/* Entry info */}
         <View style={s.infoSection}>
-          <View style={s.nameRow}>
-            {/* A chosen bank icon (金融卡) wins over the category-letter badge. */}
-            {entry.bankCode ? (
-              <BankLogo code={entry.bankCode} name={entry.name} size={44} />
-            ) : (
-              /* 流動資金 is white — use a dark circle so the label stays legible */
-              <View
-                style={[s.iconCircle, { backgroundColor: isWhiteCat ? "#1c1c1e" : color + "20" }]}
-              >
-                <Text style={[s.iconLabel, { color: isWhiteCat ? "#ffffff" : color }]}>
-                  {entry.subCategory.slice(0, 2)}
-                </Text>
-              </View>
-            )}
-            <View>
-              <Text style={s.entryName}>{entry.name}</Text>
-              <Text style={s.entrySub}>
-                {entry.stockCode ? `${entry.stockCode} · ${entry.subCategory}` : entry.subCategory}
+          <View style={s.titleRow}>
+            {/* A chosen bank icon (金融卡) leads the title when set. */}
+            {entry.bankCode && <BankLogo code={entry.bankCode} name={entry.name} size={20} />}
+            <Text style={s.entryName}>{entry.name}</Text>
+            <View style={[s.badge, { backgroundColor: isWhiteCat ? "#1c1c1e" : color + "20" }]}>
+              <Text style={[s.badgeText, { color: isWhiteCat ? "#ffffff" : color }]}>
+                {entry.subCategory}
               </Text>
             </View>
-          </View>
-          <Text style={s.entryValue}>
-            {formatCurrency(
-              hasQuote && currentMarketValue != null ? currentMarketValue : entry.value
+            {entry.stockCode && (
+              <View style={s.badgeNeutral}>
+                <Text style={s.badgeNeutralText}>{entry.stockCode}</Text>
+              </View>
             )}
-          </Text>
+          </View>
+          <View style={s.valueRow}>
+            <Text style={s.entryValue}>
+              {formatValueDigits(
+                hasQuote && currentMarketValue != null ? currentMarketValue : entry.value
+              )}
+            </Text>
+            <Text style={s.currencyLabel}>NT$</Text>
+          </View>
+          {/* 市值還在抓（股票/基金報價未到）時給一個提示，別讓成本價安靜地
+              停在畫面上看起來像是最終數字。 */}
+          {hasQuote &&
+            currentMarketValue == null &&
+            (isFundEntry ? fundLoading : stockPriceLoading) && (
+              <View style={s.quoteLoadingRow}>
+                <ActivityIndicator size="small" color="#8e8e93" />
+                <Text style={s.quoteLoadingText}>更新市值中…</Text>
+              </View>
+            )}
           {hasQuote && currentMarketValue != null && (
             <Text style={s.costLabel}>成本 {formatCurrency(entry.value)}</Text>
           )}
@@ -590,17 +684,14 @@ export default function EntryDetailScreen() {
             stockCode={entry.stockCode}
             currentShares={history.reduce((sum, h) => sum + (h.units ?? 0), 0) || null}
             costBasis={history.reduce((sum, h) => sum + h.delta, 0)}
+            color={color}
+            categoryTextColor={categoryTextColor}
           />
         )}
 
         {/* History */}
         <View style={s.historySection}>
-          <View style={s.historySectionHeader}>
-            <View style={s.historyTitleRow}>
-              <Text style={s.historySectionTitle}>交易記錄</Text>
-            </View>
-            <Text style={s.historySectionSub}>變動</Text>
-          </View>
+          <Text style={s.historySectionTitle}>交易記錄</Text>
           {/* Show cached records while a background refetch runs; only show the
               loading text on the very first load when nothing is cached yet. */}
           {historyLoading && history.length === 0 ? (
@@ -611,7 +702,7 @@ export default function EntryDetailScreen() {
             historyGroups.map((group) => (
               <View key={group.key} style={s.historyGroup}>
                 <Text style={s.historyGroupLabel}>{group.key}</Text>
-                <View style={s.historyCard}>
+                <View style={s.historyList}>
                   {group.rows.map((h, i) => (
                     <HistoryRow
                       key={h.id}
@@ -619,7 +710,9 @@ export default function EntryDetailScreen() {
                       isLiability={isLiability}
                       currentPrice={currentPriceTWD}
                       onPress={() => openEdit(h)}
-                      isFirst={i === 0}
+                      index={i}
+                      color={color}
+                      categoryTextColor={categoryTextColor}
                     />
                   ))}
                 </View>
@@ -773,6 +866,7 @@ export default function EntryDetailScreen() {
 
 const s = StyleSheet.create({
   navButton: {
+    alignSelf: "stretch",
     marginTop: 16,
     backgroundColor: "#374254",
     borderRadius: 14,
@@ -805,67 +899,88 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
 
-  infoSection: { paddingHorizontal: 20, paddingBottom: 24 },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  infoSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24, alignItems: "center" },
+  titleRow: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
   },
-  iconLabel: { fontSize: 13, fontWeight: "700" },
   entryName: { fontSize: 17, fontWeight: "600", color: "#1c1c1e" },
-  entrySub: { fontSize: 13, color: "#8e8e93", marginTop: 2 },
-  entryValue: { fontSize: 38, fontWeight: "700", color: "#1c1c1e", letterSpacing: -0.5 },
-  costLabel: { fontSize: 13, color: "#8e8e93", marginTop: 2 },
-  pnlRow: { flexDirection: "row", alignItems: "center", gap: 16, marginTop: 8 },
+  badge: { borderRadius: 100, paddingHorizontal: 10, paddingVertical: 3 },
+  badgeText: { fontSize: 12, fontWeight: "600" },
+  badgeNeutral: {
+    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    backgroundColor: "#f2f2f7",
+  },
+  badgeNeutralText: { fontSize: 12, fontWeight: "600", color: "#8e8e93" },
+  valueRow: { flexDirection: "row", alignItems: "flex-end", gap: 4 },
+  entryValue: { fontSize: 48, fontWeight: "800", color: "#1c1c1e", letterSpacing: -1 },
+  currencyLabel: { fontSize: 15, fontWeight: "600", color: "#8e8e93", marginBottom: 8 },
+  quoteLoadingRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  quoteLoadingText: { fontSize: 13, color: "#8e8e93" },
+  costLabel: { fontSize: 13, color: "#8e8e93", marginTop: 2, textAlign: "center" },
+  pnlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    marginTop: 8,
+  },
   priceLabel: { fontSize: 13, color: "#8e8e93" },
   pnlText: { fontSize: 14, fontWeight: "600" },
 
-  historySection: { paddingHorizontal: 20 },
-  historySectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
+  historySection: { paddingHorizontal: 0 },
+  historySectionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1c1c1e",
+    textAlign: "center",
+    marginTop: 24,
+    marginBottom: 24,
   },
-  historyTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  historySectionTitle: { fontSize: 13, fontWeight: "600", color: "#1c1c1e" },
-  historySectionSub: { fontSize: 13, color: "#8e8e93" },
   historyGroup: { marginBottom: 16 },
   historyGroupLabel: {
     fontSize: 12,
     fontWeight: "600",
     color: "#8e8e93",
     marginBottom: 6,
-    marginLeft: 4,
-  },
-  historyCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+    paddingHorizontal: 20,
   },
   historyEmpty: { textAlign: "center", fontSize: 14, color: "#c7c7cc", paddingVertical: 32 },
+  historyList: { gap: 0 },
   historyRow: {
+    width: "78%",
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    gap: 14,
   },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: "#f2f2f7", marginHorizontal: 16 },
-  historyLeft: { flex: 1, minWidth: 0 },
-  historyRight: { alignItems: "flex-end", marginLeft: 16, flexShrink: 0 },
-  historyNote: { fontSize: 14, fontWeight: "500", color: "#1c1c1e" },
-  historyMeta: { fontSize: 12, color: "#8e8e93", marginTop: 2 },
-  historyDelta: { fontSize: 14, fontWeight: "600" },
-  historyPnl: { fontSize: 12, fontWeight: "500", marginTop: 2 },
+  historyRowLeft: {
+    alignSelf: "flex-start",
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  historyRowRight: {
+    alignSelf: "flex-end",
+    justifyContent: "space-between",
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+  },
+  historyRowOutline: {
+    backgroundColor: "#ffffff",
+  },
+  rowDate: { alignItems: "center", minWidth: 34 },
+  rowDateText: { fontSize: 20, fontWeight: "700", lineHeight: 24 },
+  rowContent: { flex: 1, minWidth: 0 },
+  rowTitle: { fontSize: 14, fontWeight: "500" },
+  rowDelta: { fontSize: 14, fontWeight: "600", marginTop: 2 },
+  rowMeta: { fontSize: 12, marginTop: 2 },
 
   // Modal — correct bottom-sheet layout
   modalWrapper: {

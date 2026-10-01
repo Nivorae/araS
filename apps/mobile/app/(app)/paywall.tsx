@@ -15,6 +15,7 @@ import { Check, X } from "lucide-react-native";
 import Purchases, { PURCHASES_ERROR_CODE, type PurchasesPackage } from "react-native-purchases";
 import { FREE_ENTRY_LIMIT } from "@repo/shared";
 import { SUBSCRIPTIONS_SUPPORTED, isPurchasesConfigured } from "@/lib/purchases";
+import { enterDemo } from "@/lib/demo/session";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -320,6 +321,19 @@ export default function PaywallScreen() {
               </Pressable>
             ) : null}
 
+            {/* 先試再買：用內建的示範資料把 Premium 功能實際走一遍。不受
+                plans.length 影響 —— 方案載不出來時這顆反而更該在。沒有商店的
+                平台不顯示：示範完也買不到。 */}
+            {!isPremium && !loading && SUBSCRIPTIONS_SUPPORTED ? (
+              <Pressable
+                onPress={() => enterDemo(toPaywallSource(source))}
+                hitSlop={8}
+                style={({ pressed }) => [s.demoBtn, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={s.demoText}>先用示範資料體驗</Text>
+              </Pressable>
+            ) : null}
+
             {/* Apple guideline 3.1.1: a distinct, user-initiated Restore
                 control. Deliberately NOT gated on plans.length — if the
                 offering fails to load (as it did while the Paid Apps agreement
@@ -523,6 +537,15 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   ctaText: { fontSize: 16, fontWeight: "700", color: "#1c1c1e" },
+
+  demoBtn: {
+    alignItems: "center",
+    paddingVertical: 13,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  demoText: { fontSize: 15, fontWeight: "600", color: "#ffffff" },
 
   restoreBtn: { alignSelf: "center", marginTop: 12, paddingVertical: 6, paddingHorizontal: 12 },
   restoreText: {

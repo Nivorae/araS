@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -22,6 +24,8 @@ import ReinvestSheet from "@/components/ReinvestSheet";
  *
  * 互動仿 iOS 的長按手勢：按下去先微縮（0.97），長按門檻觸發時「彈起來」到
  * 1.03 並給一次 haptic，放開回到 1。所有動畫都走 useNativeDriver，不佔 JS thread。
+ *
+ * 純文字條列（不用色塊）——這裡是點開「歷史紀錄」modal 才會看到的完整清單。
  */
 function DividendRow({
   dividend,
@@ -80,13 +84,13 @@ function DividendRow({
         {isDeleting ? (
           <View style={s.rowRight}>
             <ActivityIndicator size="small" color="#8e8e93" />
-            <Text style={s.reinvested}>刪除中…</Text>
+            <Text style={s.rowMeta}>刪除中…</Text>
           </View>
         ) : (
           <View style={s.rowRight}>
             <Text style={s.rowAmount}>+NT$ {d.amount.toLocaleString()}</Text>
             {d.reinvestedAt ? (
-              <Text style={s.reinvested}>
+              <Text style={s.rowMeta}>
                 已再投資 {d.reinvestUnits != null ? `${d.reinvestUnits.toFixed(2)} 股` : ""}
               </Text>
             ) : (
@@ -114,6 +118,8 @@ interface DividendSectionProps {
   stockCode: string;
   currentShares: number | null;
   costBasis: number;
+  color: string;
+  categoryTextColor: string;
 }
 
 export default function DividendSection({
@@ -123,6 +129,8 @@ export default function DividendSection({
   stockCode,
   currentShares,
   costBasis,
+  color,
+  categoryTextColor,
 }: DividendSectionProps) {
   // FIX FOR FINDING 3 (final review) — `fetchAll()` refreshes
   // entries/portfolio/recurrences/transactions, but per-entry history lives in
@@ -143,12 +151,18 @@ export default function DividendSection({
   // 話，接下來的 API 呼叫與 fetchAll/load 這段完全沒有任何畫面回饋，使用者會
   // 誤以為長按沒反應而重複操作。
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // 只蓋第一次載入 —— 之後每次新增/編輯/刪除都會重打 load()，不該讓卡片
+  // 每次都閃一次 loading。
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
       setRows(await fetchDividends(entryId));
     } catch {
       // 讀取失敗就維持現有列表 —— 這是輔助資訊，不該讓詳情頁整頁失敗。
+    } finally {
+      setInitialLoading(false);
     }
     // FIX FOR FINDING 3 — `load()` runs after every dividend mutation (new
     // dividend's onSaved, reinvest's onDone, and delete below), so refreshing
@@ -167,12 +181,20 @@ export default function DividendSection({
     void load();
   }, [load]);
 
+  // RN only handles one native <Modal> reliably at a time — stacking the
+  // history-list modal underneath DividendForm/ReinvestSheet (both opened
+  // from a row *inside* that modal) left the history modal half-alive and
+  // ate touches on the whole screen afterwards. Closing it the instant any
+  // of those open keeps exactly one Modal mounted-visible at once.
+  useEffect(() => {
+    if (formOpen || editTarget !== null || reinvestTarget !== null) {
+      setHistoryOpen(false);
+    }
+  }, [formOpen, editTarget, reinvestTarget]);
+
   // CONTROLLER RULING R3 — use exactly this. The plan originally divided the
   // ALL-TIME dividend total by cost basis here, but the summary endpoint (and the
-  // 股息總覽 screen built on it) defines yieldOnCost on the CURRENT YEAR. Leaving
-  // this one on all-time would give the same label 「對成本殖利率」two different
-  // meanings on two screens. All-time stays on screen as 「累計股利」.
-  const total = useMemo(() => rows.reduce((s, r) => s + r.amount, 0), [rows]);
+  // 股息總覽 screen built on it) defines yieldOnCost on the CURRENT YEAR.
   const thisYearTotal = useMemo(() => {
     const currentYear = new Date().getFullYear();
     return rows
@@ -180,6 +202,13 @@ export default function DividendSection({
       .reduce((s, r) => s + r.amount, 0);
   }, [rows]);
   const yieldOnCost = costBasis > 0 ? (thisYearTotal / costBasis) * 100 : null;
+  // 殖利率之外的第二個指標：本年度平均單次股利，讓左上角不會只有一個數字。
+  const thisYearCount = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return rows.filter((r) => new Date(r.payDate).getFullYear() === currentYear).length;
+  }, [rows]);
+  const avgPerPayment = thisYearCount > 0 ? thisYearTotal / thisYearCount : null;
+  const isLightCat = categoryTextColor.toLowerCase() === "#1c1c1e";
 
   const bankNameOf = (d: Dividend) =>
     d.bankEntryId ? (entries.find((e) => e.id === d.bankEntryId)?.name ?? null) : null;
@@ -224,43 +253,143 @@ export default function DividendSection({
 
   return (
     <View style={s.section}>
-      <View style={s.header}>
-        <Text style={s.title}>股息</Text>
-        <Pressable onPress={() => setFormOpen(true)} hitSlop={8}>
-          <Text style={s.addBtn}>+ 新增</Text>
-        </Pressable>
-      </View>
+      <Text style={s.title}>股息</Text>
 
-      <View style={s.statRow}>
-        <Text style={s.statLabel}>累計股利</Text>
-        <Text style={s.statValue}>NT$ {total.toLocaleString()}</Text>
-      </View>
-      {yieldOnCost != null && (
-        <View style={s.statRow}>
-          <Text style={s.statLabel}>本年度對成本殖利率</Text>
-          <Text style={s.statValue}>{yieldOnCost.toFixed(2)}%</Text>
+      {/* 2x2：左上=殖利率+平均單次股利、右上=當年股息總額、左下=明細清單
+          （可點開全部）、右下=新增／歷史紀錄。 */}
+      {initialLoading ? (
+        <View style={s.loadingBox}>
+          <ActivityIndicator color="#8e8e93" />
+        </View>
+      ) : (
+        <View style={s.grid}>
+          <View style={s.gridRow}>
+            <View style={s.cellTL}>
+              <View style={s.tlStat}>
+                <Text style={s.tlLabel}>本年度殖利率</Text>
+                <Text style={s.tlValue}>
+                  {yieldOnCost != null ? `${yieldOnCost.toFixed(2)}%` : "—"}
+                </Text>
+              </View>
+              <View style={s.tlDivider} />
+              <View style={s.tlStat}>
+                <Text style={s.tlLabel}>平均單次股利</Text>
+                <Text style={s.tlValue}>
+                  {avgPerPayment != null
+                    ? `NT$ ${Math.round(avgPerPayment).toLocaleString()}`
+                    : "—"}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                s.cellTR,
+                { backgroundColor: color },
+                isLightCat && { borderWidth: 1, borderColor: "#e5e5ea" },
+              ]}
+            >
+              <View style={s.trBadgeWrap} pointerEvents="none">
+                <View style={s.trBadge}>
+                  <Text style={s.trBadgeText}>當年股息</Text>
+                </View>
+              </View>
+              <View style={s.trValueWrap}>
+                <Text
+                  style={[s.trValue, { color: isLightCat ? "#1c1c1e" : "#ffffff" }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.4}
+                >
+                  {thisYearTotal.toLocaleString()}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  s.trCurrencyCorner,
+                  { color: isLightCat ? "#8e8e93" : "rgba(255,255,255,0.85)" },
+                ]}
+              >
+                NT$
+              </Text>
+            </View>
+          </View>
+
+          <View style={s.gridRow}>
+            <Pressable style={s.cellBL} onPress={() => setHistoryOpen(true)}>
+              <Text style={s.blLabel}>股利明細</Text>
+              {rows.length === 0 ? (
+                <Text style={s.blEmpty}>還沒有紀錄</Text>
+              ) : (
+                <View style={s.blList}>
+                  {rows.slice(0, 3).map((d) => (
+                    <View key={d.id} style={s.blRow}>
+                      <Text style={s.blDate}>{d.payDate.slice(5, 10)}</Text>
+                      <Text style={s.blAmount}>+{d.amount.toLocaleString()}</Text>
+                    </View>
+                  ))}
+                  {rows.length > 3 && <Text style={s.blMore}>還有 {rows.length - 3} 筆…</Text>}
+                </View>
+              )}
+            </Pressable>
+
+            <View style={s.cellBR}>
+              <Pressable
+                onPress={() => setFormOpen(true)}
+                style={({ pressed }) => [
+                  s.brAddBtn,
+                  { backgroundColor: color, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={[s.brAddBtnText, { color: isLightCat ? "#1c1c1e" : "#ffffff" }]}>
+                  ＋ 新增
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setHistoryOpen(true)}
+                style={({ pressed }) => [s.brHistoryBtn, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={s.brHistoryBtnText}>歷史紀錄</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       )}
 
-      <View style={s.card}>
-        {rows.length === 0 ? (
-          <Text style={s.empty}>還沒有股利紀錄</Text>
-        ) : (
-          rows.map((d, i) => (
-            <View key={d.id}>
-              {i > 0 && <View style={s.separator} />}
-              <DividendRow
-                dividend={d}
-                isDeleting={deletingId === d.id}
-                onPress={() => openEdit(d)}
-                onLongPress={() => confirmDelete(d)}
-                onReinvest={() => setReinvestTarget(d)}
-              />
-            </View>
-          ))
-        )}
-      </View>
-      <Text style={s.hint}>點一下可編輯，長按可刪除</Text>
+      {/* ── 股利明細 Modal — 點左下角卡片或「歷史紀錄」都會開這個 ─────────── */}
+      <Modal
+        visible={historyOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHistoryOpen(false)}
+      >
+        <View style={s.modalWrapper}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setHistoryOpen(false)} />
+          <View style={s.modalSheet}>
+            <View style={s.modalHandle} />
+            <Text style={s.modalTitle}>股利紀錄</Text>
+            <ScrollView style={s.modalScroll} contentContainerStyle={s.modalListContent}>
+              {rows.length === 0 ? (
+                <Text style={s.empty}>還沒有股利紀錄</Text>
+              ) : (
+                rows.map((d, i) => (
+                  <View key={d.id}>
+                    {i > 0 && <View style={s.separator} />}
+                    <DividendRow
+                      dividend={d}
+                      isDeleting={deletingId === d.id}
+                      onPress={() => openEdit(d)}
+                      onLongPress={() => confirmDelete(d)}
+                      onReinvest={() => setReinvestTarget(d)}
+                    />
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            <Text style={s.hint}>點一下可編輯，長按可刪除</Text>
+          </View>
+        </View>
+      </Modal>
 
       <DividendForm
         visible={formOpen || editTarget !== null}
@@ -295,33 +424,172 @@ export default function DividendSection({
 }
 
 const s = StyleSheet.create({
-  section: { paddingHorizontal: 20, paddingTop: 24 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
+  section: { paddingHorizontal: 20 },
+  title: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1c1c1e",
+    textAlign: "center",
+    marginTop: 24,
+    marginBottom: 24,
   },
-  title: { fontSize: 13, fontWeight: "600", color: "#1c1c1e" },
-  addBtn: { fontSize: 13, color: "#66788E", fontWeight: "600" },
-  statRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
-  statLabel: { fontSize: 13, color: "#8e8e93" },
-  statValue: { fontSize: 13, fontWeight: "600", color: "#1c1c1e" },
-  card: { backgroundColor: "#fff", borderRadius: 14, marginTop: 10, paddingHorizontal: 14 },
-  separator: { height: 1, backgroundColor: "#f2f2f7" },
+
+  grid: { gap: 10 },
+  gridRow: { flexDirection: "row", gap: 10 },
+  loadingBox: { minHeight: 290, alignItems: "center", justifyContent: "center" },
+
+  // ── 左上：殖利率 + 平均單次股利 ──────────────────────────────────────
+  cellTL: {
+    flex: 1,
+    minHeight: 140,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tlStat: { alignItems: "center", gap: 2 },
+  tlLabel: { fontSize: 12, color: "#8e8e93", textAlign: "center" },
+  tlValue: { fontSize: 18, fontWeight: "700", color: "#1c1c1e", textAlign: "center" },
+  tlDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#f2f2f7", marginVertical: 10 },
+
+  // ── 右上：當年股息（類別主題色色塊 + 上緣徽章）────────────────────────
+  // position:'relative' + 徽章用 absolute 蓋在上緣，數字才不會被徽章的
+  // flow 高度影響，能真正在色塊裡置中。
+  cellTR: {
+    flex: 1,
+    minHeight: 140,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    overflow: "visible",
+  },
+  trBadgeWrap: {
+    position: "absolute",
+    top: -14,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  trBadge: {
+    backgroundColor: "#ffffff",
+    borderRadius: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  trBadgeText: { fontSize: 12, fontWeight: "700", color: "#1c1c1e" },
+  // 金額本身可能很長（大股息戶），用 adjustsFontSizeToFit 讓它在固定寬度內
+  // 自動縮小，而不是被截斷或撐破色塊。
+  trValueWrap: { width: "100%", paddingHorizontal: 14 },
+  trValue: { fontSize: 30, fontWeight: "800", letterSpacing: -0.5, textAlign: "center" },
+  // NT$ 固定貼在色塊右下角，不會跟著長金額被推走。
+  trCurrencyCorner: {
+    position: "absolute",
+    right: 12,
+    bottom: 10,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // ── 左下：股利明細（可點開全部）────────────────────────────────────
+  cellBL: {
+    flex: 1,
+    minHeight: 140,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 14,
+  },
+  blLabel: { fontSize: 12, color: "#8e8e93", marginBottom: 8 },
+  blEmpty: { fontSize: 13, color: "#c7c7cc" },
+  blList: { gap: 6 },
+  blRow: { flexDirection: "row", justifyContent: "space-between" },
+  blDate: { fontSize: 12, color: "#8e8e93" },
+  blAmount: { fontSize: 13, fontWeight: "600", color: "#1c1c1e" },
+  blMore: { fontSize: 11, color: "#c7c7cc", marginTop: 4 },
+
+  // ── 右下：新增／歷史紀錄 ───────────────────────────────────────────
+  // 按鈕不再撐滿整格高度 —— 固定小巧尺寸、置中排列，格子其餘空間留白。
+  cellBR: { flex: 1, minHeight: 140, justifyContent: "center", gap: 8 },
+  brAddBtn: {
+    borderRadius: 12,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brAddBtnText: { fontSize: 13, fontWeight: "700" },
+  brHistoryBtn: {
+    borderRadius: 12,
+    paddingVertical: 8,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brHistoryBtnText: { fontSize: 12, fontWeight: "600", color: "#66788E" },
+
+  // ── 股利明細 Modal — 單純文字條列，不用色塊 ─────────────────────
+  modalWrapper: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  modalSheet: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    maxHeight: "80%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#e5e5ea",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1c1c1e",
+    textAlign: "center",
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
+  modalScroll: { flexGrow: 0 },
+  modalListContent: { paddingHorizontal: 20, paddingBottom: 12 },
+
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 12,
   },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: "#f2f2f7" },
   rowDeleting: { opacity: 0.5 },
   rowDate: { fontSize: 14, color: "#1c1c1e" },
   rowMeta: { fontSize: 12, color: "#8e8e93", marginTop: 2 },
   rowRight: { alignItems: "flex-end", gap: 4 },
   rowAmount: { fontSize: 14, fontWeight: "600", color: "#1c1c1e" },
   reinvestBtn: { fontSize: 12, color: "#66788E", fontWeight: "600" },
-  reinvested: { fontSize: 12, color: "#8e8e93" },
-  empty: { fontSize: 13, color: "#8e8e93", paddingVertical: 18, textAlign: "center" },
-  hint: { fontSize: 11, color: "#c7c7cc", marginTop: 8, textAlign: "center" },
+  empty: {
+    fontSize: 13,
+    color: "#8e8e93",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    textAlign: "center",
+  },
+  hint: {
+    fontSize: 11,
+    color: "#c7c7cc",
+    marginTop: 4,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+    textAlign: "center",
+  },
 });

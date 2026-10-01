@@ -6,6 +6,7 @@ import {
   readOrCreateFirstOpen,
   secondsSinceFirstOpen,
 } from "./funnelState";
+import { isDemoActive } from "@/store/demoStore";
 
 /**
  * 需要讀寫持久化旗標的兩個事件，包成非同步的 helper。
@@ -34,6 +35,10 @@ export async function trackAppOpen(): Promise<void> {
  * 也不會受影響。
  */
 export async function trackRecordCreated(recordType: string): Promise<void> {
+  // 示範資料不是真的記帳。尤其 first_record_created 每台裝置一生只送一次，
+  // 被示範觸發就永久弄壞那台裝置的啟用數據，所以連旗標都不能寫。
+  if (isDemoActive()) return;
+
   track(ANALYTICS_EVENTS.RECORD_CREATED, { record_type: recordType });
 
   try {

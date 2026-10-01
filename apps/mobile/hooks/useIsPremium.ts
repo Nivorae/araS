@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createElement } from "react";
 import { useApi } from "@/lib/api";
+import { isDemoActive, useDemoStore } from "@/store/demoStore";
 
 export interface PremiumState {
   isPremium: boolean;
@@ -42,8 +43,12 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   const api = useApi();
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
+  const demoActive = useDemoStore((s) => s.engine !== null);
 
   const refresh = useCallback(async (): Promise<boolean> => {
+    // 示範模式一律當作 Premium，而且不發請求 —— 真實的權限值留在 state 裡不動，
+    // 離開示範就直接恢復。
+    if (isDemoActive()) return true;
     try {
       const data = await api.get<{ isPremium: boolean }>("/api/entitlements");
       setIsPremium(data.isPremium);
@@ -67,7 +72,11 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   // Memoized because this provider wraps the whole authenticated Stack: a fresh
   // object literal here re-renders every useIsPremium() consumer on any render of
   // this component, however unrelated.
-  const value = useMemo(() => ({ isPremium, loading, refresh }), [isPremium, loading, refresh]);
+  const value = useMemo(
+    () =>
+      demoActive ? { isPremium: true, loading: false, refresh } : { isPremium, loading, refresh },
+    [demoActive, isPremium, loading, refresh]
+  );
 
   return createElement(PremiumContext.Provider, { value }, children);
 }

@@ -39,6 +39,20 @@ export default function EditEntryScreen() {
       initialStockCode={entry.stockCode ?? ""}
       initialBankCode={entry.bankCode ?? ""}
       initialIncludeInChart={entry.includeInChart ?? true}
+      {...(entry.loan
+        ? {
+            initialLoan: {
+              id: entry.loan.id,
+              loanName: entry.loan.loanName,
+              totalAmount: entry.loan.totalAmount,
+              annualInterestRate: entry.loan.annualInterestRate,
+              termMonths: entry.loan.termMonths,
+              startDate: entry.loan.startDate,
+              gracePeriodMonths: entry.loan.gracePeriodMonths,
+              repaymentType: entry.loan.repaymentType,
+            },
+          }
+        : {})}
       {...(entry.units != null ? { initialUnits: entry.units } : {})}
       initialNote={entry.note ?? ""}
       addRecord={addRecord}

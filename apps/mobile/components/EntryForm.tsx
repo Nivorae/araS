@@ -81,6 +81,17 @@ export interface EntryFormProps {
   initialBankCode?: string;
   /** Whether this entry counts toward the net-worth chart (default true). */
   initialIncludeInChart?: boolean;
+  /** Existing loan being edited — prefills LoanFormFields and routes submit to PATCH. */
+  initialLoan?: {
+    id: string;
+    loanName: string;
+    totalAmount: number;
+    annualInterestRate: number;
+    termMonths: number;
+    startDate: string;
+    gracePeriodMonths: number;
+    repaymentType: RepaymentType;
+  };
   /** Lock the stock to the prefilled one (adding a record to an existing holding). */
   lockStockPicker?: boolean;
   /**
@@ -111,6 +122,7 @@ export function EntryForm({
   initialNote = "",
   initialBankCode = "",
   initialIncludeInChart = true,
+  initialLoan,
   lockStockPicker = false,
   addRecord = false,
   baseValue = 0,
@@ -194,7 +206,19 @@ export function EntryForm({
   const [showBankPicker, setShowBankPicker] = useState(false);
 
   // ── Loan state ────────────────────────────────────────────────────────────────
-  const [loanValues, setLoanValues] = useState<LoanFormValues>(() => defaultLoanValues());
+  const [loanValues, setLoanValues] = useState<LoanFormValues>(() =>
+    initialLoan
+      ? {
+          loanName: initialLoan.loanName,
+          totalAmount: String(initialLoan.totalAmount),
+          annualInterestRate: String(initialLoan.annualInterestRate),
+          termMonths: String(initialLoan.termMonths),
+          startDate: initialLoan.startDate,
+          gracePeriodMonths: String(initialLoan.gracePeriodMonths),
+          repaymentType: initialLoan.repaymentType,
+        }
+      : defaultLoanValues()
+  );
   const [loanErrors, setLoanErrors] = useState<Partial<Record<keyof LoanFormValues, string>>>({});
 
   // ── Price + computed value (investment) ───────────────────────────────────────
@@ -383,16 +407,26 @@ export function EntryForm({
 
     try {
       if (isLoan) {
-        await apiRef.current.post("/api/loans", {
+        const loanPayload = {
           loanName: loanValues.loanName.trim() || subCategory,
-          category: subCategory,
           totalAmount: parseFloat(loanValues.totalAmount) || 0,
           annualInterestRate: parseFloat(loanValues.annualInterestRate) || 0,
           termMonths: parseInt(loanValues.termMonths) || 0,
           startDate: new Date(loanValues.startDate).toISOString(),
           gracePeriodMonths: parseInt(loanValues.gracePeriodMonths) || 0,
           repaymentType: loanValues.repaymentType,
-        });
+        };
+        if (isEdit && initialLoan) {
+          // Update the existing loan in place — POSTing here would create a
+          // second, duplicate loan entry instead of editing this one.
+          await apiRef.current.patch(`/api/loans/${initialLoan.id}`, loanPayload);
+        } else {
+          await apiRef.current.post("/api/loans", {
+            ...loanPayload,
+            category: subCategory,
+            includeInChart,
+          });
+        }
         await fetchAll();
         // 貸款走的是 /api/loans，但對使用者來說一樣是「新增了一筆負債紀錄」，
         // 所以跟 addEntry 算同一個事件。isEdit 時不算，那不是新增。
@@ -558,15 +592,28 @@ export function EntryForm({
             {/* Amount block — hidden when editing basic info only. */}
             {!editBasicInfoOnly &&
               (isLoan ? (
-                <LoanFormFields
-                  values={loanValues}
-                  color={color}
-                  onChange={(v) => {
-                    setLoanValues(v);
-                    setLoanErrors({});
-                  }}
-                  errors={loanErrors}
-                />
+                <>
+                  <LoanFormFields
+                    values={loanValues}
+                    color={color}
+                    onChange={(v) => {
+                      setLoanValues(v);
+                      setLoanErrors({});
+                    }}
+                    errors={loanErrors}
+                  />
+                  <View style={s.sep} />
+                  <View style={s.row}>
+                    <Text style={s.rowLabel}>納入圖表</Text>
+                    <Switch
+                      value={includeInChart}
+                      onValueChange={handleIncludeInChartChange}
+                      trackColor={{ false: "#e5e5ea", true: "#66788E" }}
+                      thumbColor="#ffffff"
+                      ios_backgroundColor="#e5e5ea"
+                    />
+                  </View>
+                </>
               ) : isInvestment ? (
                 <>
                   {/* Stock selector row */}
