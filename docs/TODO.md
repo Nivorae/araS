@@ -214,8 +214,6 @@ effect 另有 `if (!visible) return`）。
 
 剩下的全是帳號類手工事項：
 
-- [ ] GSC 對 `/`、`/about`、`/support`、`/terms` 重新「要求索引」（IndexNow 已於
-      2026-10-01 送出；Safe Browsing 誤判已於 09-09 解除）
 - [ ] Google Play 商店資訊「網站」欄填 `arasasset.com`（App Store 已填）
 - [ ] 開一個 LinkedIn 或 FB 專頁 + 一個 Threads/IG，全部串進 `page.tsx` 的
       `SAME_AS`
