@@ -1,16 +1,16 @@
 {
-  "name": "production-template",
+  "name": "aras",
   "version": "0.1.0",
   "private": true,
-  "description": "A production-ready React + Express monorepo with Clerk auth, Prisma ORM, and comprehensive testing.",
+  "description": "araS personal asset tracker: Expo iOS/Android app with a Next.js web app and API, Clerk auth, Prisma ORM.",
   "keywords": [
-    "react",
-    "express",
+    "expo",
+    "react-native",
+    "nextjs",
     "prisma",
     "clerk",
     "typescript",
-    "monorepo",
-    "template"
+    "monorepo"
   ],
   "license": "MIT",
   "scripts": {
