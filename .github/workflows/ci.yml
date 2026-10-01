@@ -98,5 +98,9 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The full audit report is ~500MB of JSON paths; the default heap OOMs
+      # (exit 134) and continue-on-error hides it, so the scan silently never ran.
       - run: pnpm audit --audit-level=high
         continue-on-error: true
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
