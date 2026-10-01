@@ -12,6 +12,10 @@
  * the next native build that picks up this file (1.6+) — it can't retroactively
  * fix a fingerprint already baked into an already-shipped binary (like 1.5's).
  */
+//
+// `PackageJsonScriptsAll`: `expo prebuild` on EAS rewrites the `ios`/`android`
+// scripts to `expo run:*`, so hashing scripts made EAS and local fingerprints
+// differ (build 18). Scripts never affect the native binary.
 module.exports = {
-  sourceSkips: ["ExpoConfigExtraSection"],
+  sourceSkips: ["ExpoConfigExtraSection", "PackageJsonScriptsAll"],
 };
