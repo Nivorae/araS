@@ -541,6 +541,24 @@ the thing they rejected — can still be running the embedded bundle.
 - **Every `eas` command must run from `apps/mobile`.** `eas.json` lives there,
   not at the repo root, and from the root you get
   `eas.json could not be found at .../araS/eas.json`.
+- **`eas submit` saying only "Something went wrong" is usually an unsigned
+  Apple agreement.** The CLI prints no reason (not even with `--verbose`) and
+  the Expo GraphQL API returns `error: null`; the real message is only on the
+  expo.dev submission page: 403
+  `FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`. Fix: the **Account
+  Holder** accepts the updated Apple Developer Program License Agreement
+  (banner in ASC / developer.apple.com/account). It took ~10 minutes to take
+  effect (2026-10-01) — one retry right after accepting still failed. Don't
+  rebuild; resubmit the same build with `eas submit --id <build-id>`.
+- **Build fails in `CONFIGURE_EXPO_UPDATES` with "Runtime version mismatch"**
+  (build 18, 2026-10-01): EAS prebuilds `ios/`, and @expo/fingerprint treats a
+  non-gitignored `ios/` as a bare native dir, while a local checkout has no
+  `ios/` — so the two sides hash different sources. `apps/mobile/.gitignore`
+  must list `/ios` and `/android`, and `fingerprint.config.js` skips
+  `PackageJsonScriptsAll` (prebuild rewrites the `ios`/`android` scripts).
+  To check without a Mac: put a fake `ios/X.xcodeproj/project.pbxproj` in
+  place and confirm `npx expo-updates fingerprint:generate --platform ios`
+  gives the same hash with and without it.
 - **`Redundant Binary Upload` (409) means the submit already worked.** Apple
   rejecting _"You've already uploaded a build with build number 'N'"_ is a
   duplicate `eas submit`, not a failure — the binary is in App Store Connect.
