@@ -124,11 +124,20 @@ export class EntryLimitError extends Error {
 }
 
 // The free-plan cap covers every Entry row, so every service that inserts one
-// (entries, loans) must call this first. Server-side enforcement is the
-// authoritative defence (client hints are advisory); premium users skip the count.
-export async function assertCanCreateEntry(userId: string): Promise<void> {
+// (entries, loans) must call this first, inside the transaction that does the
+// insert. Server-side enforcement is the authoritative defence (client hints
+// are advisory); premium users skip the count.
+//
+// The per-user advisory lock (released at commit) serialises concurrent
+// creates for one user — without it, parallel requests could all count
+// below the cap and all insert.
+export async function assertCanCreateEntry(
+  tx: Prisma.TransactionClient,
+  userId: string
+): Promise<void> {
   if (await entitlementsService.isPremium(userId)) return;
-  const count = await prisma.entry.count({ where: { userId } });
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+  const count = await tx.entry.count({ where: { userId } });
   if (count >= FREE_ENTRY_LIMIT) throw new EntryLimitError();
 }
 
@@ -224,33 +233,35 @@ export class EntriesService {
   }
 
   async create(data: CreateEntry, userId: string) {
-    await assertCanCreateEntry(userId);
-
     const { units, pricePerShare, stockCode, bankCode, createdAt, note, includeInChart, ...rest } =
       data;
     const timestamp = createdAt ? new Date(createdAt) : undefined;
 
-    const entry = await prisma.entry.create({
-      data: {
-        ...rest,
-        userId,
-        stockCode: stockCode ?? null,
-        bankCode: bankCode ?? null,
-        note: note ?? null,
-        ...(includeInChart !== undefined ? { includeInChart } : {}),
-        ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
-      },
-    });
+    const entry = await prisma.$transaction(async (tx) => {
+      await assertCanCreateEntry(tx, userId);
+      const created = await tx.entry.create({
+        data: {
+          ...rest,
+          userId,
+          stockCode: stockCode ?? null,
+          bankCode: bankCode ?? null,
+          note: note ?? null,
+          ...(includeInChart !== undefined ? { includeInChart } : {}),
+          ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
+        },
+      });
 
-    await prisma.entryHistory.create({
-      data: {
-        entryId: entry.id,
-        delta: entry.value,
-        balance: entry.value,
-        units: units ?? null,
-        pricePerShare: pricePerShare ?? null,
-        ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
-      },
+      await tx.entryHistory.create({
+        data: {
+          entryId: created.id,
+          delta: created.value,
+          balance: created.value,
+          units: units ?? null,
+          pricePerShare: pricePerShare ?? null,
+          ...(timestamp !== undefined ? { createdAt: timestamp } : {}),
+        },
+      });
+      return created;
     });
 
     return { ...entry, value: d(entry.value) };

@@ -54,10 +54,10 @@ export class LoansService {
       includeInChart,
     } = data;
 
-    // A loan is a 負債 Entry row, so it counts toward the free-plan cap.
-    await assertCanCreateEntry(userId);
-
     return prisma.$transaction(async (tx) => {
+      // A loan is a 負債 Entry row, so it counts toward the free-plan cap.
+      await assertCanCreateEntry(tx, userId);
+
       const entry = await tx.entry.create({
         data: {
           userId,
