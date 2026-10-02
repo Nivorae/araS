@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { CreateDividend, ReinvestDividend, UpdateDividend } from "@repo/shared";
 import { prisma } from "@/lib/prisma";
 import { d, dn } from "@/lib/serialize";
+import { STOCK_CATS } from "@/lib/stockSymbol";
 import { entitlementsService } from "@/services/entitlements.service";
 
 // 與 insurance.service.ts 同名同義：route 會把它映成 403 PREMIUM_REQUIRED。
@@ -26,7 +27,6 @@ export class ConflictError extends Error {
   }
 }
 
-const STOCK_CATS = ["台股", "美股", "加密貨幣", "貴金屬"];
 const CASH_TOP_CATEGORY = "流動資金";
 
 type Tx = Prisma.TransactionClient;

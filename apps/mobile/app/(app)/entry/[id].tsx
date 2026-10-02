@@ -31,6 +31,7 @@ import { useApi, ApiError } from "@/lib/api";
 import { formatCurrency, toIntegerDigits, formatThousands } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 import { fetchFundQuote, formatNavDate, type FundSearchResult } from "@/lib/funds";
+import { fetchTwdRate } from "@/lib/fx";
 
 import {
   STOCK_CATS,
@@ -344,15 +345,9 @@ export default function EntryDetailScreen() {
         );
         if (typeof data.price !== "number") return;
         const currency = data.currency ?? "TWD";
-        let rate = 1;
-        if (currency !== "TWD") {
-          const fx = await apiRef.current
-            .rawGet<{
-              price: number;
-            }>(`/api/stocks/price?symbol=${encodeURIComponent(currency + "TWD=X")}`)
-            .catch(() => null);
-          rate = fx && typeof fx.price === "number" ? fx.price : 1;
-        }
+        // 匯率不明就當作這次報價失敗，保留畫面上原本的數字，不拿原幣價當台幣用。
+        const rate = await fetchTwdRate(apiRef.current.rawGet, currency);
+        if (rate == null) return;
         if (active) {
           setCurrentPrice(data.price);
           setCurrentPriceTWD(data.price * rate);
@@ -377,17 +372,10 @@ export default function EntryDetailScreen() {
       setFundLoading(true);
       try {
         const quote = await fetchFundQuote(apiRef.current, code);
-        let rate = 1;
-        if (quote.currency !== "TWD") {
-          // 非台幣計價的基金要換算成台幣才能跟 EntryHistory 裡的台幣成本相減，
-          // 匯率來源沿用股票那條路徑。
-          const fx = await apiRef.current
-            .rawGet<{
-              price: number;
-            }>(`/api/stocks/price?symbol=${encodeURIComponent(quote.currency + "TWD=X")}`)
-            .catch(() => null);
-          rate = fx && typeof fx.price === "number" ? fx.price : 1;
-        }
+        // 非台幣計價的基金要換算成台幣才能跟 EntryHistory 裡的台幣成本相減，
+        // 匯率來源沿用股票那條路徑。匯率不明就不更新，保留原本的數字。
+        const rate = await fetchTwdRate(apiRef.current.rawGet, quote.currency);
+        if (rate == null) return;
         setCurrentPrice(quote.nav);
         setCurrentPriceTWD(quote.nav * rate);
         setCurrentPriceCurrency(quote.currency !== "TWD" ? quote.currency : null);

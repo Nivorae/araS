@@ -8,6 +8,7 @@ import {
   buildYfSymbol,
 } from "@/lib/stockConstants";
 import { fetchFundQuote } from "@/lib/funds";
+import { createTwdRateLookup } from "@/lib/fx";
 
 const STOCK_SET: readonly string[] = STOCK_CATS;
 
@@ -76,23 +77,11 @@ export function useInvestmentMarketValues(refreshKey?: unknown): {
     let active = true;
     (async () => {
       const priceCache = new Map<string, number>(); // symbol -> TWD unit price
-      const fxCache = new Map<string, number>(); // currency -> TWD rate
       const result: Record<string, number> = {};
 
-      // 幣別 -> 台幣匯率，兩種資產共用（同一次刷新裡 USD 只查一次）。
-      async function toTwdRate(currency: string): Promise<number> {
-        if (currency === "TWD") return 1;
-        const cached = fxCache.get(currency);
-        if (cached) return cached;
-        const fx = await apiRef.current
-          .rawGet<{
-            price: number;
-          }>(`/api/stocks/price?symbol=${encodeURIComponent(currency + "TWD=X")}`)
-          .catch(() => null);
-        const rate = fx && typeof fx.price === "number" ? fx.price : 1;
-        fxCache.set(currency, rate);
-        return rate;
-      }
+      // 幣別 -> 台幣匯率，兩種資產共用（同一次刷新裡每個幣別只查一次）。
+      // 查不到是 null：該筆不放進 result，呼叫端沿用成本，不會乘以 1。
+      const toTwdRate = createTwdRateLookup(apiRef.current.rawGet);
 
       for (const e of targets) {
         const isFund = e.subCategory === FUND_SUBCATEGORY;
@@ -103,16 +92,22 @@ export function useInvestmentMarketValues(refreshKey?: unknown): {
         let twdPrice = priceCache.get(key);
         if (twdPrice == null) {
           try {
+            let unitPrice: number;
+            let rate: number | null;
             if (isFund) {
               const quote = await fetchFundQuote(apiRef.current, e.stockCode!);
-              twdPrice = quote.nav * (await toTwdRate(quote.currency));
+              unitPrice = quote.nav;
+              rate = await toTwdRate(quote.currency);
             } else {
               const data = await apiRef.current.rawGet<{ price: number; currency: string }>(
                 `/api/stocks/price?symbol=${encodeURIComponent(key)}`
               );
               if (typeof data.price !== "number") continue;
-              twdPrice = data.price * (await toTwdRate(data.currency ?? "TWD"));
+              unitPrice = data.price;
+              rate = await toTwdRate(data.currency ?? "TWD");
             }
+            if (rate == null) continue;
+            twdPrice = unitPrice * rate;
             priceCache.set(key, twdPrice);
           } catch {
             continue;

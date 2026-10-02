@@ -103,6 +103,26 @@ describe("DemoEngine linked resources", () => {
       expect(all[0]).not.toHaveProperty("transactionId");
     });
 
+    it("accepts a dividend on a 海外股票 holding", () => {
+      const overseas = engine.createEntry({
+        name: "Vanguard FTSE All-World",
+        topCategory: "投資",
+        subCategory: "海外股票",
+        stockCode: "VWRA.L",
+        value: 60000,
+        units: 10,
+      });
+
+      const dividend = engine.createDividend({
+        entryId: overseas.id,
+        payDate: "2026-09-25",
+        amount: 500,
+        recordIncome: false,
+      });
+
+      expect(dividend).toMatchObject({ entryId: overseas.id, amount: 500 });
+    });
+
     it("credits the bank entry and records income when both are requested", () => {
       const before = engine.listTransactions().length;
       const dividend = engine.createDividend({

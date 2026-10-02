@@ -44,6 +44,25 @@ export function normalizeSymbol(raw: string | null | undefined): string | null {
   return SYMBOL_PATTERN.test(symbol) ? symbol : null;
 }
 
+// Yahoo quotes some markets in the minor unit (London in pence, Johannesburg in
+// cents, Tel Aviv in agorot). Clients look up `<currency>TWD=X`, which has no
+// pair for a minor unit — so convert here, once, before any client sees it.
+// Case-sensitive on purpose: "GBp" is pence, "GBP" is pounds.
+const MINOR_UNITS: Record<string, string> = {
+  GBp: "GBP",
+  GBX: "GBP",
+  ZAc: "ZAR",
+  ILA: "ILS",
+};
+
+export function normalizeQuoteCurrency(
+  price: number,
+  currency: string
+): { price: number; currency: string } {
+  const major = MINOR_UNITS[currency];
+  return major ? { price: price / 100, currency: major } : { price, currency };
+}
+
 export class QuotesService {
   async fetchQuote(symbol: string): Promise<Quote> {
     try {
@@ -91,8 +110,7 @@ export class QuotesService {
 
     return {
       symbol,
-      price: result.meta.regularMarketPrice,
-      currency: result.meta.currency,
+      ...normalizeQuoteCurrency(result.meta.regularMarketPrice, result.meta.currency),
     };
   }
 
