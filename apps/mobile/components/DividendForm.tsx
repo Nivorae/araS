@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Modal } from "@/components/Modal";
 import { useRouter } from "expo-router";
 import type { Dividend } from "@repo/shared";
 import { Calendar } from "lucide-react-native";

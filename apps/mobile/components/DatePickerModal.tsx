@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Modal } from "@/components/Modal";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 
 // ─── Pure-JS date picker (no native module → OTA-safe) ───────────────────────

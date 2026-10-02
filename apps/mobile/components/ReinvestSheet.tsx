@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal } from "@/components/Modal";
 import { useRouter } from "expo-router";
 import { useApi } from "@/lib/api";
 import { useFinanceActions } from "@/hooks/useFinanceActions";

@@ -13,4 +13,23 @@ export default [
       "apps/mobile/.expo/**",
     ],
   },
+  {
+    // RN's Modal is a separate native window that floats above AppLockGate's
+    // lock screen; the wrapper draws the lock screen inside the Modal too.
+    files: ["apps/mobile/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "react-native",
+              importNames: ["Modal"],
+              message: "Use Modal from @/components/Modal so the app lock screen covers it.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

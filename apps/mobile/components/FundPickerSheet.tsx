@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Modal } from "@/components/Modal";
 import { Search } from "lucide-react-native";
 import { useApi, ApiError } from "@/lib/api";
 import { searchFunds, type FundSearchResult } from "@/lib/funds";
