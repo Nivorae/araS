@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,10 +17,11 @@ import {
 import { Modal } from "@/components/Modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, ArrowLeftRight, Pencil, Plus, Trash2 } from "lucide-react-native";
+import { ArrowLeft, ArrowLeftRight, Calendar, Pencil, Plus, Trash2 } from "lucide-react-native";
 import * as Sentry from "@sentry/react-native";
 import { TRANSFER_TOP_CATEGORIES, type EntryHistory } from "@repo/shared";
 import { BankLogo } from "@/components/BankLogo";
+import { DatePickerModal } from "@/components/DatePickerModal";
 import DividendSection from "@/components/DividendSection";
 import FundPickerSheet from "@/components/FundPickerSheet";
 import { useFinanceStore } from "@/store/financeStore";
@@ -32,6 +34,7 @@ import { formatCurrency, toIntegerDigits, formatThousands } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 import { fetchFundQuote, formatNavDate, type FundSearchResult } from "@/lib/funds";
 import { fetchTwdRate } from "@/lib/fx";
+import { formatDisplayDate, parseISODate, toISODate } from "@/lib/date";
 
 import {
   STOCK_CATS,
@@ -276,6 +279,7 @@ export default function EntryDetailScreen() {
   const [editingHistory, setEditingHistory] = useState<EntryHistory | null>(null);
   const [editNote, setEditNote] = useState("");
   const [editDate, setEditDate] = useState("");
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [editDelta, setEditDelta] = useState("");
   const [editUnits, setEditUnits] = useState("");
   const [editPricePerShare, setEditPricePerShare] = useState("");
@@ -739,13 +743,19 @@ export default function EntryDetailScreen() {
                 <View style={s.formDivider} />
                 <View style={s.formRow}>
                   <Text style={s.formLabel}>日期</Text>
-                  <TextInput
-                    value={editDate}
-                    onChangeText={setEditDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#c7c7cc"
-                    style={s.formInput}
-                  />
+                  {/* 跟 App 其他日期欄位一樣用日曆選，不再手打 YYYY-MM-DD（打錯格式或
+                      不存在的日期都擋不住）。`editDate` 仍是 YYYY-MM-DD 字串。 */}
+                  <TouchableOpacity
+                    style={s.formDateBtn}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowEditDatePicker(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.formDateText}>{formatDisplayDate(editDate)}</Text>
+                    <Calendar size={16} color="#8e8e93" />
+                  </TouchableOpacity>
                 </View>
                 <View style={s.formDivider} />
                 <View style={s.formRow}>
@@ -847,6 +857,15 @@ export default function EntryDetailScreen() {
             </View>
           </KeyboardAvoidingView>
         </View>
+
+        {/* 放在編輯記錄的 Modal 裡面：iOS 上從開著的 Modal 再開一個，必須是它的子元件
+            才疊得上去。 */}
+        <DatePickerModal
+          visible={showEditDatePicker}
+          date={parseISODate(editDate)}
+          onConfirm={(picked) => setEditDate(toISODate(picked))}
+          onClose={() => setShowEditDatePicker(false)}
+        />
       </Modal>
     </View>
   );
@@ -1009,6 +1028,15 @@ const s = StyleSheet.create({
   },
   formLabel: { fontSize: 15, color: "#1c1c1e" },
   formInput: { flex: 1, marginLeft: 16, textAlign: "right", fontSize: 15, color: "#1c1c1e" },
+  formDateBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    marginLeft: 16,
+  },
+  formDateText: { fontSize: 15, color: "#1c1c1e" },
   formDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "rgba(255,255,255,0.7)",
