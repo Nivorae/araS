@@ -11,6 +11,10 @@ vi.mock("@/lib/prisma", () => ({
     subscription: {
       upsert: vi.fn(),
       deleteMany: vi.fn(),
+      updateMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -25,16 +29,43 @@ const BASE_TRANSACTION: JWSTransactionDecodedPayload = {
   expiresDate: Date.now() + 1000 * 60 * 60 * 24 * 30,
 };
 
-function notification(type: NotificationTypeV2, subtype?: Subtype): ResponseBodyV2DecodedPayload {
+const SIGNED_AT = Date.UTC(2026, 9, 1);
+
+function notification(
+  type: NotificationTypeV2,
+  subtype?: Subtype,
+  signedDate = SIGNED_AT
+): ResponseBodyV2DecodedPayload {
   return {
     notificationType: type,
     ...(subtype ? { subtype } : {}),
+    signedDate,
     data: { environment: "Production" },
   };
 }
 
+type Row = { id: string; lastSignedAt: Date | null };
+// What findUnique returns, by lookup key.
+let byOriginalTransactionId: Row | null;
+let byToken: Row | null;
+
+// The fields written by whichever path ran (new row or conditional update).
+function written() {
+  const created = vi.mocked(prisma.subscription.create).mock.calls[0]?.[0]?.data;
+  const updated = vi.mocked(prisma.subscription.updateMany).mock.calls[0]?.[0]?.data;
+  return (created ?? updated) as Record<string, unknown>;
+}
+
 describe("SubscriptionService.upsertFromNotification", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    byOriginalTransactionId = null;
+    byToken = null;
+    vi.mocked(prisma.subscription.updateMany).mockResolvedValue({ count: 0 });
+    vi.mocked(prisma.subscription.findUnique).mockImplementation((async (args: {
+      where: { originalTransactionId?: string; appleAccountToken?: string };
+    }) => (args.where.originalTransactionId ? byOriginalTransactionId : byToken)) as never);
+  });
 
   it("skips notifications without an appAccountToken", async () => {
     const withoutToken = { ...BASE_TRANSACTION };
@@ -43,7 +74,8 @@ describe("SubscriptionService.upsertFromNotification", () => {
       notification(NotificationTypeV2.SUBSCRIBED),
       withoutToken
     );
-    expect(prisma.subscription.upsert).not.toHaveBeenCalled();
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
   });
 
   it("marks SUBSCRIBED as active", async () => {
@@ -51,9 +83,7 @@ describe("SubscriptionService.upsertFromNotification", () => {
       notification(NotificationTypeV2.SUBSCRIBED),
       BASE_TRANSACTION
     );
-    expect(prisma.subscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ status: "active" }) })
-    );
+    expect(written()).toMatchObject({ status: "active" });
   });
 
   it("marks EXPIRED as expired", async () => {
@@ -61,9 +91,7 @@ describe("SubscriptionService.upsertFromNotification", () => {
       notification(NotificationTypeV2.EXPIRED),
       BASE_TRANSACTION
     );
-    expect(prisma.subscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ status: "expired" }) })
-    );
+    expect(written()).toMatchObject({ status: "expired" });
   });
 
   it("marks DID_FAIL_TO_RENEW + GRACE_PERIOD subtype as grace_period", async () => {
@@ -71,9 +99,7 @@ describe("SubscriptionService.upsertFromNotification", () => {
       notification(NotificationTypeV2.DID_FAIL_TO_RENEW, Subtype.GRACE_PERIOD),
       BASE_TRANSACTION
     );
-    expect(prisma.subscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ status: "grace_period" }) })
-    );
+    expect(written()).toMatchObject({ status: "grace_period" });
   });
 
   it("marks DID_FAIL_TO_RENEW without grace period as expired", async () => {
@@ -81,9 +107,7 @@ describe("SubscriptionService.upsertFromNotification", () => {
       notification(NotificationTypeV2.DID_FAIL_TO_RENEW),
       BASE_TRANSACTION
     );
-    expect(prisma.subscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ status: "expired" }) })
-    );
+    expect(written()).toMatchObject({ status: "expired" });
   });
 
   it("marks REFUND as revoked", async () => {
@@ -91,9 +115,7 @@ describe("SubscriptionService.upsertFromNotification", () => {
       notification(NotificationTypeV2.REFUND),
       BASE_TRANSACTION
     );
-    expect(prisma.subscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ status: "revoked" }) })
-    );
+    expect(written()).toMatchObject({ status: "revoked" });
   });
 
   it("treats a revoked transaction as revoked regardless of notification type", async () => {
@@ -101,21 +123,84 @@ describe("SubscriptionService.upsertFromNotification", () => {
       ...BASE_TRANSACTION,
       revocationDate: Date.now(),
     });
-    expect(prisma.subscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ status: "revoked" }) })
-    );
+    expect(written()).toMatchObject({ status: "revoked" });
   });
 
-  it("upserts keyed on originalTransactionId", async () => {
+  it("creates the row with the notification's signedDate", async () => {
     await subscriptionService.upsertFromNotification(
       notification(NotificationTypeV2.SUBSCRIBED),
       BASE_TRANSACTION
     );
-    expect(prisma.subscription.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { originalTransactionId: BASE_TRANSACTION.originalTransactionId },
-      })
+    expect(prisma.subscription.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        originalTransactionId: BASE_TRANSACTION.originalTransactionId,
+        lastSignedAt: new Date(SIGNED_AT),
+      }),
+    });
+  });
+
+  // Apple doesn't guarantee delivery order: a late DID_RENEW must not
+  // reactivate a subscription a newer REFUND already revoked.
+  it("updates an existing row only if the notification is newer", async () => {
+    vi.mocked(prisma.subscription.updateMany).mockResolvedValue({ count: 1 });
+
+    await subscriptionService.upsertFromNotification(
+      notification(NotificationTypeV2.REFUND),
+      BASE_TRANSACTION
     );
+
+    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+      where: {
+        originalTransactionId: BASE_TRANSACTION.originalTransactionId,
+        OR: [{ lastSignedAt: null }, { lastSignedAt: { lt: new Date(SIGNED_AT) } }],
+      },
+      data: expect.objectContaining({ status: "revoked", lastSignedAt: new Date(SIGNED_AT) }),
+    });
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale notification for an existing row", async () => {
+    byOriginalTransactionId = { id: "sub_1", lastSignedAt: new Date(SIGNED_AT + 1000) };
+
+    await subscriptionService.upsertFromNotification(notification(NotificationTypeV2.DID_RENEW), {
+      ...BASE_TRANSACTION,
+    });
+
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  // appleAccountToken is unique. A row already holding it under another
+  // originalTransactionId (a dev row, or a slot taken before this purchase)
+  // used to make create() throw on every retry; Apple-verified data wins.
+  it("takes over an older row that holds the same appleAccountToken", async () => {
+    byToken = { id: "sub_old", lastSignedAt: null };
+
+    await subscriptionService.upsertFromNotification(
+      notification(NotificationTypeV2.SUBSCRIBED),
+      BASE_TRANSACTION
+    );
+
+    expect(prisma.subscription.update).toHaveBeenCalledWith({
+      where: { id: "sub_old" },
+      data: expect.objectContaining({
+        originalTransactionId: BASE_TRANSACTION.originalTransactionId,
+        status: "active",
+      }),
+    });
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
+  });
+
+  it("leaves a token row alone when it already has a newer notification", async () => {
+    byToken = { id: "sub_new", lastSignedAt: new Date(SIGNED_AT + 1000) };
+
+    await subscriptionService.upsertFromNotification(
+      notification(NotificationTypeV2.EXPIRED),
+      BASE_TRANSACTION
+    );
+
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
   });
 });
 

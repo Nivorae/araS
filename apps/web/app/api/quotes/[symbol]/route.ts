@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { quotesService } from "@/services/quotes.service";
+import { normalizeSymbol, quotesService } from "@/services/quotes.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
 
@@ -12,7 +12,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ sym
       return err("UNAUTHORIZED", "Unauthorized", 401);
     }
 
-    const { symbol } = await params;
+    const symbol = normalizeSymbol((await params).symbol);
+    if (!symbol) return err("VALIDATION_ERROR", "Invalid symbol", 400);
     const quote = await quotesService.fetchQuote(symbol);
     return ok(quote);
   } catch (e) {

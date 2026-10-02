@@ -5,7 +5,10 @@ vi.mock("@/lib/security-log", () => ({ logSecurityEvent: vi.fn() }));
 vi.mock("@/lib/fetch-with-timeout", () => ({ fetchWithRetry: vi.fn() }));
 vi.mock("@/lib/yahoo-crumb", () => ({ getYahooCrumb: vi.fn() }));
 vi.mock("@/services/crypto-list.service", () => ({ fetchCryptoList: vi.fn() }));
-vi.mock("@/services/quotes.service", () => ({ quotesService: { fetchQuote: vi.fn() } }));
+vi.mock("@/services/quotes.service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/quotes.service")>()),
+  quotesService: { fetchQuote: vi.fn() },
+}));
 
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
@@ -64,6 +67,40 @@ describe("market-data proxies auth", () => {
     const res = await priceGET(req("/api/stocks/price?symbol=AAPL"));
 
     expect(res.status).toBe(200);
+    expect(quotesService.fetchQuote).toHaveBeenCalledWith("AAPL");
+  });
+});
+
+describe("market-data proxies symbol validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user_test123" } as never);
+  });
+
+  it.each([
+    ["/api/stocks/price", () => priceGET(req("/api/stocks/price?symbol=%3Cscript%3E"))],
+    [
+      "/api/stocks/dividend",
+      () => dividendGET(req(`/api/stocks/dividend?symbol=${"A".repeat(40)}`)),
+    ],
+    [
+      "/api/quotes/[symbol]",
+      () => quoteGET(req("/api/quotes/x"), { params: Promise.resolve({ symbol: "a b" }) }),
+    ],
+  ])("%s rejects a malformed symbol without calling upstream", async (_path, call) => {
+    const res = await call();
+
+    expect(res.status).toBe(400);
+    expect(quotesService.fetchQuote).not.toHaveBeenCalled();
+    expect(fetchWithRetry).not.toHaveBeenCalled();
+    expect(getYahooCrumb).not.toHaveBeenCalled();
+  });
+
+  it("canonicalises the symbol before fetching", async () => {
+    vi.mocked(quotesService.fetchQuote).mockResolvedValue({ price: 1 } as never);
+
+    await priceGET(req("/api/stocks/price?symbol=aapl"));
+
     expect(quotesService.fetchQuote).toHaveBeenCalledWith("AAPL");
   });
 });

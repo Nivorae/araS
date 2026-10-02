@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { CreateRecurrenceSchema } from "@repo/shared";
-import { recurrencesService } from "@/services/recurrences.service";
+import { recurrencesService, RecurrenceLimitError } from "@/services/recurrences.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
 
@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
     }
     return ok(item, 201);
   } catch (e) {
+    if (e instanceof RecurrenceLimitError) {
+      return err("RECURRENCE_LIMIT_REACHED", "已達定期收支的數量上限", 403);
+    }
     return handleError(e);
   }
 }

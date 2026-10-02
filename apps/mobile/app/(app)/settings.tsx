@@ -5,7 +5,6 @@ import {
   Animated,
   Image,
   Linking,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Modal } from "@/components/Modal";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SUBSCRIPTIONS_SUPPORTED } from "@/lib/purchases";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";

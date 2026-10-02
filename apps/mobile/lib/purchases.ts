@@ -26,9 +26,15 @@ export const SUBSCRIPTIONS_SUPPORTED = Boolean(apiKey);
 const isExpoGo = Constants.executionEnvironment === "storeClient";
 
 let configured = false;
+// Serialises identity switches so a purchase can wait for the latest one.
+let identifying: Promise<void> = Promise.resolve();
 
-// Configures RevenueCat once, using the derived Apple account token (a UUID)
-// as the appUserID — NOT the raw Clerk userId.
+async function identifyAs(appUserID: string): Promise<void> {
+  if ((await Purchases.getAppUserID()) !== appUserID) await Purchases.logIn(appUserID);
+}
+
+// Configures RevenueCat using the derived Apple account token (a UUID) as the
+// appUserID — NOT the raw Clerk userId.
 //
 // This is load-bearing for entitlement attribution: the backend's source of
 // truth is Apple's App Store Server Notifications (see web
@@ -40,15 +46,42 @@ let configured = false;
 // premium. deriveAppleAccountToken(userId) is the same UUID the webhook
 // matches against, so purchases attribute correctly.
 //
+// configure() runs once per process; after that, a different account signing
+// in on the same device switches RevenueCat with logIn(). Without the switch
+// the previous account's token stays attached, and the new account's purchase
+// is credited to the old one.
+//
 // No-op without an API key, inside Expo Go, or if the native store is
 // unavailable — a subscription-config failure must never crash the app.
 export function configurePurchases(userId: string): void {
-  if (!apiKey || configured || isExpoGo) return;
+  if (!apiKey || isExpoGo) return;
+  const appUserID = deriveAppleAccountToken(userId);
+  if (!configured) {
+    try {
+      Purchases.configure({ apiKey, appUserID });
+      configured = true;
+    } catch (e) {
+      console.warn("configurePurchases failed; continuing without RevenueCat", e);
+    }
+    return;
+  }
+  identifying = identifying.then(() =>
+    identifyAs(appUserID).catch((e) => console.warn("Purchases.logIn failed", e))
+  );
+}
+
+// Await before purchasing or restoring: true only once RevenueCat is
+// identified as `userId`. Retries the switch once; on false the caller must not
+// buy, or the purchase would be attributed to whoever RevenueCat still names.
+export async function ensurePurchasesUser(userId: string): Promise<boolean> {
+  const appUserID = deriveAppleAccountToken(userId);
+  await identifying;
   try {
-    Purchases.configure({ apiKey, appUserID: deriveAppleAccountToken(userId) });
-    configured = true;
+    await identifyAs(appUserID);
+    return (await Purchases.getAppUserID()) === appUserID;
   } catch (e) {
-    console.warn("configurePurchases failed; continuing without RevenueCat", e);
+    console.warn("ensurePurchasesUser failed", e);
+    return false;
   }
 }
 

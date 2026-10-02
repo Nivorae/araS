@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,9 +10,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Modal } from "@/components/Modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Reanimated, { FadeInDown, ZoomIn } from "react-native-reanimated";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/clerk-expo";
+import { getAccountItem, setAccountItem } from "@/lib/accountStorage";
 import Slider from "@react-native-community/slider";
 import {
   Activity,
@@ -336,11 +337,14 @@ export default function RetirementScreen() {
 
   const currentYear = new Date().getFullYear();
 
-  // Load persisted params
+  const { userId } = useAuth();
+
+  // Load persisted params (per account — see lib/accountStorage.ts)
   useEffect(() => {
+    if (!userId) return;
     (async () => {
       try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        const saved = await getAccountItem(STORAGE_KEY, userId);
         if (saved) {
           const parsed = sanitizeParams(JSON.parse(saved));
           setParams(parsed);
@@ -353,14 +357,14 @@ export default function RetirementScreen() {
         setInitialized(true);
       }
     })();
-  }, []);
+  }, [userId]);
 
   // Persist on change。示範模式中不寫：這些參數存在手機本機、不經過 API，寫下去
   // 的話示範裡亂調的數字會留到離開之後。
   useEffect(() => {
-    if (initialized && !isDemoActive())
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(params)).catch(() => {});
-  }, [params, initialized]);
+    if (initialized && userId && !isDemoActive())
+      setAccountItem(STORAGE_KEY, userId, JSON.stringify(params)).catch(() => {});
+  }, [params, initialized, userId]);
 
   // sync sensitivity sliders when params change
   useEffect(() => setSensRate(params.accRate), [params.accRate]);

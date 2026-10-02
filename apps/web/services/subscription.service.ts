@@ -49,40 +49,58 @@ export class SubscriptionService {
   // (see @repo/shared) — set by the mobile purchase flow, not the raw Clerk
   // userId. Notifications without it (e.g. purchases made before that was
   // wired up) can't be attributed to a user and are skipped.
+  //
+  // Apple doesn't deliver notifications in order (and retries failures), so a
+  // late DID_RENEW could otherwise reactivate a subscription a newer REFUND had
+  // revoked. Each write records the notification's signedDate and only applies
+  // over an older one.
   async upsertFromNotification(
     decoded: ResponseBodyV2DecodedPayload,
     transaction: JWSTransactionDecodedPayload
   ): Promise<void> {
-    if (
-      !transaction.appAccountToken ||
-      !transaction.originalTransactionId ||
-      !transaction.productId
-    ) {
+    const { appAccountToken, originalTransactionId, productId } = transaction;
+    if (!appAccountToken || !originalTransactionId || !productId) {
       return;
     }
 
-    const status = resolveStatus(decoded.notificationType, decoded.subtype, transaction);
-    const expiresAt = new Date(transaction.expiresDate ?? Date.now());
-    const environment = decoded.data?.environment ?? "Production";
+    const signedAt = new Date(decoded.signedDate ?? Date.now());
+    const fields = {
+      appleAccountToken: appAccountToken,
+      productId,
+      status: resolveStatus(decoded.notificationType, decoded.subtype, transaction),
+      expiresAt: new Date(transaction.expiresDate ?? Date.now()),
+      environment: decoded.data?.environment ?? "Production",
+      lastSignedAt: signedAt,
+    };
+    const isOlderThanThis = { OR: [{ lastSignedAt: null }, { lastSignedAt: { lt: signedAt } }] };
 
-    await prisma.subscription.upsert({
-      where: { originalTransactionId: transaction.originalTransactionId },
-      create: {
-        appleAccountToken: transaction.appAccountToken,
-        productId: transaction.productId,
-        status,
-        expiresAt,
-        originalTransactionId: transaction.originalTransactionId,
-        environment,
-      },
-      update: {
-        appleAccountToken: transaction.appAccountToken,
-        productId: transaction.productId,
-        status,
-        expiresAt,
-        environment,
-      },
+    // The usual case: this subscription already has a row.
+    const { count } = await prisma.subscription.updateMany({
+      where: { originalTransactionId, ...isOlderThanThis },
+      data: fields,
     });
+    if (count > 0) return;
+    if (await prisma.subscription.findUnique({ where: { originalTransactionId } })) {
+      return; // a newer notification for it was already applied
+    }
+
+    // First notification for this subscription. appleAccountToken is unique,
+    // so a row may already hold it under another originalTransactionId — a
+    // dev row, or one written before this purchase. Apple-verified data
+    // replaces it unless that row has seen a newer notification.
+    const tokenRow = await prisma.subscription.findUnique({
+      where: { appleAccountToken: appAccountToken },
+    });
+    if (tokenRow) {
+      if (tokenRow.lastSignedAt && tokenRow.lastSignedAt >= signedAt) return;
+      await prisma.subscription.update({
+        where: { id: tokenRow.id },
+        data: { ...fields, originalTransactionId },
+      });
+      return;
+    }
+
+    await prisma.subscription.create({ data: { ...fields, originalTransactionId } });
   }
 
   // Dev-only escape hatch: lets a developer flip their OWN Subscription row

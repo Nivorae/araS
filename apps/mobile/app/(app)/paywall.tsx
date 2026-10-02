@@ -11,10 +11,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useAuth } from "@clerk/clerk-expo";
 import { Check, X } from "lucide-react-native";
 import Purchases, { PURCHASES_ERROR_CODE, type PurchasesPackage } from "react-native-purchases";
 import { FREE_ENTRY_LIMIT } from "@repo/shared";
-import { SUBSCRIPTIONS_SUPPORTED, isPurchasesConfigured } from "@/lib/purchases";
+import {
+  SUBSCRIPTIONS_SUPPORTED,
+  ensurePurchasesUser,
+  isPurchasesConfigured,
+} from "@/lib/purchases";
 import { enterDemo } from "@/lib/demo/session";
 import { useIsPremium } from "@/hooks/useIsPremium";
 import { FloatingCardsBackground } from "@/components/FloatingCardsBackground";
@@ -91,6 +96,16 @@ export default function PaywallScreen() {
   // to sell — and preview plans there would be placeholder prices shown to
   // real users in a store build.
   const previewMode = SUBSCRIPTIONS_SUPPORTED && !isPurchasesConfigured();
+  const { userId } = useAuth();
+
+  // RevenueCat must name the signed-in account before anything is bought or
+  // restored — otherwise, after an account switch on this device, the purchase
+  // is credited to the previous account. Refuse rather than misattribute.
+  const confirmPurchasesUser = useCallback(async () => {
+    if (userId && (await ensurePurchasesUser(userId))) return true;
+    Alert.alert("帳號同步中", "無法確認目前登入的帳號，請稍後再試一次。");
+    return false;
+  }, [userId]);
 
   // paywall_viewed：這個畫面 mount 就等於它顯示在使用者眼前（expo-router 的
   // Stack 是 push 才 mount）。空依賴陣列 = 一次 push 只送一次，回上一頁再進來
@@ -154,6 +169,7 @@ export default function PaywallScreen() {
     if (!pkg) return;
     setPurchasing(true);
     try {
+      if (!(await confirmPurchasesUser())) return;
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       // 是不是試用期：看 RevenueCat 回傳的 entitlement periodType。這裡只用來
       // 分析，權限判定仍然只認後端（下面的 refresh()）。
@@ -174,7 +190,7 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [previewMode, packages, selectedId, refresh]);
+  }, [previewMode, packages, selectedId, refresh, confirmPurchasesUser]);
 
   // Apple guideline 3.1.1 requires a distinct, user-initiated Restore control
   // for any restorable IAP — restoring silently on launch is explicitly not
@@ -196,6 +212,7 @@ export default function PaywallScreen() {
     }
     setRestoring(true);
     try {
+      if (!(await confirmPurchasesUser())) return;
       await Purchases.restorePurchases();
       // Entitlement is decided by our backend, never by RevenueCat's
       // client-side CustomerInfo — so report whatever the re-read says, not
@@ -213,7 +230,7 @@ export default function PaywallScreen() {
     } finally {
       setRestoring(false);
     }
-  }, [previewMode, refresh]);
+  }, [previewMode, refresh, confirmPurchasesUser]);
 
   return (
     <View style={s.root}>
