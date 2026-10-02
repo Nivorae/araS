@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { d } from "@/lib/serialize";
 import type { CreateRecurrence, UpdateRecurrence } from "@repo/shared";
+import { RECURRENCE_BACKDATE_MESSAGE, isWithinRecurrenceBackdateWindow } from "@repo/shared";
 
 type RecurrenceFreq = "MONTHLY" | "WEEKLY" | "BIWEEKLY" | "YEARLY";
 
@@ -123,6 +124,30 @@ export function computeNextRunAt(
   return next;
 }
 
+// Each recurrence multiplies the rows process() writes, so cap how many one
+// user can hold. Far above any real household's schedules.
+export const MAX_RECURRENCES_PER_USER = 100;
+// Rows written for one recurrence per process() call; the remainder carries
+// over to the next call. startDate's back-date window keeps real backlogs below it.
+const MAX_RUNS_PER_PROCESS = 366;
+
+// Thrown by update() when startDate is moved further back than the create-time
+// window allows; the route maps it to 400.
+export class RecurrenceBackdateError extends Error {
+  constructor() {
+    super(RECURRENCE_BACKDATE_MESSAGE);
+    this.name = "RecurrenceBackdateError";
+  }
+}
+
+// Thrown by create() at MAX_RECURRENCES_PER_USER; the route maps it to 403.
+export class RecurrenceLimitError extends Error {
+  constructor() {
+    super("Recurrence limit reached");
+    this.name = "RecurrenceLimitError";
+  }
+}
+
 export class RecurrencesService {
   async list(userId: string, entryId?: string) {
     const rows = await prisma.recurrence.findMany({
@@ -137,6 +162,8 @@ export class RecurrencesService {
       where: { id: data.entryId, userId },
     });
     if (!entry) return null;
+    const existing = await prisma.recurrence.count({ where: { userId } });
+    if (existing >= MAX_RECURRENCES_PER_USER) throw new RecurrenceLimitError();
 
     const startDate = new Date(data.startDate);
     const nextRunAt = computeInitialNextRunAt(
@@ -182,6 +209,14 @@ export class RecurrencesService {
     const dow = data.dayOfWeek !== undefined ? data.dayOfWeek : existing.dayOfWeek;
     const moy = data.monthOfYear !== undefined ? data.monthOfYear : existing.monthOfYear;
     const startDate = data.startDate ? new Date(data.startDate) : existing.startDate;
+    // Only a changed startDate is held to the back-date window — the edit form
+    // re-sends the original, which may be older for a long-running recurrence.
+    if (
+      startDate.getTime() !== existing.startDate.getTime() &&
+      !isWithinRecurrenceBackdateWindow(startDate)
+    ) {
+      throw new RecurrenceBackdateError();
+    }
 
     const nextRunAt = needsRecompute
       ? computeInitialNextRunAt(freq, startDate, dom, dow, moy)
@@ -218,30 +253,36 @@ export class RecurrencesService {
 
     let created = 0;
     for (const rec of pending) {
-      let nextRun = new Date(rec.nextRunAt);
       const freq = rec.frequency as RecurrenceFreq;
-      let safetyLimit = 0;
+      const runs: Date[] = [];
+      let nextRun = new Date(rec.nextRunAt);
+      while (nextRun <= now && runs.length < MAX_RUNS_PER_PROCESS) {
+        runs.push(nextRun);
+        nextRun = computeNextRunAt(freq, nextRun, rec.dayOfMonth, rec.monthOfYear);
+      }
 
-      while (nextRun <= now && safetyLimit < 366) {
-        safetyLimit++;
-        await prisma.transaction.create({
-          data: {
+      // Claim the runs by advancing nextRunAt only if it is still the value we
+      // read. A concurrent process() call that got there first has already
+      // moved it, so this update matches nothing and its runs aren't written
+      // twice. Claim and insert commit together.
+      created += await prisma.$transaction(async (tx) => {
+        const { count } = await tx.recurrence.updateMany({
+          where: { id: rec.id, userId, nextRunAt: rec.nextRunAt },
+          data: { nextRunAt: nextRun, lastRunAt: now },
+        });
+        if (count === 0) return 0;
+        await tx.transaction.createMany({
+          data: runs.map((date) => ({
             userId,
             type: rec.type,
             amount: rec.amount,
             category: rec.category,
             source: rec.source,
             note: rec.note,
-            date: nextRun,
-          },
+            date,
+          })),
         });
-        created++;
-        nextRun = computeNextRunAt(freq, nextRun, rec.dayOfMonth, rec.monthOfYear);
-      }
-
-      await prisma.recurrence.update({
-        where: { id: rec.id },
-        data: { nextRunAt: nextRun, lastRunAt: now },
+        return runs.length;
       });
     }
 

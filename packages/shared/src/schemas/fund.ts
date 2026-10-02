@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_CODE_LENGTH, MAX_NAME_LENGTH } from "../constants/limits";
 
 /**
  * 基金淨值查詢。`source` 區分境內（投信投顧公會）與境外（集保）兩個來源 ——
@@ -28,10 +29,10 @@ export const FundQuoteSchema = z.object({
 export type FundQuote = z.infer<typeof FundQuoteSchema>;
 
 export const FundSearchQuerySchema = z.object({
-  q: z.string().trim().min(1, "請輸入基金名稱"),
+  q: z.string().trim().min(1, "請輸入基金名稱").max(MAX_NAME_LENGTH),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
 export const FundQuoteQuerySchema = z.object({
-  code: z.string().trim().min(1, "請提供基金代碼"),
+  code: z.string().trim().min(1, "請提供基金代碼").max(MAX_CODE_LENGTH),
 });

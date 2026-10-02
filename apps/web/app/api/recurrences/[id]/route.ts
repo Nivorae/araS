@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { UpdateRecurrenceSchema } from "@repo/shared";
-import { recurrencesService } from "@/services/recurrences.service";
+import { recurrencesService, RecurrenceBackdateError } from "@/services/recurrences.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
 
@@ -19,6 +19,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const item = await recurrencesService.update(id, data, userId);
     return ok(item);
   } catch (e) {
+    if (e instanceof RecurrenceBackdateError) {
+      return err("VALIDATION_ERROR", e.message, 400);
+    }
     return handleError(e);
   }
 }
