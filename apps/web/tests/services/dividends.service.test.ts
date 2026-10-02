@@ -109,6 +109,29 @@ describe("DividendsService.create", () => {
     expect(txMock.entry.update).not.toHaveBeenCalled();
   });
 
+  it("accepts a 海外股票 entry", async () => {
+    const overseas = { ...STOCK, id: "stock-uk", subCategory: "海外股票", stockCode: "VWRA.L" };
+    txMock.entry.findFirst.mockResolvedValue(overseas);
+
+    await dividendsService.create(
+      { entryId: overseas.id, payDate: "2026-08-13", amount: 800, recordIncome: false },
+      USER_ID
+    );
+
+    expect(txMock.dividend.create).toHaveBeenCalled();
+  });
+
+  it("rejects an investment entry that is not a stock", async () => {
+    txMock.entry.findFirst.mockResolvedValue({ ...STOCK, subCategory: "其他投資" });
+
+    await expect(
+      dividendsService.create(
+        { entryId: STOCK.id, payDate: "2026-08-13", amount: 800, recordIncome: false },
+        USER_ID
+      )
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
   it("credits the bank entry when a bank account is given", async () => {
     await dividendsService.create(
       {

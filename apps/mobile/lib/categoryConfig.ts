@@ -15,6 +15,7 @@ import {
   Receipt,
   Landmark,
   Flag,
+  Globe,
   HandCoins,
   Shield,
   Plus,
@@ -84,6 +85,7 @@ export const CATEGORIES: TopCategory[] = [
         children: [
           { name: "台股", icon: Flag },
           { name: "美股", icon: Flag },
+          { name: "海外股票", icon: Globe },
         ],
       },
       { name: "加密貨幣", icon: Bitcoin },

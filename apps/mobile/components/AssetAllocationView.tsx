@@ -5,6 +5,7 @@ import { useFinanceStore } from "@/store/financeStore";
 import { chartedEntries } from "@/lib/chartedEntries";
 import { formatCurrency } from "@/lib/format";
 import { getTopCategory } from "@/lib/categoryConfig";
+import { OVERSEAS_SUBCATEGORY } from "@/lib/stockConstants";
 
 const LIABILITY_COLOR = getTopCategory("負債")?.color ?? "#C7C7D4";
 
@@ -14,19 +15,35 @@ export function AssetAllocationView() {
   // 「投資」這層），所以跟 transactions.tsx 算 totalAssets 一樣，自己從
   // entries 篩，維持跟折線圖同一組「納入圖表」項目。
   const entries = useFinanceStore((s) => s.entries);
-  const { twValue, usValue } = useMemo(
+  const { twValue, usValue, overseasValue } = useMemo(
     () =>
       chartedEntries(entries).reduce(
         (acc, e) => {
           if (e.subCategory === "台股") acc.twValue += e.value;
           else if (e.subCategory === "美股") acc.usValue += e.value;
+          else if (e.subCategory === OVERSEAS_SUBCATEGORY) acc.overseasValue += e.value;
           return acc;
         },
-        { twValue: 0, usValue: 0 }
+        { twValue: 0, usValue: 0, overseasValue: 0 }
       ),
     [entries]
   );
-  const stockTotal = twValue + usValue;
+  const stockTotal = twValue + usValue + overseasValue;
+  const pct = (v: number) => `${((v / stockTotal) * 100).toFixed(1)}%`;
+  // 沒有海外持股時維持原本的「台股 x% / 美股 y%」；有的話只列有金額的市場。
+  const marketRatio =
+    overseasValue > 0
+      ? (
+          [
+            ["台股", twValue],
+            ["美股", usValue],
+            ["海外", overseasValue],
+          ] as const
+        )
+          .filter(([, v]) => v > 0)
+          .map(([label, v]) => `${label} ${pct(v)}`)
+          .join(" / ")
+      : `台股 ${pct(twValue)} / 美股 ${pct(usValue)}`;
 
   if (error) {
     return (
@@ -85,12 +102,8 @@ export function AssetAllocationView() {
       </View>
 
       <View style={s.ratioRow}>
-        <Text style={s.ratioLabel}>台股／美股比例</Text>
-        <Text style={s.ratioValue}>
-          {stockTotal === 0
-            ? "尚無資料"
-            : `台股 ${((twValue / stockTotal) * 100).toFixed(1)}% / 美股 ${((usValue / stockTotal) * 100).toFixed(1)}%`}
-        </Text>
+        <Text style={s.ratioLabel}>{overseasValue > 0 ? "股票市場比例" : "台股／美股比例"}</Text>
+        <Text style={s.ratioValue}>{stockTotal === 0 ? "尚無資料" : marketRatio}</Text>
       </View>
     </View>
   );

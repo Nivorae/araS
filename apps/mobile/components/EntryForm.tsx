@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Calendar, Check, ChevronLeft, ChevronRight } from "lucide-react-native";
+import { Calculator, Calendar, Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import { BankLogo } from "./BankLogo";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -29,11 +29,13 @@ import {
   type StockItem,
 } from "@/lib/stockConstants";
 import { StockPickerModal } from "./StockPickerModal";
+import { FxCalculatorSheet } from "./FxCalculatorSheet";
 import { BankPickerModal, BANKS, type BankItem } from "./BankPickerModal";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import { DatePickerModal } from "./DatePickerModal";
 import { parseISODate, toISODate, todayISO, formatDisplayDate } from "@/lib/date";
 import { formatCurrency } from "@/lib/format";
+import { fetchTwdRate } from "@/lib/fx";
 import { PAYWALL_SOURCES, trackRecordCreated } from "@/lib/analytics";
 import type { RepaymentType } from "@repo/shared";
 
@@ -186,6 +188,11 @@ export function EntryForm({
   const [originalPrice, setOriginalPrice] = useState(0);
   const [currency, setCurrency] = useState("TWD");
   const [exchangeRate, setExchangeRate] = useState(1);
+  // 這檔股票的報價幣別，不受匯率成敗影響 —— 換匯計算機要知道它（`currency` 在匯率
+  // 抓不到時會退回 TWD，讓手動輸入的股價以台幣計）。
+  const [quoteCurrency, setQuoteCurrency] = useState<string | null>(null);
+  const [showFxCalculator, setShowFxCalculator] = useState(false);
+  const hasFxCalculator = quoteCurrency != null && quoteCurrency !== "TWD";
   const [isPriceManual, setIsPriceManual] = useState(false);
   const [manualPriceStr, setManualPriceStr] = useState("");
   // Input mode for stock-picker investments: enter a quantity ("units") or a
@@ -264,19 +271,20 @@ export function EntryForm({
         `/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`
       );
       if (typeof data.price !== "number") return;
-      setOriginalPrice(data.price);
       const c = data.currency ?? "TWD";
-      setCurrency(c);
-      if (c !== "TWD") {
-        const fx = await apiRef.current
-          .rawGet<{
-            price: number;
-          }>(`/api/stocks/price?symbol=${encodeURIComponent(c + "TWD=X")}`)
-          .catch(() => null);
-        if (fx && typeof fx.price === "number") setExchangeRate(fx.price);
-      } else {
+      setQuoteCurrency(c);
+      const rate = await fetchTwdRate(apiRef.current.rawGet, c);
+      if (rate == null) {
+        // 匯率不明：當作抓不到價格（顯示 --），手動輸入的股價就以台幣計。
+        // 不能留著原幣價 × 舊匯率（或 × 1）去算成本。
+        setOriginalPrice(0);
+        setCurrency("TWD");
         setExchangeRate(1);
+        return;
       }
+      setOriginalPrice(data.price);
+      setCurrency(c);
+      setExchangeRate(rate);
     } catch {
       /* silently fail */
     } finally {
@@ -307,6 +315,7 @@ export function EntryForm({
         setOriginalPrice(0);
         setCurrency("TWD");
         setExchangeRate(1);
+        setQuoteCurrency(null);
         return;
       }
       await fetchPriceFor(yfSymbol);
@@ -730,7 +739,19 @@ export function EntryForm({
                       <View style={s.half}>
                         {inputMode === "amount" ? (
                           <>
-                            <Text style={s.fieldLabel}>投入金額 (TWD)</Text>
+                            <View style={s.priceLabelRow}>
+                              <Text style={s.fieldLabel}>投入金額 (TWD)</Text>
+                              {/* 用外幣付款時，換算成台幣再帶入。台股不需要。 */}
+                              {hasFxCalculator && (
+                                <TouchableOpacity
+                                  onPress={() => setShowFxCalculator(true)}
+                                  hitSlop={8}
+                                  accessibilityLabel="換匯計算機"
+                                >
+                                  <Calculator size={16} color="#8e8e93" />
+                                </TouchableOpacity>
+                              )}
+                            </View>
                             <TextInput
                               style={s.unitsInput}
                               value={amountStr}
@@ -1008,6 +1029,18 @@ export function EntryForm({
           onSelect={handleSelectStock}
           subCategory={subCategory}
           existingHoldings={twHoldings}
+        />
+      )}
+      {hasStockPicker && hasFxCalculator && quoteCurrency && (
+        <FxCalculatorSheet
+          visible={showFxCalculator}
+          onClose={() => setShowFxCalculator(false)}
+          quoteCurrency={quoteCurrency}
+          quoteFxRate={currency === quoteCurrency ? exchangeRate : null}
+          onApply={(twd) => {
+            setAmountStr(String(twd));
+            setError(null);
+          }}
         />
       )}
       {isBankCard && (
