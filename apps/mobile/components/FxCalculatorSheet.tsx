@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -11,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { ChevronDown, ChevronUp } from "lucide-react-native";
-import { Modal } from "@/components/Modal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { useApi } from "@/lib/api";
 import { calculatorCurrencies, fetchTwdRate } from "@/lib/fx";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
@@ -106,119 +104,114 @@ export function FxCalculatorSheet({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Pressable style={s.backdrop} onPress={onClose}>
-          <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
-            <View style={s.handle} />
-            <Text style={s.title}>換算成台幣</Text>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={[s.sheet, isTablet && s.sheetTablet]}
+    >
+      <View style={s.handle} />
+      <Text style={s.title}>換算成台幣</Text>
 
-            <View style={s.body}>
-              <Text style={[s.label, s.labelFirst]}>外幣金額</Text>
-              <View style={s.inputRow}>
-                <TextInput
-                  style={[s.input, s.flex]}
-                  value={amountStr}
-                  onChangeText={setAmountStr}
-                  onFocus={() => setPickerOpen(false)}
-                  placeholder="0"
-                  placeholderTextColor="#c7c7cc"
-                  keyboardType="decimal-pad"
-                  autoFocus
-                />
-                <Pressable
-                  onPress={() => {
-                    // 收起鍵盤，整片幣別格子才看得到。
-                    Keyboard.dismiss();
-                    setPickerOpen((o) => !o);
-                  }}
-                  style={[s.currencyBtn, pickerOpen && s.currencyBtnOpen]}
-                  accessibilityLabel={`付款幣別：${selected.name}，點擊更換`}
-                >
-                  <Text style={s.currencyCode}>{selected.code}</Text>
-                  {selected.name !== selected.code && (
-                    <Text style={s.currencyName}>{selected.name}</Text>
-                  )}
-                  {pickerOpen ? (
-                    <ChevronUp size={14} color="#8e8e93" />
-                  ) : (
-                    <ChevronDown size={14} color="#8e8e93" />
-                  )}
-                </Pressable>
-              </View>
-
-              {pickerOpen && (
-                <View style={s.grid} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
-                  {cellWidth > 0 &&
-                    options.map((c) => {
-                      const active = c.code === currency;
-                      return (
-                        <Pressable
-                          key={c.code}
-                          onPress={() => {
-                            setCurrency(c.code);
-                            setPickerOpen(false);
-                          }}
-                          style={[s.cell, { width: cellWidth }, active && s.cellActive]}
-                        >
-                          <Text style={[s.cellCode, active && s.cellTextActive]}>{c.code}</Text>
-                          <Text style={[s.cellName, active && s.cellTextActive]} numberOfLines={1}>
-                            {c.name}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                </View>
-              )}
-
-              <Text style={s.label}>匯率（1 {currency} = ? TWD）</Text>
-              <View style={s.inputRow}>
-                <TextInput
-                  style={[s.input, s.flex]}
-                  value={rateStr}
-                  onChangeText={(v) => {
-                    setRateStr(v);
-                    setRateFailed(false);
-                  }}
-                  placeholder="請輸入匯率"
-                  placeholderTextColor="#c7c7cc"
-                  keyboardType="decimal-pad"
-                  editable={!rateLoading}
-                />
-                {rateLoading && <ActivityIndicator size="small" color="#8e8e93" />}
-              </View>
-              <Text style={s.hint}>
-                {rateFailed ? "抓不到即時匯率，請手動輸入" : "即時匯率，可改成實際成交匯率"}
-              </Text>
-
-              <View style={s.result}>
-                <Text style={s.resultText}>= NT$ {twd != null ? twd.toLocaleString() : "--"}</Text>
-              </View>
-            </View>
-
-            <View style={[s.actions, { paddingBottom: bottomPad }]}>
-              <Pressable onPress={onClose} style={[s.btn, s.btnGhost]}>
-                <Text style={s.btnGhostText}>取消</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleApply}
-                disabled={!valid}
-                style={[s.btn, s.btnPrimary, !valid && s.btnDisabled]}
-              >
-                <Text style={s.btnPrimaryText}>帶入</Text>
-              </Pressable>
-            </View>
+      <View style={s.body}>
+        <Text style={[s.label, s.labelFirst]}>外幣金額</Text>
+        <View style={s.inputRow}>
+          <TextInput
+            style={[s.input, s.flex]}
+            value={amountStr}
+            onChangeText={setAmountStr}
+            onFocus={() => setPickerOpen(false)}
+            placeholder="0"
+            placeholderTextColor="#c7c7cc"
+            keyboardType="decimal-pad"
+            autoFocus
+          />
+          <Pressable
+            onPress={() => {
+              // 收起鍵盤，整片幣別格子才看得到。
+              Keyboard.dismiss();
+              setPickerOpen((o) => !o);
+            }}
+            style={[s.currencyBtn, pickerOpen && s.currencyBtnOpen]}
+            accessibilityLabel={`付款幣別：${selected.name}，點擊更換`}
+          >
+            <Text style={s.currencyCode}>{selected.code}</Text>
+            {selected.name !== selected.code && <Text style={s.currencyName}>{selected.name}</Text>}
+            {pickerOpen ? (
+              <ChevronUp size={14} color="#8e8e93" />
+            ) : (
+              <ChevronDown size={14} color="#8e8e93" />
+            )}
           </Pressable>
+        </View>
+
+        {pickerOpen && (
+          <View style={s.grid} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
+            {cellWidth > 0 &&
+              options.map((c) => {
+                const active = c.code === currency;
+                return (
+                  <Pressable
+                    key={c.code}
+                    onPress={() => {
+                      setCurrency(c.code);
+                      setPickerOpen(false);
+                    }}
+                    style={[s.cell, { width: cellWidth }, active && s.cellActive]}
+                  >
+                    <Text style={[s.cellCode, active && s.cellTextActive]}>{c.code}</Text>
+                    <Text style={[s.cellName, active && s.cellTextActive]} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+          </View>
+        )}
+
+        <Text style={s.label}>匯率（1 {currency} = ? TWD）</Text>
+        <View style={s.inputRow}>
+          <TextInput
+            style={[s.input, s.flex]}
+            value={rateStr}
+            onChangeText={(v) => {
+              setRateStr(v);
+              setRateFailed(false);
+            }}
+            placeholder="請輸入匯率"
+            placeholderTextColor="#c7c7cc"
+            keyboardType="decimal-pad"
+            editable={!rateLoading}
+          />
+          {rateLoading && <ActivityIndicator size="small" color="#8e8e93" />}
+        </View>
+        <Text style={s.hint}>
+          {rateFailed ? "抓不到即時匯率，請手動輸入" : "即時匯率，可改成實際成交匯率"}
+        </Text>
+
+        <View style={s.result}>
+          <Text style={s.resultText}>= NT$ {twd != null ? twd.toLocaleString() : "--"}</Text>
+        </View>
+      </View>
+
+      <View style={[s.actions, { paddingBottom: bottomPad }]}>
+        <Pressable onPress={onClose} style={[s.btn, s.btnGhost]}>
+          <Text style={s.btnGhostText}>取消</Text>
         </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+        <Pressable
+          onPress={handleApply}
+          disabled={!valid}
+          style={[s.btn, s.btnPrimary, !valid && s.btnDisabled]}
+        >
+          <Text style={s.btnPrimaryText}>帶入</Text>
+        </Pressable>
+      </View>
+    </BottomSheet>
   );
 }
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   handle: {
     width: 36,
