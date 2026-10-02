@@ -3,13 +3,13 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Modal } from "@/components/Modal";
 import { pressFeedback, longPressFeedback } from "@/lib/haptics";
 import type { Dividend } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";

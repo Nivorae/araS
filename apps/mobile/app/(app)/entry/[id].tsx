@@ -4,7 +4,6 @@ import {
   Alert,
   Animated,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Modal } from "@/components/Modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, ArrowLeftRight, Pencil, Plus, Trash2 } from "lucide-react-native";

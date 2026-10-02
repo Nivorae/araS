@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   type LayoutChangeEvent,
-  Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
@@ -10,6 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Modal } from "@/components/Modal";
 import { ChartPie, TrendingUp, Wallet } from "lucide-react-native";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
