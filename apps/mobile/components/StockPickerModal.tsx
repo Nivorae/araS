@@ -14,12 +14,18 @@ import { useAuth } from "@clerk/clerk-expo";
 import { getAccountItem, setAccountItem } from "@/lib/accountStorage";
 import { ChevronLeft, Search } from "lucide-react-native";
 import { useApi } from "@/lib/api";
-import { PRECIOUS_METALS, type StockItem } from "@/lib/stockConstants";
+import { OVERSEAS_SUBCATEGORY, PRECIOUS_METALS, type StockItem } from "@/lib/stockConstants";
 
 // Persisted cache of the stocks the user has picked before, per sub-category,
 // so a returning user sees their recent picks first without re-searching.
 const RECENT_KEY = (subCategory: string) => `stockRecent:${subCategory}`;
 const RECENT_MAX = 10;
+// 海外股票沒有完整清單，改成邊打邊問 /api/stocks/search。
+const SEARCH_DEBOUNCE_MS = 400;
+
+function displayName(item: StockItem): string {
+  return item.exchange ? `${item.name} · ${item.exchange}` : item.name;
+}
 
 // The upstream lists (esp. crypto) can contain the same code twice, which
 // crashes FlatList's keyExtractor with a duplicate-key error. Keep the first
@@ -57,6 +63,9 @@ export function StockPickerModal({
   const [search, setSearch] = useState("");
   const [recents, setRecents] = useState<StockItem[]>([]);
   const { userId } = useAuth();
+  const isRemote = subCategory === OVERSEAS_SUBCATEGORY;
+  const [remoteResults, setRemoteResults] = useState<StockItem[]>([]);
+  const [remoteStatus, setRemoteStatus] = useState<"idle" | "loading" | "error">("idle");
 
   // Load the persisted recent picks whenever the picker opens for a category.
   useEffect(() => {
@@ -81,6 +90,11 @@ export function StockPickerModal({
   useEffect(() => {
     if (!visible) {
       setSearch("");
+      return;
+    }
+    if (isRemote) {
+      setStocks([]);
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -117,9 +131,40 @@ export function StockPickerModal({
     };
 
     load();
-  }, [visible, subCategory]);
+  }, [visible, subCategory, isRemote]);
 
   const q = search.trim().toLowerCase();
+
+  useEffect(() => {
+    if (!visible || !isRemote) return;
+    const query = search.trim();
+    if (!query) {
+      setRemoteResults([]);
+      setRemoteStatus("idle");
+      return;
+    }
+    // 下一次輸入會先跑 cleanup，慢回來的舊結果就不會蓋掉新的。
+    let cancelled = false;
+    setRemoteStatus("loading");
+    const timer = setTimeout(() => {
+      apiRef.current
+        .rawGet<StockItem[]>(`/api/stocks/search?q=${encodeURIComponent(query)}`)
+        .then((data) => {
+          if (cancelled) return;
+          setRemoteResults(dedupeByCode(Array.isArray(data) ? data : []));
+          setRemoteStatus("idle");
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setRemoteResults([]);
+          setRemoteStatus("error");
+        });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [visible, isRemote, search]);
 
   const filteredHoldings = useMemo(
     () =>
@@ -131,13 +176,13 @@ export function StockPickerModal({
     [existingHoldings, q]
   );
 
-  const filteredStocks = useMemo(
-    () =>
-      q
-        ? stocks.filter((s) => s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
-        : stocks,
-    [stocks, q]
-  );
+  const filteredStocks = useMemo(() => {
+    // 遠端搜尋的結果已經是伺服器過濾過的，不再本機比對（名稱可能不含使用者打的字）。
+    if (isRemote) return remoteResults;
+    return q
+      ? stocks.filter((s) => s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+      : stocks;
+  }, [isRemote, remoteResults, stocks, q]);
 
   const handleSelect = (stock: StockItem) => {
     // Prepend to the recent cache (dedup by code, cap RECENT_MAX) and persist.
@@ -156,12 +201,19 @@ export function StockPickerModal({
     <TouchableOpacity onPress={() => handleSelect(item)} style={s.item} activeOpacity={0.7}>
       <Text style={s.code}>{item.code}</Text>
       <Text style={s.stockName} numberOfLines={1}>
-        {item.name}
+        {displayName(item)}
       </Text>
     </TouchableOpacity>
   );
 
   const hasHoldings = filteredHoldings.length > 0 && !q;
+
+  function emptyMessage(): string {
+    if (!isRemote) return q ? "找不到符合的股票" : "暫無資料";
+    if (!q) return "搜尋倫敦、香港、東京等海外市場";
+    if (remoteStatus === "error") return "搜尋失敗，請稍後再試";
+    return "找不到符合的股票。美股請到「美股」，台股請到「台股」分類新增。";
+  }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -184,7 +236,7 @@ export function StockPickerModal({
             style={s.searchInput}
             value={search}
             onChangeText={setSearch}
-            placeholder="搜尋代碼或名稱"
+            placeholder={isRemote ? "輸入代號或名稱，例如 VWRA、0700、7203" : "搜尋代碼或名稱"}
             placeholderTextColor="#c7c7cc"
             autoCapitalize="none"
             autoFocus
@@ -192,10 +244,10 @@ export function StockPickerModal({
           />
         </View>
 
-        {loading ? (
+        {loading || (isRemote && remoteStatus === "loading") ? (
           <View style={s.center}>
             <ActivityIndicator size="large" color="#374254" />
-            <Text style={s.loadingText}>載入中…</Text>
+            <Text style={s.loadingText}>{isRemote ? "搜尋中…" : "載入中…"}</Text>
           </View>
         ) : (
           <FlatList
@@ -217,7 +269,7 @@ export function StockPickerModal({
                         >
                           <Text style={[s.code, { color: "#374254" }]}>{r.code}</Text>
                           <Text style={s.stockName} numberOfLines={1}>
-                            {r.name}
+                            {displayName(r)}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -248,11 +300,11 @@ export function StockPickerModal({
             ItemSeparatorComponent={() => <View style={s.div} />}
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
-              !loading ? (
+              loading || (isRemote && !q && showRecents) ? null : (
                 <View style={s.center}>
-                  <Text style={s.emptyText}>{q ? "找不到符合的股票" : "暫無資料"}</Text>
+                  <Text style={s.emptyText}>{emptyMessage()}</Text>
                 </View>
-              ) : null
+              )
             }
           />
         )}
@@ -321,5 +373,5 @@ const s = StyleSheet.create({
   stockName: { flex: 1, fontSize: 14, color: "#8e8e93" },
   div: { height: StyleSheet.hairlineWidth, backgroundColor: "#f2f2f7", marginHorizontal: 20 },
   loadingText: { marginTop: 12, fontSize: 14, color: "#8e8e93" },
-  emptyText: { fontSize: 14, color: "#8e8e93" },
+  emptyText: { fontSize: 14, color: "#8e8e93", textAlign: "center", paddingHorizontal: 24 },
 });

@@ -8,6 +8,11 @@
 
 ## 下一步
 
+- **海外股票**（2026-10-02）。規格已定稿，尚未實作：
+  `docs/superpowers/specs/2026-10-02-overseas-stocks-design.md`。新增「海外股票」
+  子分類，用 Yahoo 搜尋選股；同時修好輔幣（`GBp`）換算、匯率失敗退回 1、網頁詳情頁
+  市值沒換匯這三個問題。純 JS 改動，手機端走 OTA。
+
 - **安全審查修正**（2026-10-02）。審查報告在 `~/security-audit-skill/araS/run-1/`
   （repo 外，不進版控）。全部已合併進 `develop`；#157、#158 已隨 #160 上線。
   - **#163 上 main 前，先對正式資料庫套兩個 migration，再合併 release PR**：

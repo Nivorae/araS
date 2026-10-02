@@ -1,18 +1,27 @@
 export interface StockItem {
   code: string;
   name: string;
+  /** 交易所顯示名稱，只有海外股票的搜尋結果有（例如 "London"）。 */
+  exchange?: string;
 }
+
+/**
+ * 非台、非美掛牌的股票統包在這一類。`stockCode` 存 Yahoo 完整代號（`VWRA.L`、
+ * `0700.HK`），所以 `buildYfSymbol` 原樣回傳、不加後綴；選股走 `/api/stocks/search`。
+ */
+export const OVERSEAS_SUBCATEGORY = "海外股票";
 
 export const INVESTMENT_CATS = [
   "投資基金",
   "台股",
   "美股",
+  OVERSEAS_SUBCATEGORY,
   "加密貨幣",
   "貴金屬",
   "其他投資",
 ] as const;
 
-export const STOCK_CATS = ["台股", "美股", "加密貨幣", "貴金屬"] as const;
+export const STOCK_CATS = ["台股", "美股", OVERSEAS_SUBCATEGORY, "加密貨幣", "貴金屬"] as const;
 
 /**
  * 基金不在 STOCK_CATS 裡 —— 它的報價來源是官方每日淨值（/api/funds），不是
@@ -57,6 +66,7 @@ export const PRECIOUS_METALS: StockItem[] = [
 
 export function buildYfSymbol(subCategory: string, code: string): string {
   if (subCategory === "貴金屬") return METAL_YF_SYMBOL[code.toLowerCase()] ?? "";
+  if (subCategory === OVERSEAS_SUBCATEGORY) return code.toUpperCase();
   const suffix = subCategory === "台股" ? ".TW" : subCategory === "加密貨幣" ? "-USD" : "";
   return code + suffix;
 }
@@ -67,6 +77,7 @@ export function getUnitsLabel(subCat: string): string {
       return "基金份額";
     case "台股":
     case "美股":
+    case OVERSEAS_SUBCATEGORY:
       return "持有股數";
     case "加密貨幣":
       return "持有數量";

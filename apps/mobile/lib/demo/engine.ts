@@ -31,6 +31,7 @@ import {
   type UpdatePortfolioItem,
   type UpdateRecurrence,
 } from "@repo/shared";
+import { STOCK_CATS as STOCK_SUBCATEGORIES } from "../stockConstants";
 import { buildSeed } from "./seed";
 import { DemoError, type DemoDividend, type DemoState } from "./types";
 
@@ -97,7 +98,7 @@ function buildBuckets(range: NetWorthRange, earliestMs: number) {
   }));
 }
 
-const STOCK_CATS = ["台股", "美股", "加密貨幣", "貴金屬"];
+const STOCK_CATS: readonly string[] = STOCK_SUBCATEGORIES;
 const CASH_TOP_CATEGORY = "流動資金";
 
 // 照抄 recurrences.service.ts 的 computeInitialNextRunAt：起始日當天或之後的第一次。

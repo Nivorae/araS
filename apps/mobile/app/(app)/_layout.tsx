@@ -8,6 +8,7 @@ import { AppLockGate } from "@/components/AppLockGate";
 import { DemoBanner } from "@/components/DemoBanner";
 import { exitDemo } from "@/lib/demo/session";
 import { isDemoActive, useDemoStore } from "@/store/demoStore";
+import { dismissKeyboardOnLeave } from "@/lib/keyboard";
 
 // 進出示範模式後把使用者帶到該去的畫面。放在 Stack 外面，Stack 因為 key 改變
 // 而重新掛載時它不受影響。
@@ -54,7 +55,11 @@ export default function AppLayout() {
             {/* key：進出示範時整個畫面樹重新掛載。分頁畫面掛載後不會卸載，
                 (tabs)/_layout 的 DataLoader 也只抓一次，不重新掛載的話前一個
                 狀態的資料會留在畫面上。 */}
-            <Stack key={generation} screenOptions={{ headerShown: false }}>
+            <Stack
+              key={generation}
+              screenOptions={{ headerShown: false }}
+              screenListeners={dismissKeyboardOnLeave}
+            >
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="entry/new" />
               <Stack.Screen name="entry/form" />

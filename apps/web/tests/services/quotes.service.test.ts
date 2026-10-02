@@ -5,7 +5,7 @@ vi.mock("@/services/crypto-list.service", () => ({
 }));
 
 import { fetchCryptoList } from "@/services/crypto-list.service";
-import { QuotesService } from "../../services/quotes.service";
+import { QuotesService, normalizeQuoteCurrency } from "../../services/quotes.service";
 
 function yahooResponse(ok: boolean, body?: unknown, status = ok ? 200 : 500) {
   return { ok, status, json: async () => body } as Response;
@@ -132,5 +132,35 @@ describe("QuotesService.fetchQuote", () => {
     await expect(new QuotesService().fetchQuote("AAPL")).rejects.toThrow(
       "No data found for symbol AAPL"
     );
+  });
+
+  it("converts a pence quote to pounds before returning it", async () => {
+    fetchMock.mockResolvedValue(
+      yahooResponse(true, {
+        chart: { result: [{ meta: { regularMarketPrice: 4500, currency: "GBp" } }] },
+      })
+    );
+
+    const quote = await new QuotesService().fetchQuote("VUSA.L");
+
+    expect(quote).toEqual({ symbol: "VUSA.L", price: 45, currency: "GBP" });
+  });
+});
+
+describe("normalizeQuoteCurrency", () => {
+  it.each([
+    [4500, "GBp", 45, "GBP"],
+    [4500, "GBX", 45, "GBP"],
+    [12000, "ZAc", 120, "ZAR"],
+    [3000, "ILA", 30, "ILS"],
+  ])("converts %d %s to %d %s", (price, currency, expectedPrice, expectedCurrency) => {
+    expect(normalizeQuoteCurrency(price, currency)).toEqual({
+      price: expectedPrice,
+      currency: expectedCurrency,
+    });
+  });
+
+  it.each(["GBP", "USD", "TWD", "HKD"])("leaves %s untouched", (currency) => {
+    expect(normalizeQuoteCurrency(45, currency)).toEqual({ price: 45, currency });
   });
 });

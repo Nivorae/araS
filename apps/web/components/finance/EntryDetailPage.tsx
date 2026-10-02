@@ -6,6 +6,8 @@ import { Spinner } from "../ui/Spinner";
 import type { Entry, EntryHistory } from "@repo/shared";
 import { TRANSFER_TOP_CATEGORIES } from "@repo/shared";
 import { formatCurrency } from "../../lib/format";
+import { buildYfSymbol, OVERSEAS_SUBCATEGORY, STOCK_CATS } from "../../lib/stockSymbol";
+import { fetchTwdQuote, fetchTwdRate } from "../../lib/twdQuote";
 import { CATEGORIES } from "./categoryConfig";
 import { TransferEntryPage } from "./TransferEntryPage";
 import { DividendSection } from "./DividendSection";
@@ -20,14 +22,8 @@ interface Props {
   onDelete?: (id: string) => Promise<void>;
 }
 
-const STOCK_PICKER_CATEGORIES = ["台股", "美股", "加密貨幣", "貴金屬"];
-const DIVIDEND_CATEGORIES = ["台股", "美股"];
-const METAL_YF_SYMBOL: Record<string, string> = {
-  xau: "GC=F",
-  xag: "SI=F",
-  xap: "PL=F",
-  xpd: "PA=F",
-};
+const STOCK_PICKER_CATEGORIES = STOCK_CATS;
+const DIVIDEND_CATEGORIES = ["台股", "美股", OVERSEAS_SUBCATEGORY];
 
 function getCategoryColor(topCategory: string): string {
   return CATEGORIES.find((c) => c.name === topCategory)?.color ?? "#374254";
@@ -43,12 +39,6 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function buildYfSymbol(subCategory: string, stockCode: string): string {
-  if (subCategory === "貴金屬") return METAL_YF_SYMBOL[stockCode.toLowerCase()] ?? "";
-  const suffix = subCategory === "台股" ? ".TW" : subCategory === "加密貨幣" ? "-USD" : "";
-  return stockCode + suffix;
-}
-
 export function EntryDetailPage({
   open,
   entry,
@@ -60,7 +50,12 @@ export function EntryDetailPage({
 }: Props) {
   const [history, setHistory] = useState<EntryHistory[]>([]);
   const [loading, setLoading] = useState(false);
+  // `currentPrice` is the quote in its own currency (display only);
+  // `currentPriceTWD` is what every market-value / P&L number must use, because
+  // the cost basis in EntryHistory.delta is TWD. Same split as mobile [id].tsx.
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [currentPriceTWD, setCurrentPriceTWD] = useState<number | null>(null);
+  const [currentPriceCurrency, setCurrentPriceCurrency] = useState<string | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -90,6 +85,8 @@ export function EntryDetailPage({
 
     setHistory([]);
     setCurrentPrice(null);
+    setCurrentPriceTWD(null);
+    setCurrentPriceCurrency(null);
     setDividendRate(null);
     setDividendYield(null);
     setDividendExRate(1);
@@ -109,16 +106,18 @@ export function EntryDetailPage({
       const yfSymbol = buildYfSymbol(entry.subCategory, entry.stockCode);
       if (!yfSymbol) return;
       setPriceLoading(true);
-      fetch(`/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (typeof data.price === "number") setCurrentPrice(data.price as number);
+      fetchTwdQuote(yfSymbol)
+        .then((quote) => {
+          // 報價或匯率拿不到就不顯示市值，退回成本 —— 不能拿原幣價當台幣用。
+          if (!quote) return;
+          setCurrentPrice(quote.price);
+          setCurrentPriceTWD(quote.price * quote.rate);
+          setCurrentPriceCurrency(quote.currency !== "TWD" ? quote.currency : null);
         })
-        .catch(() => {})
         .finally(() => setPriceLoading(false));
     }
 
-    // Fetch dividend data for 台股 / 美股 only
+    // Fetch dividend data for 台股 / 美股 / 海外股票 only
     if (entry.stockCode && DIVIDEND_CATEGORIES.includes(entry.subCategory)) {
       const yfSymbol = buildYfSymbol(entry.subCategory, entry.stockCode);
       if (!yfSymbol) return;
@@ -126,24 +125,23 @@ export function EntryDetailPage({
       fetch(`/api/stocks/dividend?symbol=${encodeURIComponent(yfSymbol)}`)
         .then((r) => r.json())
         .then(async (data) => {
-          setDividendRate(
-            typeof data.dividendRate === "number" ? (data.dividendRate as number) : null
-          );
           setDividendYield(
             typeof data.dividendYield === "number" ? (data.dividendYield as number) : null
           );
-          // For US stocks, fetch USD→TWD exchange rate
-          if (entry.subCategory === "美股" && typeof data.dividendRate === "number") {
-            try {
-              const fxRes = await fetch(
-                `/api/stocks/price?symbol=${encodeURIComponent("USDTWD=X")}`
-              );
-              const fxData = await fxRes.json();
-              if (typeof fxData.price === "number") setDividendExRate(fxData.price as number);
-            } catch {
-              /* keep rate = 1 */
-            }
+          if (typeof data.dividendRate !== "number") {
+            setDividendRate(null);
+            return;
           }
+          // dividendRate is in the listing's currency (the endpoint reports it).
+          // Without a known rate, hide the TWD estimate rather than show it × 1.
+          const currency = typeof data.currency === "string" ? data.currency : "TWD";
+          const rate = await fetchTwdRate(currency);
+          if (rate == null) {
+            setDividendRate(null);
+            return;
+          }
+          setDividendExRate(rate);
+          setDividendRate(data.dividendRate as number);
         })
         .catch(() => {})
         .finally(() => setDividendLoading(false));
@@ -231,7 +229,7 @@ export function EntryDetailPage({
   const investmentRecords = history.filter((h) => h.units != null && h.units > 0);
   const totalUnits = investmentRecords.reduce((s, h) => s + (h.units ?? 0), 0);
   const totalCost = investmentRecords.reduce((s, h) => s + h.delta, 0);
-  const currentMarketValue = currentPrice != null ? totalUnits * currentPrice : null;
+  const currentMarketValue = currentPriceTWD != null ? totalUnits * currentPriceTWD : null;
   const totalPnL = currentMarketValue != null ? currentMarketValue - totalCost : null;
   const totalPnLPct = totalCost > 0 && totalPnL != null ? (totalPnL / totalCost) * 100 : null;
 
@@ -345,6 +343,7 @@ export function EntryDetailPage({
                 <>
                   <p className="text-[13px] text-[#8e8e93]">
                     當日股價 {currentPrice.toLocaleString("zh-TW", { maximumFractionDigits: 4 })}
+                    {currentPriceCurrency && ` ${currentPriceCurrency}`}
                   </p>
                   {totalPnL != null && (
                     <p
@@ -413,7 +412,7 @@ export function EntryDetailPage({
               {history.map((h, i) => {
                 const hasUnits = h.units != null && h.units > 0;
                 const recordPnL =
-                  hasUnits && currentPrice != null ? h.units! * currentPrice - h.delta : null;
+                  hasUnits && currentPriceTWD != null ? h.units! * currentPriceTWD - h.delta : null;
 
                 return (
                   <div key={h.id}>
