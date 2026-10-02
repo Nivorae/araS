@@ -4,9 +4,21 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-10-01
+最後整理：2026-10-02
 
 ## 下一步
+
+- **安全審查修正 —— 手機端等 1.6 上架後一起發 OTA**（2026-10-02）。審查報告在
+  `~/security-audit-skill/araS/run-1/`（repo 外，不進版控）。伺服器端的 #157
+  （行情 API 必須登入）、#158（貸款計入免費上限）已隨 #160 上線。手機端
+  #159（換帳號清快取）、#161（鎖定畫面蓋住 Modal）、RevenueCat 換帳號 logIn
+  已合併進 `develop`，但 1.5 收不到（fingerprint）、1.6 審核中不能發。1.6 上架後：
+  1. `eas build --profile preview` 打一包，真機用 Sandbox 測「A 登入 → 登出 →
+     B 登入 → 購買 → Premium 給的是 B 不是 A」—— Expo Go 沒有 RevenueCat，測不到。
+  2. 通過後 `/mobile-release` 發 OTA（記得更新 `whatsNew`）。
+  - 審查剩餘未修：Supabase Data API 仍開著（後台開關曾 `Failed to fetch`，
+    換網路再關）、輸入／列數上限、App Store 通知順序、appleAccountToken
+    不帶密鑰、退休規劃參數存在 AsyncStorage 沒分帳號。
 
 **1.5 已通過 Apple 審核並上線，release PR #135 已合併回 `main`**（2026-09-18）。
 build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
