@@ -8,8 +8,10 @@ const isProtectedProxy = createRouteMatcher([
   "/api/funds(.*)",
 ]);
 
-export default clerkMiddleware((auth, req) => {
-  if (isProtectedProxy(req)) auth.protect();
+// auth.protect() is async — it must be awaited, or its rejection escapes
+// clerkMiddleware and the signed-out request is let through.
+export default clerkMiddleware(async (auth, req) => {
+  if (isProtectedProxy(req)) await auth.protect();
 });
 
 export const config = {

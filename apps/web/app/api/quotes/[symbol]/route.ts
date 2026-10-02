@@ -1,9 +1,17 @@
 import { NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { quotesService } from "@/services/quotes.service";
 import { ok, err, handleError } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/security-log";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ symbol: string }> }) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      logSecurityEvent({ type: "auth_fail", resource: "/api/quotes/[symbol]" });
+      return err("UNAUTHORIZED", "Unauthorized", 401);
+    }
+
     const { symbol } = await params;
     const quote = await quotesService.fetchQuote(symbol);
     return ok(quote);
