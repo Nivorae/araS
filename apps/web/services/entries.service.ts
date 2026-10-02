@@ -114,13 +114,22 @@ function buildBuckets(range: NetWorthRange, earliest: Date) {
   }));
 }
 
-// Thrown by create() when a non-premium user is already at FREE_ENTRY_LIMIT.
-// The route layer maps this to a 403 ENTRY_LIMIT_REACHED envelope.
+// Thrown by assertCanCreateEntry() when a non-premium user is already at
+// FREE_ENTRY_LIMIT. The route layer maps this to a 403 ENTRY_LIMIT_REACHED envelope.
 export class EntryLimitError extends Error {
   constructor() {
     super("Free plan entry limit reached");
     this.name = "EntryLimitError";
   }
+}
+
+// The free-plan cap covers every Entry row, so every service that inserts one
+// (entries, loans) must call this first. Server-side enforcement is the
+// authoritative defence (client hints are advisory); premium users skip the count.
+export async function assertCanCreateEntry(userId: string): Promise<void> {
+  if (await entitlementsService.isPremium(userId)) return;
+  const count = await prisma.entry.count({ where: { userId } });
+  if (count >= FREE_ENTRY_LIMIT) throw new EntryLimitError();
 }
 
 // Thrown by transfer() — the route layer maps these to 404/400 envelopes.
@@ -215,13 +224,7 @@ export class EntriesService {
   }
 
   async create(data: CreateEntry, userId: string) {
-    // Server-side enforcement is the authoritative defence (client hints are
-    // advisory). Premium users skip the count entirely.
-    const premium = await entitlementsService.isPremium(userId);
-    if (!premium) {
-      const count = await prisma.entry.count({ where: { userId } });
-      if (count >= FREE_ENTRY_LIMIT) throw new EntryLimitError();
-    }
+    await assertCanCreateEntry(userId);
 
     const { units, pricePerShare, stockCode, bankCode, createdAt, note, includeInChart, ...rest } =
       data;

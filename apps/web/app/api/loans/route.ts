@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { CreateLoanSchema } from "@repo/shared";
 import { loansService } from "@/services/loans.service";
+import { EntryLimitError } from "@/services/entries.service";
 import { ok, err, handleError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/security-log";
 
@@ -16,6 +17,9 @@ export async function POST(req: NextRequest) {
     const result = await loansService.create(data, userId);
     return ok(result, 201);
   } catch (e) {
+    if (e instanceof EntryLimitError) {
+      return err("ENTRY_LIMIT_REACHED", "已達免費方案的資產筆數上限", 403);
+    }
     return handleError(e);
   }
 }
