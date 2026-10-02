@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Modal } from "@/components/Modal";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { BottomSheet } from "@/components/BottomSheet";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 
 // ─── Pure-JS date picker (no native module → OTA-safe) ───────────────────────
@@ -57,70 +57,71 @@ export function DatePickerModal({
   const dayIndex = Math.max(0, clampedDay - 1 - centreOffset);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={dpS.backdrop} onPress={onClose} />
-      <View style={[dpS.sheet, isTablet && dpS.sheetTablet]}>
-        <View style={dpS.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={dpS.cancel}>取消</Text>
-          </TouchableOpacity>
-          <Text style={dpS.title}>選擇日期</Text>
-          <TouchableOpacity
-            onPress={() => {
-              onConfirm(new Date(y, m - 1, clampedDay));
-              onClose();
-            }}
-          >
-            <Text style={dpS.done}>完成</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={dpS.cols}>
-          <FlatList
-            style={dpS.col}
-            data={_DP_YEARS}
-            keyExtractor={(item) => `y${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={getItemLayout}
-            initialScrollIndex={yearIndex}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={dpS.itemRow} onPress={() => setY(item)}>
-                <Text style={[dpS.item, item === y && dpS.active]}>{item}年</Text>
-              </TouchableOpacity>
-            )}
-          />
-          <FlatList
-            style={dpS.col}
-            data={_DP_MONTHS}
-            keyExtractor={(item) => `m${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={getItemLayout}
-            initialScrollIndex={monthIndex}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={dpS.itemRow} onPress={() => setM(item)}>
-                <Text style={[dpS.item, item === m && dpS.active]}>
-                  {String(item).padStart(2, "0")}月
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-          <FlatList
-            style={dpS.col}
-            data={pickerDays}
-            keyExtractor={(item) => `d${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={getItemLayout}
-            initialScrollIndex={dayIndex}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={dpS.itemRow} onPress={() => setD(item)}>
-                <Text style={[dpS.item, item === clampedDay && dpS.active]}>
-                  {String(item).padStart(2, "0")}日
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={[dpS.sheet, isTablet && dpS.sheetTablet]}
+    >
+      <View style={dpS.header}>
+        <TouchableOpacity onPress={onClose}>
+          <Text style={dpS.cancel}>取消</Text>
+        </TouchableOpacity>
+        <Text style={dpS.title}>選擇日期</Text>
+        <TouchableOpacity
+          onPress={() => {
+            onConfirm(new Date(y, m - 1, clampedDay));
+            onClose();
+          }}
+        >
+          <Text style={dpS.done}>完成</Text>
+        </TouchableOpacity>
       </View>
-    </Modal>
+      <View style={dpS.cols}>
+        <FlatList
+          style={dpS.col}
+          data={_DP_YEARS}
+          keyExtractor={(item) => `y${item}`}
+          showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={yearIndex}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={dpS.itemRow} onPress={() => setY(item)}>
+              <Text style={[dpS.item, item === y && dpS.active]}>{item}年</Text>
+            </TouchableOpacity>
+          )}
+        />
+        <FlatList
+          style={dpS.col}
+          data={_DP_MONTHS}
+          keyExtractor={(item) => `m${item}`}
+          showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={monthIndex}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={dpS.itemRow} onPress={() => setM(item)}>
+              <Text style={[dpS.item, item === m && dpS.active]}>
+                {String(item).padStart(2, "0")}月
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+        <FlatList
+          style={dpS.col}
+          data={pickerDays}
+          keyExtractor={(item) => `d${item}`}
+          showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={dayIndex}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={dpS.itemRow} onPress={() => setD(item)}>
+              <Text style={[dpS.item, item === clampedDay && dpS.active]}>
+                {String(item).padStart(2, "0")}日
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -128,7 +129,6 @@ const dpS = StyleSheet.create({
   // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
   // and centring it keeps it sheet-shaped.
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,
