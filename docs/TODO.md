@@ -8,17 +8,26 @@
 
 ## 下一步
 
-- **安全審查修正 —— 手機端等 1.6 上架後一起發 OTA**（2026-10-02）。審查報告在
-  `~/security-audit-skill/araS/run-1/`（repo 外，不進版控）。伺服器端的 #157
-  （行情 API 必須登入）、#158（貸款計入免費上限）已隨 #160 上線。手機端
-  #159（換帳號清快取）、#161（鎖定畫面蓋住 Modal）、RevenueCat 換帳號 logIn
-  已合併進 `develop`，但 1.5 收不到（fingerprint）、1.6 審核中不能發。1.6 上架後：
-  1. `eas build --profile preview` 打一包，真機用 Sandbox 測「A 登入 → 登出 →
-     B 登入 → 購買 → Premium 給的是 B 不是 A」—— Expo Go 沒有 RevenueCat，測不到。
-  2. 通過後 `/mobile-release` 發 OTA（記得更新 `whatsNew`）。
-  - 審查剩餘未修：Supabase Data API 仍開著（後台開關曾 `Failed to fetch`，
-    換網路再關）、輸入／列數上限、App Store 通知順序、appleAccountToken
-    不帶密鑰、退休規劃參數存在 AsyncStorage 沒分帳號。
+- **安全審查修正**（2026-10-02）。審查報告在 `~/security-audit-skill/araS/run-1/`
+  （repo 外，不進版控）。全部已合併進 `develop`；#157、#158 已隨 #160 上線。
+  - **#163 上 main 前，先對正式資料庫套兩個 migration，再合併 release PR**：
+    `20261002060000_enable_rls_on_public_tables`、
+    `20261002070000_add_subscription_last_signed_at`。程式碼會讀
+    `Subscription.lastSignedAt`，欄位不存在時所有訂閱查詢都會失敗 ——
+    Premium 判斷、新增資產（會先查 Premium）一起壞。兩個 migration 只加限制與
+    可為空的欄位，不刪資料，已在 dev 驗證。
+  - **手機端等 1.6 上架後一起發 OTA**：#159（換帳號清快取）、#161（鎖定畫面蓋住
+    Modal）、#162（RevenueCat 換帳號 logIn）、#163 的退休資料／選股紀錄分帳號。
+    1.5 收不到（fingerprint），1.6 審核中不能發。1.6 上架後：
+    1. `eas build --profile preview` 打一包，真機用 Sandbox 測「A 登入 → 登出 →
+       B 登入 → 購買 → Premium 給的是 B 不是 A」—— Expo Go 沒有 RevenueCat，測不到。
+    2. 通過後 `/mobile-release` 發 OTA（記得更新 `whatsNew`）。
+  - 仍未處理：Supabase Data API 開關（後台曾 `Failed to fetch`，換網路再關；
+    RLS migration 上線後即使沒關也讀不到資料）。`appleAccountToken` 不帶密鑰
+    **刻意不改** —— 改 HMAC 會讓現有訂閱者的續訂通知對不上；#163 只處理了
+    token 被搶佔時通知無限失敗的問題。
+  - 新增資料表時，migration 要一併 `ENABLE ROW LEVEL SECURITY`（見 RLS
+    migration 開頭註解）。
 
 **1.5 已通過 Apple 審核並上線，release PR #135 已合併回 `main`**（2026-09-18）。
 build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
