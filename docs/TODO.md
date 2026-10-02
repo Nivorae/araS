@@ -8,17 +8,18 @@
 
 ## 下一步
 
-- **海外股票**（2026-10-02）。已合併進 `develop`（#166），**尚未實機驗證、尚未上線**。
+- **海外股票**（2026-10-02）。已合併進 `develop`（#166），實機驗證通過（2026-10-02），**尚未上線**。
   規格：`docs/superpowers/specs/2026-10-02-overseas-stocks-design.md`。新增「海外股票」
   子分類（Yahoo 搜尋選股）、換匯計算機（11 種常用幣別），並修好輔幣（`GBp`）換算、
   匯率失敗退回 1、網頁詳情頁市值沒換匯。同一個 PR 也帶了：離開畫面／關閉 Modal 收起
   鍵盤、編輯記錄的日期改用日曆、日曆／時間選擇器的黑底改成淡入淡出（`BottomSheet`）。
-  1. 手機實機驗證：規格最後一節的 9 個步驟，加上收鍵盤、編輯記錄日期、日曆動畫。
+  1. ~~手機實機驗證~~ —— 2026-10-02 通過。
   2. 純 JS 改動，手機端走 OTA —— 跟下面安全審查修正那批一起，等 1.6 上架後發，記得更新
      `whatsNew`。網頁端隨下一次 `develop` → `main` 的 release PR 上線。
   3. 上線後再更新行銷頁與 `llms.txt`（規格「不做的事」最後一條）。
-  4. 其他底部面板（換匯計算機、股利、再投資、基金選擇、編輯記錄）的黑底還是跟著
-     滑動，可改用 `components/BottomSheet.tsx` 統一。
+  4. 其他底部面板改用 `components/BottomSheet.tsx`（黑底淡入淡出）—— 換匯計算機、
+     股利、股利紀錄、再投資、基金選擇、編輯記錄、新手引導、本次更新、退休頁的數字
+     選擇與說明。實機驗證通過（2026-10-02），之後跟這批一起發 OTA。
 
 - **安全審查修正**（2026-10-02）。審查報告在 `~/security-audit-skill/araS/run-1/`
   （repo 外，不進版控）。全部已合併進 `develop`；#157、#158 已隨 #160 上線。
@@ -112,8 +113,9 @@ package.json，而本機的 `packageManager` 是 9.14.2、EAS 用的是 10.16.1�
 - [x] `eas submit` —— 2026-10-01 上傳成功。前幾次被 Apple 擋下（403
       `REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`，Developer Program 許可協議更新未接受），
       帳號持有人接受後約 10 分鐘才生效
-- [ ] App Store Connect：「＋」→ 新增版本 1.6 → 貼 `CHANGELOG.md` 1.6 段落到
-      「此版本新增功能」→ 建置版本選新 build（**確認 build 號**）→ 送審
+- [x] App Store Connect：「＋」→ 新增版本 1.6 → 貼 `CHANGELOG.md` 1.6 段落到
+      「此版本新增功能」→ 建置版本選新 build（**確認 build 號**）→ 送審 ——
+      已送審，等待結果（2026-10-02 確認）
 - [ ] 上架後：`CHANGELOG.md` 改成「1.6（已上架）」；`fingerprint.config.js` 的新規則
       生效，恢復「發 OTA 前更新 `whatsNew`」，刪掉上方 1.5 OTA 的三個條件與事故記錄
       裡只適用 build 17 的段落

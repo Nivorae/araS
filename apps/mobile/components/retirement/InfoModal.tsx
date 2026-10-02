@@ -1,5 +1,12 @@
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Modal } from "@/components/Modal";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { BottomSheet } from "@/components/BottomSheet";
 import type { ModalContent } from "@/lib/retirement";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
@@ -14,63 +21,56 @@ export function InfoModal({
   onClose: () => void;
 }) {
   const { isTablet } = useResponsive();
+  const { height: windowHeight } = useWindowDimensions();
   // 了解了 按鈕是這個捲動區的最後一個元素，而 sheet 底緣就是螢幕底緣。
   const bottomPad = useSheetBottomPadding(24);
 
   return (
-    <Modal
+    <BottomSheet
       visible={visible && content !== null}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      sheetStyle={[s.sheet, { height: windowHeight * 0.88 }, isTablet && s.sheetTablet]}
     >
-      <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable
-          style={[s.sheet, isTablet && s.sheetTablet]}
-          onPress={(e) => e.stopPropagation()}
-        >
-          {/* Drag handle */}
-          <View style={s.handleWrap} pointerEvents="none">
-            <View style={s.handle} />
+      {/* Drag handle */}
+      <View style={s.handleWrap} pointerEvents="none">
+        <View style={s.handle} />
+      </View>
+
+      {content && (
+        <>
+          {/* Hero block — darkest */}
+          <View style={s.hero}>
+            <View style={s.heroTop}>
+              <Text style={s.heroEyebrow}>計算說明</Text>
+              <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={8}>
+                <Text style={s.closeX}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={s.heroTitle}>{content.result.label}</Text>
+            <Text style={s.heroValue}>{content.result.value}</Text>
+            <Text style={s.heroDesc}>{content.description}</Text>
           </View>
 
-          {content && (
-            <>
-              {/* Hero block — darkest */}
-              <View style={s.hero}>
-                <View style={s.heroTop}>
-                  <Text style={s.heroEyebrow}>計算說明</Text>
-                  <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={8}>
-                    <Text style={s.closeX}>×</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={s.heroTitle}>{content.result.label}</Text>
-                <Text style={s.heroValue}>{content.result.value}</Text>
-                <Text style={s.heroDesc}>{content.description}</Text>
+          {/* Formula block — light gray */}
+          <ScrollView
+            style={s.formula}
+            contentContainerStyle={[s.formulaContent, { paddingBottom: bottomPad }]}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={s.formulaTitle}>計算公式</Text>
+            {content.steps.map((step) => (
+              <View key={step.label} style={s.stepRow}>
+                <Text style={s.stepLabel}>{step.label}</Text>
+                {step.value && <Text style={s.stepValue}>{step.value}</Text>}
               </View>
-
-              {/* Formula block — light gray */}
-              <ScrollView
-                style={s.formula}
-                contentContainerStyle={[s.formulaContent, { paddingBottom: bottomPad }]}
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={s.formulaTitle}>計算公式</Text>
-                {content.steps.map((step) => (
-                  <View key={step.label} style={s.stepRow}>
-                    <Text style={s.stepLabel}>{step.label}</Text>
-                    {step.value && <Text style={s.stepValue}>{step.value}</Text>}
-                  </View>
-                ))}
-                <TouchableOpacity style={s.okBtn} onPress={onClose} activeOpacity={0.8}>
-                  <Text style={s.okText}>了解了</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+            ))}
+            <TouchableOpacity style={s.okBtn} onPress={onClose} activeOpacity={0.8}>
+              <Text style={s.okText}>了解了</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </>
+      )}
+    </BottomSheet>
   );
 }
 
@@ -78,13 +78,7 @@ const s = StyleSheet.create({
   // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
   // and centring it keeps it sheet-shaped.
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "flex-end",
-  },
   sheet: {
-    height: "88%",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: "hidden",

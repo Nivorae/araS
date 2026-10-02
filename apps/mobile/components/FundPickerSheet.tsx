@@ -7,8 +7,9 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
-import { Modal } from "@/components/Modal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { Search } from "lucide-react-native";
 import { useApi, ApiError } from "@/lib/api";
 import { searchFunds, type FundSearchResult } from "@/lib/funds";
@@ -37,6 +38,7 @@ export default function FundPickerSheet({
 }: FundPickerSheetProps) {
   const api = useApi();
   const { isTablet, contentWidth } = useResponsive();
+  const { height: windowHeight } = useWindowDimensions();
   const bottomPad = useSheetBottomPadding();
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<FundSearchResult[]>([]);
@@ -79,87 +81,82 @@ export default function FundPickerSheet({
   }, [visible, initialQuery]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={[
+        s.sheet,
+        { paddingBottom: bottomPad, maxHeight: windowHeight * 0.85 },
+        isTablet && { width: contentWidth, alignSelf: "center" },
+      ]}
+    >
+      <Text style={s.title}>選擇基金</Text>
+      <Text style={s.subtitle}>
+        從投信投顧公會（境內）與集保（境外）的每日淨值資料中比對，選定後就會記住代碼。
+      </Text>
+
+      <View style={s.searchRow}>
+        <Search size={18} color="#8e8e93" />
+        <TextInput
+          style={s.input}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="輸入基金名稱"
+          placeholderTextColor="#c7c7cc"
+          returnKeyType="search"
+          onSubmitEditing={() => void run(query)}
+        />
         <Pressable
-          style={[
-            s.sheet,
-            { paddingBottom: bottomPad },
-            isTablet && { width: contentWidth, alignSelf: "center" },
+          onPress={() => void run(query)}
+          disabled={loading || !query.trim()}
+          style={({ pressed }) => [
+            s.searchBtn,
+            { opacity: loading || !query.trim() ? 0.5 : pressed ? 0.8 : 1 },
           ]}
-          onPress={() => {}}
         >
-          <Text style={s.title}>選擇基金</Text>
-          <Text style={s.subtitle}>
-            從投信投顧公會（境內）與集保（境外）的每日淨值資料中比對，選定後就會記住代碼。
-          </Text>
-
-          <View style={s.searchRow}>
-            <Search size={18} color="#8e8e93" />
-            <TextInput
-              style={s.input}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="輸入基金名稱"
-              placeholderTextColor="#c7c7cc"
-              returnKeyType="search"
-              onSubmitEditing={() => void run(query)}
-            />
-            <Pressable
-              onPress={() => void run(query)}
-              disabled={loading || !query.trim()}
-              style={({ pressed }) => [
-                s.searchBtn,
-                { opacity: loading || !query.trim() ? 0.5 : pressed ? 0.8 : 1 },
-              ]}
-            >
-              <Text style={s.searchBtnLabel}>搜尋</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView style={s.list} keyboardShouldPersistTaps="handled">
-            {loading ? (
-              <ActivityIndicator style={s.state} />
-            ) : error ? (
-              <Text style={s.state}>{error}</Text>
-            ) : results.length === 0 ? (
-              <Text style={s.state}>
-                {searched ? "查不到符合的基金，換個關鍵字試試" : "輸入名稱後按搜尋"}
-              </Text>
-            ) : (
-              results.map((fund) => (
-                <Pressable
-                  key={`${fund.source}:${fund.code}`}
-                  onPress={() => onSelect(fund)}
-                  style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <Text style={s.rowName}>{fund.name}</Text>
-                  <Text style={s.rowMeta}>
-                    {fund.source === "onshore" ? "境內" : "境外"} · {fund.currency} · {fund.code}
-                  </Text>
-                </Pressable>
-              ))
-            )}
-          </ScrollView>
-
-          <Pressable onPress={onClose} style={s.cancel}>
-            <Text style={s.cancelLabel}>取消</Text>
-          </Pressable>
+          <Text style={s.searchBtnLabel}>搜尋</Text>
         </Pressable>
+      </View>
+
+      <ScrollView style={s.list} keyboardShouldPersistTaps="handled">
+        {loading ? (
+          <ActivityIndicator style={s.state} />
+        ) : error ? (
+          <Text style={s.state}>{error}</Text>
+        ) : results.length === 0 ? (
+          <Text style={s.state}>
+            {searched ? "查不到符合的基金，換個關鍵字試試" : "輸入名稱後按搜尋"}
+          </Text>
+        ) : (
+          results.map((fund) => (
+            <Pressable
+              key={`${fund.source}:${fund.code}`}
+              onPress={() => onSelect(fund)}
+              style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Text style={s.rowName}>{fund.name}</Text>
+              <Text style={s.rowMeta}>
+                {fund.source === "onshore" ? "境內" : "境外"} · {fund.currency} · {fund.code}
+              </Text>
+            </Pressable>
+          ))
+        )}
+      </ScrollView>
+
+      <Pressable onPress={onClose} style={s.cancel}>
+        <Text style={s.cancelLabel}>取消</Text>
       </Pressable>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
   sheet: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 20,
-    maxHeight: "85%",
   },
   title: { fontSize: 20, fontWeight: "700", color: "#1c1c1e" },
   subtitle: { fontSize: 13, color: "#8e8e93", marginTop: 6, lineHeight: 18 },
