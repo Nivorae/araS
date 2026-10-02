@@ -1,7 +1,6 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type {
   Entry,
   CreateEntry,
@@ -81,335 +80,338 @@ interface FinanceState {
   deleteRecurrence: (id: string) => Promise<void>;
 }
 
-export const useFinanceStore = create<FinanceState>()(
-  persist(
-    (set, get) => ({
-      entries: [],
-      transactions: [],
-      portfolio: [],
-      recurrences: [],
-      valueSnapshots: [],
-      netWorthHistory: {},
-      loading: true,
-      error: null,
-      lastFetchedAt: null,
-      isGuest: false,
+// valueSnapshots used to be persisted to localStorage, outliving sign-out so
+// the next account in the same browser inherited them — and no UI reads them.
+// Kept in memory only now; drop any copy an earlier version left behind.
+if (typeof window !== "undefined") {
+  try {
+    window.localStorage.removeItem("finance-store");
+  } catch {
+    // storage unavailable (private mode, blocked site data) — nothing to clear
+  }
+}
 
-      fetchAll: async (isSignedIn?: boolean) => {
-        const { lastFetchedAt, isGuest } = get();
+export const useFinanceStore = create<FinanceState>()((set, get) => ({
+  entries: [],
+  transactions: [],
+  portfolio: [],
+  recurrences: [],
+  valueSnapshots: [],
+  netWorthHistory: {},
+  loading: true,
+  error: null,
+  lastFetchedAt: null,
+  isGuest: false,
 
-        // Called without arg (from pages) — skip if data already loaded
-        if (isSignedIn === undefined) {
-          if (lastFetchedAt) return;
-          return;
-        }
+  fetchAll: async (isSignedIn?: boolean) => {
+    const { lastFetchedAt, isGuest } = get();
 
-        // Skip if auth state unchanged and cache is warm (30s)
-        if (lastFetchedAt && Date.now() - lastFetchedAt < 30_000 && isGuest === !isSignedIn) return;
-
-        if (!isSignedIn) {
-          // Guest: load static demo data
-          const demo = (await import("@/data/demo.json")).default;
-          set((s) => {
-            const snapshots =
-              s.valueSnapshots.length === 0 && (demo.entries as unknown[]).length > 0
-                ? [makeSnapshot(demo.entries as Parameters<typeof makeSnapshot>[0])]
-                : s.valueSnapshots;
-            return {
-              entries: demo.entries as typeof s.entries,
-              transactions: demo.transactions as typeof s.transactions,
-              portfolio: demo.portfolio as typeof s.portfolio,
-              valueSnapshots: snapshots,
-              isGuest: true,
-              loading: false,
-              error: null,
-              lastFetchedAt: Date.now(),
-            };
-          });
-          return;
-        }
-
-        // Signed in: original API fetch logic
-        set({ isGuest: false, loading: true, error: null });
-        try {
-          const [entries, portfolio] = await Promise.all([
-            apiFetch<Entry[]>("/api/entries"),
-            apiFetch<PortfolioItem[]>("/api/portfolio"),
-          ]);
-          await apiFetch<{ created: number }>("/api/recurrences/process", { method: "POST" });
-          const [recurrences, updatedTransactions] = await Promise.all([
-            apiFetch<Recurrence[]>("/api/recurrences"),
-            apiFetch<Transaction[]>("/api/transactions"),
-          ]);
-          set((s) => {
-            const snapshots =
-              s.valueSnapshots.length === 0 && entries.length > 0
-                ? [makeSnapshot(entries)]
-                : s.valueSnapshots;
-            return {
-              entries,
-              transactions: updatedTransactions,
-              portfolio,
-              recurrences,
-              valueSnapshots: snapshots,
-              loading: false,
-              lastFetchedAt: Date.now(),
-            };
-          });
-        } catch (e) {
-          set({ loading: false, error: e instanceof Error ? e.message : "Failed to fetch data" });
-        }
-      },
-
-      // Unconditional re-fetch of entries, bypassing fetchAll's cache guard.
-      // Needed by mutations that happen outside addEntry/updateEntry/deleteEntry
-      // (e.g. insurance writes, which go through their own /api/insurances
-      // routes and return an Insurance record, not an Entry) so the list
-      // reflects the change immediately instead of only on next sign-in.
-      refreshEntries: async () => {
-        if (get().isGuest) return;
-        const entries = await apiFetch<Entry[]>("/api/entries");
-        set({ entries });
-      },
-
-      // Cached per range — the server rebuilds these points from EntryHistory,
-      // so an already-fetched range doesn't change until an entry mutation
-      // clears the whole cache (see addEntry/updateEntry/deleteEntry below).
-      fetchNetWorthHistory: async (range) => {
-        if (get().netWorthHistory[range]) return;
-        const history = await apiFetch<NetWorthHistory>(
-          `/api/entries/net-worth-history?range=${range}`
-        );
-        set((s) => ({ netWorthHistory: { ...s.netWorthHistory, [range]: history.points } }));
-      },
-
-      addEntry: async (data) => {
-        if (get().isGuest) {
-          const fakeEntry = {
-            ...data,
-            id: `demo-${Date.now()}`,
-            stockCode: (data as { stockCode?: string | null }).stockCode ?? null,
-            bankCode: (data as { bankCode?: string | null }).bankCode ?? null,
-            loan: null,
-            units: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          set((s) => ({ entries: [...s.entries, fakeEntry as (typeof s.entries)[0]] }));
-          return;
-        }
-
-        // If an entry with the same name + topCategory + subCategory already exists, merge by summing values
-        const existing = get().entries.find(
-          (e) =>
-            e.name === data.name &&
-            e.topCategory === data.topCategory &&
-            e.subCategory === data.subCategory
-        );
-
-        if (existing) {
-          const merged = await apiFetch<Entry>(`/api/entries/${existing.id}`, {
-            method: "PUT",
-            body: JSON.stringify({
-              value: existing.value + data.value,
-              ...(data.stockCode ? { stockCode: data.stockCode } : {}),
-              ...(data.bankCode ? { bankCode: data.bankCode } : {}),
-              ...(data.units != null ? { units: data.units } : {}),
-            }),
-          });
-          set((s) => {
-            const newEntries = s.entries.map((e) => (e.id === existing.id ? merged : e));
-            return {
-              entries: newEntries,
-              valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-              netWorthHistory: {},
-            };
-          });
-          return;
-        }
-
-        const entry = await apiFetch<Entry>("/api/entries", {
-          method: "POST",
-          body: JSON.stringify(data),
-        });
-        set((s) => {
-          const newEntries = [entry, ...s.entries.filter((e) => e.id !== entry.id)];
-          return {
-            entries: newEntries,
-            valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-            netWorthHistory: {},
-          };
-        });
-      },
-
-      updateEntry: async (id, data) => {
-        if (get().isGuest) {
-          set((s) => ({
-            entries: s.entries.map((e) =>
-              e.id === id ? ({ ...e, ...data } as (typeof s.entries)[0]) : e
-            ),
-          }));
-          return;
-        }
-
-        const entry = await apiFetch<Entry>(`/api/entries/${id}`, {
-          method: "PUT",
-          body: JSON.stringify(data),
-        });
-        set((s) => {
-          const newEntries = s.entries.map((e) => (e.id === id ? entry : e));
-          return {
-            entries: newEntries,
-            valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-            netWorthHistory: {},
-          };
-        });
-      },
-
-      deleteEntry: async (id) => {
-        if (get().isGuest) {
-          set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }));
-          return;
-        }
-
-        await apiFetch(`/api/entries/${id}`, { method: "DELETE" });
-        set((s) => {
-          const newEntries = s.entries.filter((e) => e.id !== id);
-          return {
-            entries: newEntries,
-            valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-            netWorthHistory: {},
-          };
-        });
-      },
-
-      transferEntry: async (data) => {
-        if (get().isGuest) {
-          set((s) => {
-            const from = s.entries.find((e) => e.id === data.fromEntryId);
-            const to = s.entries.find((e) => e.id === data.toEntryId);
-            if (!from || !to) return s;
-            const fee = data.fee ?? 0;
-            const newEntries = s.entries.map((e) => {
-              if (e.id === from.id) return { ...e, value: e.value - data.amount - fee };
-              if (e.id === to.id) return { ...e, value: e.value + data.amount };
-              return e;
-            });
-            return {
-              entries: newEntries,
-              valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-            };
-          });
-          return;
-        }
-
-        // Not routed through apiFetch — the caller needs the error `code`
-        // (e.g. INSUFFICIENT_BALANCE) to show a specific message, and
-        // apiFetch's thrown Error only carries the message text.
-        const res = await fetch("/api/entries/transfer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-        const json = await res.json();
-        if (!json.success) {
-          throw Object.assign(new Error(json.error?.message ?? "轉帳失敗"), {
-            code: json.error?.code as string | undefined,
-          });
-        }
-
-        const entries = await apiFetch<Entry[]>("/api/entries");
-        set((s) => ({
-          entries,
-          valueSnapshots: [...s.valueSnapshots, makeSnapshot(entries)],
-          netWorthHistory: {},
-        }));
-      },
-
-      addTransaction: async (data) => {
-        if (get().isGuest) {
-          const fakeTx = {
-            ...data,
-            id: `demo-${Date.now()}`,
-            note: (data as { note?: string | null }).note ?? null,
-            createdAt: new Date().toISOString(),
-          };
-          set((s) => ({ transactions: [...s.transactions, fakeTx as (typeof s.transactions)[0]] }));
-          return;
-        }
-
-        const tx = await apiFetch<Transaction>("/api/transactions", {
-          method: "POST",
-          body: JSON.stringify(data),
-        });
-        set((s) => ({ transactions: [tx, ...s.transactions] }));
-      },
-
-      deleteTransaction: async (id) => {
-        if (get().isGuest) {
-          set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
-          return;
-        }
-
-        await apiFetch(`/api/transactions/${id}`, { method: "DELETE" });
-        set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
-      },
-
-      addPortfolioItem: async (data) => {
-        if (get().isGuest) {
-          const fakeItem = {
-            ...data,
-            id: `demo-${Date.now()}`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          set((s) => ({ portfolio: [...s.portfolio, fakeItem as (typeof s.portfolio)[0]] }));
-          return;
-        }
-
-        const item = await apiFetch<PortfolioItem>("/api/portfolio", {
-          method: "POST",
-          body: JSON.stringify(data),
-        });
-        set((s) => ({ portfolio: [item, ...s.portfolio] }));
-      },
-
-      deletePortfolioItem: async (id) => {
-        if (get().isGuest) {
-          set((s) => ({ portfolio: s.portfolio.filter((p) => p.id !== id) }));
-          return;
-        }
-
-        await apiFetch(`/api/portfolio/${id}`, { method: "DELETE" });
-        set((s) => ({ portfolio: s.portfolio.filter((p) => p.id !== id) }));
-      },
-
-      addRecurrence: async (data) => {
-        const item = await apiFetch<Recurrence>("/api/recurrences", {
-          method: "POST",
-          body: JSON.stringify(data),
-        });
-        set((s) => ({ recurrences: [...s.recurrences, item] }));
-      },
-
-      updateRecurrence: async (id, data) => {
-        const item = await apiFetch<Recurrence>(`/api/recurrences/${id}`, {
-          method: "PUT",
-          body: JSON.stringify(data),
-        });
-        set((s) => ({
-          recurrences: s.recurrences.map((r) => (r.id === id ? item : r)),
-        }));
-      },
-
-      deleteRecurrence: async (id) => {
-        await apiFetch(`/api/recurrences/${id}`, { method: "DELETE" });
-        set((s) => ({ recurrences: s.recurrences.filter((r) => r.id !== id) }));
-      },
-    }),
-    {
-      name: "finance-store",
-      partialize: (s) => ({ valueSnapshots: s.valueSnapshots }),
+    // Called without arg (from pages) — skip if data already loaded
+    if (isSignedIn === undefined) {
+      if (lastFetchedAt) return;
+      return;
     }
-  )
-);
+
+    // Skip if auth state unchanged and cache is warm (30s)
+    if (lastFetchedAt && Date.now() - lastFetchedAt < 30_000 && isGuest === !isSignedIn) return;
+
+    if (!isSignedIn) {
+      // Guest: load static demo data
+      const demo = (await import("@/data/demo.json")).default;
+      set((s) => {
+        const snapshots =
+          s.valueSnapshots.length === 0 && (demo.entries as unknown[]).length > 0
+            ? [makeSnapshot(demo.entries as Parameters<typeof makeSnapshot>[0])]
+            : s.valueSnapshots;
+        return {
+          entries: demo.entries as typeof s.entries,
+          transactions: demo.transactions as typeof s.transactions,
+          portfolio: demo.portfolio as typeof s.portfolio,
+          valueSnapshots: snapshots,
+          isGuest: true,
+          loading: false,
+          error: null,
+          lastFetchedAt: Date.now(),
+        };
+      });
+      return;
+    }
+
+    // Signed in: original API fetch logic
+    set({ isGuest: false, loading: true, error: null });
+    try {
+      const [entries, portfolio] = await Promise.all([
+        apiFetch<Entry[]>("/api/entries"),
+        apiFetch<PortfolioItem[]>("/api/portfolio"),
+      ]);
+      await apiFetch<{ created: number }>("/api/recurrences/process", { method: "POST" });
+      const [recurrences, updatedTransactions] = await Promise.all([
+        apiFetch<Recurrence[]>("/api/recurrences"),
+        apiFetch<Transaction[]>("/api/transactions"),
+      ]);
+      set((s) => {
+        const snapshots =
+          s.valueSnapshots.length === 0 && entries.length > 0
+            ? [makeSnapshot(entries)]
+            : s.valueSnapshots;
+        return {
+          entries,
+          transactions: updatedTransactions,
+          portfolio,
+          recurrences,
+          valueSnapshots: snapshots,
+          loading: false,
+          lastFetchedAt: Date.now(),
+        };
+      });
+    } catch (e) {
+      set({ loading: false, error: e instanceof Error ? e.message : "Failed to fetch data" });
+    }
+  },
+
+  // Unconditional re-fetch of entries, bypassing fetchAll's cache guard.
+  // Needed by mutations that happen outside addEntry/updateEntry/deleteEntry
+  // (e.g. insurance writes, which go through their own /api/insurances
+  // routes and return an Insurance record, not an Entry) so the list
+  // reflects the change immediately instead of only on next sign-in.
+  refreshEntries: async () => {
+    if (get().isGuest) return;
+    const entries = await apiFetch<Entry[]>("/api/entries");
+    set({ entries });
+  },
+
+  // Cached per range — the server rebuilds these points from EntryHistory,
+  // so an already-fetched range doesn't change until an entry mutation
+  // clears the whole cache (see addEntry/updateEntry/deleteEntry below).
+  fetchNetWorthHistory: async (range) => {
+    if (get().netWorthHistory[range]) return;
+    const history = await apiFetch<NetWorthHistory>(
+      `/api/entries/net-worth-history?range=${range}`
+    );
+    set((s) => ({ netWorthHistory: { ...s.netWorthHistory, [range]: history.points } }));
+  },
+
+  addEntry: async (data) => {
+    if (get().isGuest) {
+      const fakeEntry = {
+        ...data,
+        id: `demo-${Date.now()}`,
+        stockCode: (data as { stockCode?: string | null }).stockCode ?? null,
+        bankCode: (data as { bankCode?: string | null }).bankCode ?? null,
+        loan: null,
+        units: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      set((s) => ({ entries: [...s.entries, fakeEntry as (typeof s.entries)[0]] }));
+      return;
+    }
+
+    // If an entry with the same name + topCategory + subCategory already exists, merge by summing values
+    const existing = get().entries.find(
+      (e) =>
+        e.name === data.name &&
+        e.topCategory === data.topCategory &&
+        e.subCategory === data.subCategory
+    );
+
+    if (existing) {
+      const merged = await apiFetch<Entry>(`/api/entries/${existing.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          value: existing.value + data.value,
+          ...(data.stockCode ? { stockCode: data.stockCode } : {}),
+          ...(data.bankCode ? { bankCode: data.bankCode } : {}),
+          ...(data.units != null ? { units: data.units } : {}),
+        }),
+      });
+      set((s) => {
+        const newEntries = s.entries.map((e) => (e.id === existing.id ? merged : e));
+        return {
+          entries: newEntries,
+          valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+          netWorthHistory: {},
+        };
+      });
+      return;
+    }
+
+    const entry = await apiFetch<Entry>("/api/entries", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    set((s) => {
+      const newEntries = [entry, ...s.entries.filter((e) => e.id !== entry.id)];
+      return {
+        entries: newEntries,
+        valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+        netWorthHistory: {},
+      };
+    });
+  },
+
+  updateEntry: async (id, data) => {
+    if (get().isGuest) {
+      set((s) => ({
+        entries: s.entries.map((e) =>
+          e.id === id ? ({ ...e, ...data } as (typeof s.entries)[0]) : e
+        ),
+      }));
+      return;
+    }
+
+    const entry = await apiFetch<Entry>(`/api/entries/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    set((s) => {
+      const newEntries = s.entries.map((e) => (e.id === id ? entry : e));
+      return {
+        entries: newEntries,
+        valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+        netWorthHistory: {},
+      };
+    });
+  },
+
+  deleteEntry: async (id) => {
+    if (get().isGuest) {
+      set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }));
+      return;
+    }
+
+    await apiFetch(`/api/entries/${id}`, { method: "DELETE" });
+    set((s) => {
+      const newEntries = s.entries.filter((e) => e.id !== id);
+      return {
+        entries: newEntries,
+        valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+        netWorthHistory: {},
+      };
+    });
+  },
+
+  transferEntry: async (data) => {
+    if (get().isGuest) {
+      set((s) => {
+        const from = s.entries.find((e) => e.id === data.fromEntryId);
+        const to = s.entries.find((e) => e.id === data.toEntryId);
+        if (!from || !to) return s;
+        const fee = data.fee ?? 0;
+        const newEntries = s.entries.map((e) => {
+          if (e.id === from.id) return { ...e, value: e.value - data.amount - fee };
+          if (e.id === to.id) return { ...e, value: e.value + data.amount };
+          return e;
+        });
+        return {
+          entries: newEntries,
+          valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
+        };
+      });
+      return;
+    }
+
+    // Not routed through apiFetch — the caller needs the error `code`
+    // (e.g. INSUFFICIENT_BALANCE) to show a specific message, and
+    // apiFetch's thrown Error only carries the message text.
+    const res = await fetch("/api/entries/transfer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (!json.success) {
+      throw Object.assign(new Error(json.error?.message ?? "轉帳失敗"), {
+        code: json.error?.code as string | undefined,
+      });
+    }
+
+    const entries = await apiFetch<Entry[]>("/api/entries");
+    set((s) => ({
+      entries,
+      valueSnapshots: [...s.valueSnapshots, makeSnapshot(entries)],
+      netWorthHistory: {},
+    }));
+  },
+
+  addTransaction: async (data) => {
+    if (get().isGuest) {
+      const fakeTx = {
+        ...data,
+        id: `demo-${Date.now()}`,
+        note: (data as { note?: string | null }).note ?? null,
+        createdAt: new Date().toISOString(),
+      };
+      set((s) => ({ transactions: [...s.transactions, fakeTx as (typeof s.transactions)[0]] }));
+      return;
+    }
+
+    const tx = await apiFetch<Transaction>("/api/transactions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    set((s) => ({ transactions: [tx, ...s.transactions] }));
+  },
+
+  deleteTransaction: async (id) => {
+    if (get().isGuest) {
+      set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
+      return;
+    }
+
+    await apiFetch(`/api/transactions/${id}`, { method: "DELETE" });
+    set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
+  },
+
+  addPortfolioItem: async (data) => {
+    if (get().isGuest) {
+      const fakeItem = {
+        ...data,
+        id: `demo-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      set((s) => ({ portfolio: [...s.portfolio, fakeItem as (typeof s.portfolio)[0]] }));
+      return;
+    }
+
+    const item = await apiFetch<PortfolioItem>("/api/portfolio", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    set((s) => ({ portfolio: [item, ...s.portfolio] }));
+  },
+
+  deletePortfolioItem: async (id) => {
+    if (get().isGuest) {
+      set((s) => ({ portfolio: s.portfolio.filter((p) => p.id !== id) }));
+      return;
+    }
+
+    await apiFetch(`/api/portfolio/${id}`, { method: "DELETE" });
+    set((s) => ({ portfolio: s.portfolio.filter((p) => p.id !== id) }));
+  },
+
+  addRecurrence: async (data) => {
+    const item = await apiFetch<Recurrence>("/api/recurrences", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    set((s) => ({ recurrences: [...s.recurrences, item] }));
+  },
+
+  updateRecurrence: async (id, data) => {
+    const item = await apiFetch<Recurrence>(`/api/recurrences/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    set((s) => ({
+      recurrences: s.recurrences.map((r) => (r.id === id ? item : r)),
+    }));
+  },
+
+  deleteRecurrence: async (id) => {
+    await apiFetch(`/api/recurrences/${id}`, { method: "DELETE" });
+    set((s) => ({ recurrences: s.recurrences.filter((r) => r.id !== id) }));
+  },
+}));
