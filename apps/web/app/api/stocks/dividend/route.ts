@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import type { NextRequest } from "next/server";
 import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 import { getYahooCrumb } from "@/lib/yahoo-crumb";
+import { logSecurityEvent } from "@/lib/security-log";
 
 const CACHE_SECONDS = 30;
 const EMPTY_RESULT = { dividendRate: null, dividendYield: null };
@@ -15,6 +17,12 @@ async function fetchSummaryDetail(symbol: string, auth: { cookie: string; crumb:
 }
 
 export async function GET(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    logSecurityEvent({ type: "auth_fail", resource: "/api/stocks/dividend" });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const symbol = req.nextUrl.searchParams.get("symbol");
   if (!symbol) {
     return NextResponse.json(EMPTY_RESULT);

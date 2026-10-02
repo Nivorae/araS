@@ -9,8 +9,13 @@ vi.mock("@/lib/prisma", () => ({
     },
     entry: {
       update: vi.fn(),
+      count: vi.fn(),
     },
   },
+}));
+
+vi.mock("@/services/entitlements.service", () => ({
+  entitlementsService: { isPremium: vi.fn() },
 }));
 
 const txMock = {
@@ -33,7 +38,10 @@ vi.mock("@repo/shared", async () => {
   };
 });
 
+import { FREE_ENTRY_LIMIT } from "@repo/shared";
 import { prisma } from "@/lib/prisma";
+import { entitlementsService } from "@/services/entitlements.service";
+import { EntryLimitError } from "../../services/entries.service";
 import { loansService } from "../../services/loans.service";
 
 const MOCK_LOAN = {
@@ -65,6 +73,8 @@ describe("LoansService.create", () => {
     });
     txMock.entryHistory.create.mockResolvedValue({});
     txMock.loan.create.mockResolvedValue(MOCK_LOAN);
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
+    vi.mocked(prisma.entry.count).mockResolvedValue(0);
   });
 
   const CREATE_INPUT = {
@@ -86,6 +96,35 @@ describe("LoansService.create", () => {
         data: expect.objectContaining({ includeInChart: false }),
       })
     );
+  });
+
+  // A loan is a 負債 Entry row, so it counts toward the same free-plan cap as
+  // POST /api/entries — otherwise it's a way around the paywall.
+  it("throws EntryLimitError when a non-premium user is at the limit", async () => {
+    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT);
+
+    await expect(loansService.create(CREATE_INPUT, "user-1")).rejects.toBeInstanceOf(
+      EntryLimitError
+    );
+    expect(prisma.entry.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(txMock.entry.create).not.toHaveBeenCalled();
+  });
+
+  it("creates the loan when a non-premium user is below the limit", async () => {
+    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT - 1);
+
+    await loansService.create(CREATE_INPUT, "user-1");
+
+    expect(txMock.entry.create).toHaveBeenCalled();
+  });
+
+  it("skips the count for premium users", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(true);
+
+    await loansService.create(CREATE_INPUT, "user-1");
+
+    expect(prisma.entry.count).not.toHaveBeenCalled();
+    expect(txMock.entry.create).toHaveBeenCalled();
   });
 
   it("does not force includeInChart when the caller omits it", async () => {

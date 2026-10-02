@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { d } from "@/lib/serialize";
 import type { CreateLoan, UpdateLoan, UpdateLoanRate } from "@repo/shared";
 import { calculateLoanStatus } from "@repo/shared";
+import { assertCanCreateEntry } from "@/services/entries.service";
 
 function serializeLoan<
   T extends {
@@ -52,6 +53,9 @@ export class LoansService {
       repaymentType,
       includeInChart,
     } = data;
+
+    // A loan is a 負債 Entry row, so it counts toward the free-plan cap.
+    await assertCanCreateEntry(userId);
 
     return prisma.$transaction(async (tx) => {
       const entry = await tx.entry.create({

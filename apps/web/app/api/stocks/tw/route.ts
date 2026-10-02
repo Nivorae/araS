@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 import { mergeExchangeStocks } from "./mergeExchangeStocks";
+import { logSecurityEvent } from "@/lib/security-log";
 
 // TWSE: all securities traded today (stocks + equity ETFs + bond ETFs listed on TWSE)
 const TWSE_ALL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
@@ -24,6 +26,11 @@ async function fetchJSON(url: string): Promise<Record<string, string>[]> {
 }
 
 export async function GET() {
+  const { userId } = await auth();
+  if (!userId) {
+    logSecurityEvent({ type: "auth_fail", resource: "/api/stocks/tw" });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const [allSecurities, companies, tpexSecurities] = await Promise.all([
       fetchJSON(TWSE_ALL),

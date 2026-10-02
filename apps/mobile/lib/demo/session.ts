@@ -14,8 +14,9 @@ import { demoLandingFor } from "./landing";
 import type { DemoNav } from "./types";
 
 // 真實資料與示範資料共用同一個 financeStore 和同一批模組層級快取。切換前全部
-// 清空，畫面樹再由 generation 重新掛載，兩邊才不會看到對方的資料。
-function clearDataCaches(): void {
+// 清空，畫面樹再由 generation 重新掛載，兩邊才不會看到對方的資料。登出或換帳號
+// 時 root layout 也會呼叫，下一個登入的人才不會先看到上一個帳號的資料。
+export function clearDataCaches(): void {
   useFinanceStore.getState().reset();
   clearCachedFetch();
   clearNetWorthHistoryInFlight();

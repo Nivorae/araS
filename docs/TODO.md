@@ -73,8 +73,12 @@ package.json，而本機的 `packageManager` 是 9.14.2、EAS 用的是 10.16.1�
 但沒跳「本次更新」視窗的功能（示範模式、保單 logo、詳情頁重設計）——這些一起寫進
 1.6 的 `whatsNew` 與 `CHANGELOG.md`。
 
-- [ ] `eas build --profile production --platform ios`
-- [ ] `eas submit --platform ios --latest`
+- [x] `eas build` —— build **19**（commit `30c89b6`，runtime `83228e8`，2026-10-01）。
+      build 18 失敗在 `CONFIGURE_EXPO_UPDATES`（本機與 EAS 的 fingerprint 不同），
+      #154 修正，原因見 `/mobile-release` 的 gotchas
+- [x] `eas submit` —— 2026-10-01 上傳成功。前幾次被 Apple 擋下（403
+      `REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`，Developer Program 許可協議更新未接受），
+      帳號持有人接受後約 10 分鐘才生效
 - [ ] App Store Connect：「＋」→ 新增版本 1.6 → 貼 `CHANGELOG.md` 1.6 段落到
       「此版本新增功能」→ 建置版本選新 build（**確認 build 號**）→ 送審
 - [ ] 上架後：`CHANGELOG.md` 改成「1.6（已上架）」；`fingerprint.config.js` 的新規則
