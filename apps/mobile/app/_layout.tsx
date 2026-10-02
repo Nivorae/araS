@@ -9,6 +9,8 @@ import { initAnalytics, useAppOpenTracking } from "@/lib/analytics";
 import UpdateBanner from "@/components/UpdateBanner";
 import WhatsNewSheet from "@/components/WhatsNewSheet";
 import { configurePurchases } from "@/lib/purchases";
+import { createAccountChangeTracker } from "@/lib/accountChange";
+import { clearDataCaches } from "@/lib/demo/session";
 import { configureNotificationHandler } from "@/lib/notifications";
 import * as Notifications from "expo-notifications";
 
@@ -34,6 +36,9 @@ configureNotificationHandler();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
+// 登出、刪除帳號或換人登入時清掉上一個帳號留在記憶體裡的資料。
+const trackAccount = createAccountChangeTracker(clearDataCaches);
+
 function InitialLayout() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const segments = useSegments();
@@ -54,6 +59,10 @@ function InitialLayout() {
   useEffect(() => {
     if (isSignedIn && userId) configurePurchases(userId);
   }, [isSignedIn, userId]);
+
+  useEffect(() => {
+    if (isLoaded) trackAccount(userId ?? null);
+  }, [isLoaded, userId]);
 
   // 點擊每月提醒通知 → 回到首頁資產儀表。掛在這裡（而不是設定頁）是因為使用者
   // 點通知時 App 可能根本沒開，只有 root 保證存在。未登入時什麼都不做，登入
