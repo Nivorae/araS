@@ -10,7 +10,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/clerk-expo";
+import { getAccountItem, setAccountItem } from "@/lib/accountStorage";
 import { ChevronLeft, Search } from "lucide-react-native";
 import { useApi } from "@/lib/api";
 import { PRECIOUS_METALS, type StockItem } from "@/lib/stockConstants";
@@ -55,12 +56,13 @@ export function StockPickerModal({
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [recents, setRecents] = useState<StockItem[]>([]);
+  const { userId } = useAuth();
 
   // Load the persisted recent picks whenever the picker opens for a category.
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !userId) return;
     let active = true;
-    AsyncStorage.getItem(RECENT_KEY(subCategory))
+    getAccountItem(RECENT_KEY(subCategory), userId)
       .then((raw) => {
         if (!active || !raw) return;
         try {
@@ -74,7 +76,7 @@ export function StockPickerModal({
     return () => {
       active = false;
     };
-  }, [visible, subCategory]);
+  }, [visible, subCategory, userId]);
 
   useEffect(() => {
     if (!visible) {
@@ -141,7 +143,9 @@ export function StockPickerModal({
     // Prepend to the recent cache (dedup by code, cap RECENT_MAX) and persist.
     const next = [stock, ...recents.filter((r) => r.code !== stock.code)].slice(0, RECENT_MAX);
     setRecents(next);
-    AsyncStorage.setItem(RECENT_KEY(subCategory), JSON.stringify(next)).catch(() => {});
+    if (userId) {
+      setAccountItem(RECENT_KEY(subCategory), userId, JSON.stringify(next)).catch(() => {});
+    }
     onSelect(stock);
     onClose();
   };
