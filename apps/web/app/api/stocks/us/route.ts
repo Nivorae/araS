@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { fetchWithRetry } from "@/lib/fetch-with-timeout";
+import { logSecurityEvent } from "@/lib/security-log";
 
 // SEC EDGAR company tickers — free, no auth required
 const SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json";
@@ -105,6 +107,11 @@ const COMMON_ETFS: { code: string; name: string }[] = [
 const CACHE_SECONDS = 24 * 60 * 60; // 24 hours (list changes rarely)
 
 export async function GET() {
+  const { userId } = await auth();
+  if (!userId) {
+    logSecurityEvent({ type: "auth_fail", resource: "/api/stocks/us" });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const res = await fetchWithRetry(SEC_TICKERS_URL, {
       next: { revalidate: CACHE_SECONDS },
