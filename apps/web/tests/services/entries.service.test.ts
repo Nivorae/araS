@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const txMock = {
-  entry: { findFirst: vi.fn(), update: vi.fn() },
+  $executeRaw: vi.fn(),
+  entry: { findFirst: vi.fn(), update: vi.fn(), count: vi.fn(), create: vi.fn() },
   entryHistory: { create: vi.fn() },
 };
 
@@ -174,13 +175,13 @@ describe("EntriesService.create", () => {
       updatedAt: new Date(),
       userId: USER_ID,
     };
-    vi.mocked(prisma.entry.create).mockResolvedValue(fakeEntry as never);
-    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    txMock.entry.create.mockResolvedValue(fakeEntry);
+    txMock.entryHistory.create.mockResolvedValue({});
     await entriesService.create(
       { name: "Test", topCategory: "資產", subCategory: "現金", value: 100 },
       USER_ID
     );
-    expect(prisma.entry.create).toHaveBeenCalledWith(
+    expect(txMock.entry.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: USER_ID }) })
     );
   });
@@ -322,8 +323,8 @@ describe("EntriesService.create — bankCode", () => {
       updatedAt: new Date(),
       userId: USER_ID,
     };
-    vi.mocked(prisma.entry.create).mockResolvedValue(fakeEntry as never);
-    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    txMock.entry.create.mockResolvedValue(fakeEntry);
+    txMock.entryHistory.create.mockResolvedValue({});
 
     await entriesService.create(
       {
@@ -336,7 +337,7 @@ describe("EntriesService.create — bankCode", () => {
       USER_ID
     );
 
-    expect(prisma.entry.create).toHaveBeenCalledWith(
+    expect(txMock.entry.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ bankCode: "ctbc" }),
       })
@@ -356,15 +357,15 @@ describe("EntriesService.create — bankCode", () => {
       updatedAt: new Date(),
       userId: USER_ID,
     };
-    vi.mocked(prisma.entry.create).mockResolvedValue(fakeEntry as never);
-    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    txMock.entry.create.mockResolvedValue(fakeEntry);
+    txMock.entryHistory.create.mockResolvedValue({});
 
     await entriesService.create(
       { name: "Test", topCategory: "銀行", subCategory: "金融卡", value: 5000 },
       USER_ID
     );
 
-    expect(prisma.entry.create).toHaveBeenCalledWith(
+    expect(txMock.entry.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ bankCode: null }),
       })
@@ -373,33 +374,53 @@ describe("EntriesService.create — bankCode", () => {
 });
 
 describe("EntriesService.create limit guard", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    txMock.entry.create.mockResolvedValue({ id: "e1", value: 1000 });
+    txMock.entryHistory.create.mockResolvedValue({});
+  });
 
   it("throws EntryLimitError when a non-premium user is at the limit", async () => {
     vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
-    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT);
+    txMock.entry.count.mockResolvedValue(FREE_ENTRY_LIMIT);
     await expect(entriesService.create(VALID_ENTRY, USER_ID)).rejects.toBeInstanceOf(
       EntryLimitError
     );
-    expect(prisma.entry.create).not.toHaveBeenCalled();
+    expect(txMock.entry.create).not.toHaveBeenCalled();
   });
 
   it("allows a non-premium user below the limit", async () => {
     vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
-    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT - 1);
-    vi.mocked(prisma.entry.create).mockResolvedValue({ id: "e1", value: 1000 } as never);
-    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
+    txMock.entry.count.mockResolvedValue(FREE_ENTRY_LIMIT - 1);
     await entriesService.create(VALID_ENTRY, USER_ID);
-    expect(prisma.entry.create).toHaveBeenCalled();
+    expect(txMock.entry.create).toHaveBeenCalled();
   });
 
   it("allows a premium user regardless of count (never even counts)", async () => {
     vi.mocked(entitlementsService.isPremium).mockResolvedValue(true);
-    vi.mocked(prisma.entry.create).mockResolvedValue({ id: "e1", value: 1000 } as never);
-    vi.mocked(prisma.entryHistory.create).mockResolvedValue({} as never);
     await entriesService.create(VALID_ENTRY, USER_ID);
-    expect(prisma.entry.count).not.toHaveBeenCalled();
-    expect(prisma.entry.create).toHaveBeenCalled();
+    expect(txMock.entry.count).not.toHaveBeenCalled();
+    expect(txMock.entry.create).toHaveBeenCalled();
+  });
+
+  // Count and insert were separate statements, so N parallel requests could
+  // all read count < limit and all insert. A per-user advisory lock taken
+  // first in the same transaction makes them check-and-insert one at a time.
+  it("takes the per-user lock before counting, inside the insert's transaction", async () => {
+    vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
+    txMock.entry.count.mockResolvedValue(0);
+
+    await entriesService.create(VALID_ENTRY, USER_ID);
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(txMock.$executeRaw).toHaveBeenCalled();
+    expect(txMock.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      txMock.entry.count.mock.invocationCallOrder[0]!
+    );
+    expect(txMock.entry.count.mock.invocationCallOrder[0]).toBeLessThan(
+      txMock.entry.create.mock.invocationCallOrder[0]!
+    );
+    expect(txMock.entryHistory.create).toHaveBeenCalled();
   });
 });
 

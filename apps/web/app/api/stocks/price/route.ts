@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import type { NextRequest } from "next/server";
-import { quotesService } from "@/services/quotes.service";
+import { normalizeSymbol, quotesService } from "@/services/quotes.service";
 import { logSecurityEvent } from "@/lib/security-log";
 
 export async function GET(req: NextRequest) {
@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const symbol = req.nextUrl.searchParams.get("symbol");
+  const symbol = normalizeSymbol(req.nextUrl.searchParams.get("symbol"));
   if (!symbol) {
-    return NextResponse.json({ error: "symbol is required" }, { status: 400 });
+    return NextResponse.json({ error: "a valid symbol is required" }, { status: 400 });
   }
 
   try {

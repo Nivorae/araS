@@ -5,6 +5,14 @@ import {
   MAX_COVERAGE_ITEMS,
   type InsuranceType,
 } from "../constants/insurance";
+import {
+  MAX_CODE_LENGTH,
+  MAX_DATE_LENGTH,
+  MAX_LABEL_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_NOTE_LENGTH,
+  MAX_RECURRENCE_BACKDATE_DAYS,
+} from "../constants/limits";
 
 // EntryHistory
 export const EntryHistorySchema = z.object({
@@ -43,12 +51,12 @@ export const LoanSchema = z.object({
 export type Loan = z.infer<typeof LoanSchema>;
 
 export const CreateLoanSchema = z.object({
-  loanName: z.string().min(1, "貸款名稱為必填"),
-  category: z.string().min(1, "類別為必填"),
+  loanName: z.string().min(1, "貸款名稱為必填").max(MAX_NAME_LENGTH),
+  category: z.string().min(1, "類別為必填").max(MAX_LABEL_LENGTH),
   totalAmount: z.number().positive("金額必須大於 0"),
   annualInterestRate: z.number().min(0).max(100),
   termMonths: z.number().int().positive("期數必須大於 0"),
-  startDate: z.string(),
+  startDate: z.string().max(MAX_DATE_LENGTH),
   gracePeriodMonths: z.number().int().min(0).default(0),
   repaymentType: RepaymentTypeSchema,
   includeInChart: z.boolean().optional(),
@@ -61,11 +69,11 @@ export const UpdateLoanRateSchema = z.object({
 export type UpdateLoanRate = z.infer<typeof UpdateLoanRateSchema>;
 
 export const UpdateLoanSchema = z.object({
-  loanName: z.string().min(1).optional(),
+  loanName: z.string().min(1).max(MAX_NAME_LENGTH).optional(),
   totalAmount: z.number().positive().optional(),
   annualInterestRate: z.number().min(0).max(100).optional(),
   termMonths: z.number().int().positive().optional(),
-  startDate: z.string().optional(),
+  startDate: z.string().max(MAX_DATE_LENGTH).optional(),
   gracePeriodMonths: z.number().int().min(0).optional(),
   repaymentType: RepaymentTypeSchema.optional(),
   includeInChart: z.boolean().optional(),
@@ -106,19 +114,19 @@ export const EntrySchema = z.object({
 export type Entry = z.infer<typeof EntrySchema>;
 
 export const CreateEntrySchema = z.object({
-  name: z.string().min(1, "名稱為必填"),
-  topCategory: z.string().min(1, "大類為必填"),
-  subCategory: z.string().min(1, "子類別為必填"),
-  stockCode: z.string().optional(),
-  bankCode: z.string().optional(),
+  name: z.string().min(1, "名稱為必填").max(MAX_NAME_LENGTH),
+  topCategory: z.string().min(1, "大類為必填").max(MAX_LABEL_LENGTH),
+  subCategory: z.string().min(1, "子類別為必填").max(MAX_LABEL_LENGTH),
+  stockCode: z.string().max(MAX_CODE_LENGTH).optional(),
+  bankCode: z.string().max(MAX_CODE_LENGTH).optional(),
   units: z.number().optional(),
   // Per-share price for this purchase — stored on the resulting EntryHistory
   // row alongside `units`/`value`, not derived from them.
   pricePerShare: z.number().positive().optional(),
-  note: z.string().max(200).optional(),
+  note: z.string().max(MAX_NOTE_LENGTH).optional(),
   value: z.number().positive("金額必須大於 0"),
   includeInChart: z.boolean().optional(),
-  createdAt: z.string().optional(),
+  createdAt: z.string().max(MAX_DATE_LENGTH).optional(),
 });
 export type CreateEntry = z.infer<typeof CreateEntrySchema>;
 
@@ -134,8 +142,8 @@ export const TransferEntrySchema = z
     toEntryId: z.string().min(1),
     amount: z.number().positive("金額必須大於 0"),
     fee: z.number().nonnegative("手續費不能為負數").optional(),
-    note: z.string().max(200).optional(),
-    createdAt: z.string().optional(),
+    note: z.string().max(MAX_NOTE_LENGTH).optional(),
+    createdAt: z.string().max(MAX_DATE_LENGTH).optional(),
   })
   .refine((data) => data.fromEntryId !== data.toEntryId, {
     message: "來源與目標項目不能相同",
@@ -149,8 +157,8 @@ export type TransferEntry = z.infer<typeof TransferEntrySchema>;
 export type TransferResult = { from: Entry; to: Entry };
 
 export const UpdateEntryHistorySchema = z.object({
-  note: z.string().max(200).nullable().optional(),
-  createdAt: z.string().optional(),
+  note: z.string().max(MAX_NOTE_LENGTH).nullable().optional(),
+  createdAt: z.string().max(MAX_DATE_LENGTH).optional(),
   delta: z.number().optional(),
   units: z.number().nullable().optional(),
   pricePerShare: z.number().nullable().optional(),
@@ -191,10 +199,10 @@ export type Transaction = z.infer<typeof TransactionSchema>;
 export const CreateTransactionSchema = z.object({
   type: TransactionTypeSchema,
   amount: z.number().positive("金額必須大於 0"),
-  category: z.string().min(1, "類別為必填"),
+  category: z.string().min(1, "類別為必填").max(MAX_LABEL_LENGTH),
   source: TransactionSourceSchema,
-  note: z.string().optional(),
-  date: z.string(),
+  note: z.string().max(MAX_NOTE_LENGTH).optional(),
+  date: z.string().max(MAX_DATE_LENGTH),
 });
 export type CreateTransaction = z.infer<typeof CreateTransactionSchema>;
 
@@ -211,8 +219,8 @@ export const PortfolioItemSchema = z.object({
 export type PortfolioItem = z.infer<typeof PortfolioItemSchema>;
 
 export const CreatePortfolioItemSchema = z.object({
-  symbol: z.string().min(1, "代號為必填"),
-  name: z.string().min(1, "名稱為必填"),
+  symbol: z.string().min(1, "代號為必填").max(MAX_CODE_LENGTH),
+  name: z.string().min(1, "名稱為必填").max(MAX_NAME_LENGTH),
   avgCost: z.number().positive("成本必須大於 0"),
   shares: z.number().positive("股數必須大於 0"),
 });
@@ -254,22 +262,41 @@ export const RecurrenceSchema = z.object({
 });
 export type Recurrence = z.infer<typeof RecurrenceSchema>;
 
-export const CreateRecurrenceSchema = z.object({
+// Evaluated at call time, so the window moves with the clock. Enforced on
+// create here; on update the service applies it only when startDate actually
+// changes, because the edit form re-sends the original date and a recurrence
+// created over a year ago must stay editable.
+export function isWithinRecurrenceBackdateWindow(date: string | Date): boolean {
+  const t = new Date(date).getTime();
+  return !Number.isNaN(t) && t >= Date.now() - MAX_RECURRENCE_BACKDATE_DAYS * 86_400_000;
+}
+export const RECURRENCE_BACKDATE_MESSAGE = `開始日期不得早於 ${MAX_RECURRENCE_BACKDATE_DAYS} 天前`;
+
+const recurrenceDate = z
+  .string()
+  .max(MAX_DATE_LENGTH)
+  .refine((s) => !Number.isNaN(Date.parse(s)), "開始日期格式不正確");
+
+const RecurrenceFieldsSchema = z.object({
   entryId: z.string().min(1),
   type: TransactionTypeSchema,
   amount: z.number().positive("金額必須大於 0"),
-  category: z.string().min(1, "類別為必填"),
+  category: z.string().min(1, "類別為必填").max(MAX_LABEL_LENGTH),
   source: TransactionSourceSchema.default("daily"),
-  note: z.string().max(200).optional(),
+  note: z.string().max(MAX_NOTE_LENGTH).optional(),
   frequency: RecurrenceFreqSchema,
   dayOfMonth: z.number().int().min(1).max(31).optional(),
   dayOfWeek: z.number().int().min(0).max(6).optional(),
   monthOfYear: z.number().int().min(1).max(12).optional(),
-  startDate: z.string(),
+  startDate: recurrenceDate,
 });
+export const CreateRecurrenceSchema = RecurrenceFieldsSchema.refine(
+  (r) => isWithinRecurrenceBackdateWindow(r.startDate),
+  { message: RECURRENCE_BACKDATE_MESSAGE, path: ["startDate"] }
+);
 export type CreateRecurrence = z.infer<typeof CreateRecurrenceSchema>;
 
-export const UpdateRecurrenceSchema = CreateRecurrenceSchema.omit({ entryId: true }).partial();
+export const UpdateRecurrenceSchema = RecurrenceFieldsSchema.omit({ entryId: true }).partial();
 export type UpdateRecurrence = z.infer<typeof UpdateRecurrenceSchema>;
 
 // ValueSnapshot — auto-recorded on every asset/liability mutation
@@ -304,8 +331,8 @@ export type NetWorthHistory = z.infer<typeof NetWorthHistorySchema>;
 
 // Insurance
 export const CoverageItemSchema = z.object({
-  key: z.string().min(1),
-  label: z.string().min(1),
+  key: z.string().min(1).max(MAX_LABEL_LENGTH),
+  label: z.string().min(1).max(MAX_LABEL_LENGTH),
   value: z.number(),
 });
 export type CoverageItem = z.infer<typeof CoverageItemSchema>;
@@ -325,14 +352,14 @@ function validCoverageKeys(type: InsuranceType, coverage: CoverageItem[] | undef
 
 export const CreateInsuranceSchema = z
   .object({
-    insurer: z.string().min(1, "保險公司為必填"),
-    insuredName: z.string().min(1, "被保人為必填"),
+    insurer: z.string().min(1, "保險公司為必填").max(MAX_NAME_LENGTH),
+    insuredName: z.string().min(1, "被保人為必填").max(MAX_NAME_LENGTH),
     insuranceType: InsuranceTypeSchema,
-    policyName: z.string().optional(),
-    policyNumber: z.string().optional(),
-    startDate: z.string().optional(),
+    policyName: z.string().max(MAX_NAME_LENGTH).optional(),
+    policyNumber: z.string().max(MAX_CODE_LENGTH).optional(),
+    startDate: z.string().max(MAX_DATE_LENGTH).optional(),
     paymentTermYears: z.number().int().positive().optional(),
-    coveragePeriod: z.string().optional(),
+    coveragePeriod: z.string().max(MAX_LABEL_LENGTH).optional(),
     annualPremium: z.number().nonnegative().optional(),
     coverage: coverageArray,
   })
@@ -348,14 +375,14 @@ export const CreateInsuranceSchema = z
 export type CreateInsurance = z.infer<typeof CreateInsuranceSchema>;
 
 export const UpdateInsuranceSchema = z.object({
-  insurer: z.string().min(1).optional(),
-  insuredName: z.string().min(1).optional(),
+  insurer: z.string().min(1).max(MAX_NAME_LENGTH).optional(),
+  insuredName: z.string().min(1).max(MAX_NAME_LENGTH).optional(),
   insuranceType: InsuranceTypeSchema.optional(),
-  policyName: z.string().nullable().optional(),
-  policyNumber: z.string().nullable().optional(),
-  startDate: z.string().nullable().optional(),
+  policyName: z.string().max(MAX_NAME_LENGTH).nullable().optional(),
+  policyNumber: z.string().max(MAX_CODE_LENGTH).nullable().optional(),
+  startDate: z.string().max(MAX_DATE_LENGTH).nullable().optional(),
   paymentTermYears: z.number().int().positive().nullable().optional(),
-  coveragePeriod: z.string().nullable().optional(),
+  coveragePeriod: z.string().max(MAX_LABEL_LENGTH).nullable().optional(),
   annualPremium: z.number().nonnegative().nullable().optional(),
   coverage: coverageArray,
 });
@@ -382,11 +409,11 @@ export type Insurance = z.infer<typeof InsuranceSchema>;
 // Dividend — 股票股息紀錄（Premium）。amount 一律 TWD，見設計文件「幣別處理」。
 export const CreateDividendSchema = z.object({
   entryId: z.string().min(1),
-  payDate: z.string().min(1),
+  payDate: z.string().min(1).max(MAX_DATE_LENGTH),
   amount: z.number().positive(),
   perShare: z.number().positive().optional(),
   shares: z.number().positive().optional(),
-  note: z.string().max(200).optional(),
+  note: z.string().max(MAX_NOTE_LENGTH).optional(),
   // 未指定即不記錄現金流：不會對任何流動資金 Entry 產生 history。
   bankEntryId: z.string().min(1).optional(),
   // 預設同步一筆收入 Transaction，使用者可在表單上關掉。
@@ -395,9 +422,9 @@ export const CreateDividendSchema = z.object({
 export type CreateDividend = z.infer<typeof CreateDividendSchema>;
 
 export const UpdateDividendSchema = z.object({
-  payDate: z.string().min(1).optional(),
+  payDate: z.string().min(1).max(MAX_DATE_LENGTH).optional(),
   amount: z.number().positive().optional(),
-  note: z.string().max(200).nullable().optional(),
+  note: z.string().max(MAX_NOTE_LENGTH).nullable().optional(),
   // null 表示「清掉入帳帳戶」，undefined 表示「不動」。
   bankEntryId: z.string().min(1).nullable().optional(),
 });

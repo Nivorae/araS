@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/clerk-expo";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ChevronRight } from "lucide-react-native";
 import {
@@ -13,25 +13,30 @@ import {
 } from "@/lib/retirement";
 import { InfoModal } from "@/components/retirement/InfoModal";
 import { isDemoActive } from "@/store/demoStore";
+import { getAccountItem, setAccountItem } from "@/lib/accountStorage";
 
-/** 一個以字串形式持久化到 AsyncStorage 的金額輸入。 */
+/** 一個以字串形式持久化到 AsyncStorage 的金額輸入，依帳號分開存。 */
 function usePersistedAmount(key: string) {
+  const { userId } = useAuth();
   const [value, setValue] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(key)
+    if (!userId) return;
+    getAccountItem(key, userId)
       .then((saved) => {
         if (saved) setValue(saved);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
-  }, [key]);
+  }, [key, userId]);
 
   // 示範模式中不寫，理由同 retirement.tsx 的試算參數。
   useEffect(() => {
-    if (loaded && !isDemoActive()) AsyncStorage.setItem(key, value).catch(() => {});
-  }, [key, value, loaded]);
+    if (loaded && userId && !isDemoActive()) {
+      setAccountItem(key, userId, value).catch(() => {});
+    }
+  }, [key, value, loaded, userId]);
 
   return [value, setValue] as const;
 }

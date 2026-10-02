@@ -33,6 +33,17 @@ function isFxOrFuture(symbol: string): boolean {
   return symbol.endsWith("=X") || symbol.endsWith("=F");
 }
 
+// Every distinct symbol string is its own upstream fetch and Data Cache entry,
+// so callers may only pass ticker-shaped strings, upper-cased so case variants
+// share one cache key. Covers TW (2330.TW, 00933B.TWO), US (BRK-B), crypto
+// (BTC-USD), FX (USDTWD=X), futures (GC=F) and indices (^TWII).
+const SYMBOL_PATTERN = /^[A-Z0-9.^=-]{1,20}$/;
+
+export function normalizeSymbol(raw: string | null | undefined): string | null {
+  const symbol = raw?.trim().toUpperCase() ?? "";
+  return SYMBOL_PATTERN.test(symbol) ? symbol : null;
+}
+
 export class QuotesService {
   async fetchQuote(symbol: string): Promise<Quote> {
     try {

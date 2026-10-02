@@ -19,7 +19,8 @@ vi.mock("@/services/entitlements.service", () => ({
 }));
 
 const txMock = {
-  entry: { create: vi.fn(), update: vi.fn() },
+  $executeRaw: vi.fn(),
+  entry: { create: vi.fn(), update: vi.fn(), count: vi.fn() },
   entryHistory: { create: vi.fn() },
   loan: { create: vi.fn(), update: vi.fn() },
 };
@@ -74,7 +75,7 @@ describe("LoansService.create", () => {
     txMock.entryHistory.create.mockResolvedValue({});
     txMock.loan.create.mockResolvedValue(MOCK_LOAN);
     vi.mocked(entitlementsService.isPremium).mockResolvedValue(false);
-    vi.mocked(prisma.entry.count).mockResolvedValue(0);
+    txMock.entry.count.mockResolvedValue(0);
   });
 
   const CREATE_INPUT = {
@@ -101,21 +102,29 @@ describe("LoansService.create", () => {
   // A loan is a 負債 Entry row, so it counts toward the same free-plan cap as
   // POST /api/entries — otherwise it's a way around the paywall.
   it("throws EntryLimitError when a non-premium user is at the limit", async () => {
-    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT);
+    txMock.entry.count.mockResolvedValue(FREE_ENTRY_LIMIT);
 
     await expect(loansService.create(CREATE_INPUT, "user-1")).rejects.toBeInstanceOf(
       EntryLimitError
     );
-    expect(prisma.entry.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(txMock.entry.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
     expect(txMock.entry.create).not.toHaveBeenCalled();
   });
 
   it("creates the loan when a non-premium user is below the limit", async () => {
-    vi.mocked(prisma.entry.count).mockResolvedValue(FREE_ENTRY_LIMIT - 1);
+    txMock.entry.count.mockResolvedValue(FREE_ENTRY_LIMIT - 1);
 
     await loansService.create(CREATE_INPUT, "user-1");
 
     expect(txMock.entry.create).toHaveBeenCalled();
+  });
+
+  it("takes the per-user lock before counting", async () => {
+    await loansService.create(CREATE_INPUT, "user-1");
+
+    expect(txMock.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      txMock.entry.count.mock.invocationCallOrder[0]!
+    );
   });
 
   it("skips the count for premium users", async () => {
@@ -123,7 +132,7 @@ describe("LoansService.create", () => {
 
     await loansService.create(CREATE_INPUT, "user-1");
 
-    expect(prisma.entry.count).not.toHaveBeenCalled();
+    expect(txMock.entry.count).not.toHaveBeenCalled();
     expect(txMock.entry.create).toHaveBeenCalled();
   });
 

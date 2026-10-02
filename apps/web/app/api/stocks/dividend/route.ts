@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { fetchWithRetry } from "@/lib/fetch-with-timeout";
 import { getYahooCrumb } from "@/lib/yahoo-crumb";
 import { logSecurityEvent } from "@/lib/security-log";
+import { normalizeSymbol } from "@/services/quotes.service";
 
 const CACHE_SECONDS = 30;
 const EMPTY_RESULT = { dividendRate: null, dividendYield: null };
@@ -23,9 +24,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const symbol = req.nextUrl.searchParams.get("symbol");
-  if (!symbol) {
+  const raw = req.nextUrl.searchParams.get("symbol");
+  if (!raw) {
     return NextResponse.json(EMPTY_RESULT);
+  }
+  const symbol = normalizeSymbol(raw);
+  if (!symbol) {
+    return NextResponse.json({ error: "a valid symbol is required" }, { status: 400 });
   }
 
   try {
