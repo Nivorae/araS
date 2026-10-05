@@ -4,7 +4,7 @@
 > 不需要透過 Claude 對話才能存取。過時的段落請直接刪掉或改掉，不用保留歷史 ——
 > 歷史交給 git log 和 CHANGELOG.md。
 
-最後整理：2026-10-02
+最後整理：2026-10-05
 
 ## 下一步
 
@@ -14,8 +14,8 @@
   匯率失敗退回 1、網頁詳情頁市值沒換匯。同一個 PR 也帶了：離開畫面／關閉 Modal 收起
   鍵盤、編輯記錄的日期改用日曆、日曆／時間選擇器的黑底改成淡入淡出（`BottomSheet`）。
   1. ~~手機實機驗證~~ —— 2026-10-02 通過。
-  2. 純 JS 改動，手機端走 OTA —— 跟下面安全審查修正那批一起，等 1.6 上架後發，記得更新
-     `whatsNew`。網頁端隨下一次 `develop` → `main` 的 release PR 上線。
+  2. 純 JS 改動，手機端走 OTA —— 跟下面安全審查修正那批一起發（1.6 已上架，可以發了），
+     記得更新 `whatsNew`。網頁端隨下一次 `develop` → `main` 的 release PR 上線。
   3. 上線後再更新行銷頁與 `llms.txt`（規格「不做的事」最後一條）。
   4. 其他底部面板改用 `components/BottomSheet.tsx`（黑底淡入淡出）—— 換匯計算機、
      股利、股利紀錄、再投資、基金選擇、編輯記錄、新手引導、本次更新、退休頁的數字
@@ -29,9 +29,9 @@
     `Subscription.lastSignedAt`，欄位不存在時所有訂閱查詢都會失敗 ——
     Premium 判斷、新增資產（會先查 Premium）一起壞。兩個 migration 只加限制與
     可為空的欄位，不刪資料，已在 dev 驗證。
-  - **手機端等 1.6 上架後一起發 OTA**：#159（換帳號清快取）、#161（鎖定畫面蓋住
+  - **手機端 OTA（1.6 已上架，可以開始）**：#159（換帳號清快取）、#161（鎖定畫面蓋住
     Modal）、#162（RevenueCat 換帳號 logIn）、#163 的退休資料／選股紀錄分帳號。
-    1.5 收不到（fingerprint），1.6 審核中不能發。1.6 上架後：
+    只有 1.6 收得到（1.5 以前 fingerprint 不同）。步驟：
     1. `eas build --profile preview` 打一包，真機用 Sandbox 測「A 登入 → 登出 →
        B 登入 → 購買 → Premium 給的是 B 不是 A」—— Expo Go 沒有 RevenueCat，測不到。
     2. 通過後 `/mobile-release` 發 OTA（記得更新 `whatsNew`）。
@@ -42,23 +42,15 @@
   - 新增資料表時，migration 要一併 `ENABLE ROW LEVEL SECURITY`（見 RLS
     migration 開頭註解）。
 
-**1.5 已通過 Apple 審核並上線，release PR #135 已合併回 `main`**（2026-09-18）。
-build 17（commit `9781a80`，version 1.5，SDK 57）。A 線已結案。
+**1.6 已通過 Apple 審核並上線**（2026-10-05）。build 19（commit `30c89b6`，
+runtime `83228e8`）。從現在的 `main`／`develop` 發的 OTA 只有 1.6 收得到，1.5 以前
+的使用者要更新 App 才拿得到新東西。`fingerprint.config.js` 的規則已在 build 19 生效，
+發 OTA 前照常更新 `whatsNew` 即可，不用再暫移設定檔。
 
-- **真機驗證剩餘項目** —— Face ID 已確認正常（2026-09-18）。剩 Android
+- **真機驗證剩餘項目**（1.5 留下來的）—— Face ID 已確認正常（2026-09-18）。剩 Android
   指紋解鎖、通知點回首頁、Android `SUBSCRIPTIONS_SUPPORTED` 沒影響 iOS 付費流程。
 - **B. Android 封閉測試** —— 使用者決定暫緩，先不處理（2026-09-18）。純
   Play Console 後台操作，不碰程式碼，細節仍留在下方備查。
-
-- **1.6 native build（2026-10-01 開始）** —— Expo 套件對齊（#148）與 Clerk 安全性
-  更新（#147）都已合併，版號 1.5 → 1.6，`whatsNew` 已改成 1.6 內容。見下方「1.6
-  送審」。
-
-⚠️ **#148 合併後，`main`／`develop` 已無法再對 1.5（build 17）發 OTA**（fingerprint
-不同，1.5 收不到且沒有錯誤訊息）。1.6 上架前若要緊急修 1.5，只能從 #148（`85e3937`）
-之前的 commit 開 hotfix 分支發 OTA，並照舊三個條件：不要改
-`whatsNew`、暫移 `fingerprint.config.js`、先 `eas fingerprint:compare` 對 build 17。
-1.4 的使用者同樣收不到從現在的 `main`／`develop` 發的任何更新。
 
 ## A. 1.5 iOS binary —— 已上線（2026-09-18）
 
@@ -101,24 +93,14 @@ package.json，而本機的 `packageManager` 是 9.14.2、EAS 用的是 10.16.1�
 - [ ] Android 那組 `SUBSCRIPTIONS_SUPPORTED` 改動沒有影響 iOS 的付費流程
       （理論上 iOS 恆為 true、行為不變，但沒實機驗過）
 
-### 1.6 送審
+### 1.6 —— 已上架（2026-10-05）
 
-內容：Expo 套件對齊（#148）、Clerk 安全性更新（#147），加上 1.5 期間以 OTA 推送、
-但沒跳「本次更新」視窗的功能（示範模式、保單 logo、詳情頁重設計）——這些一起寫進
-1.6 的 `whatsNew` 與 `CHANGELOG.md`。
+build **19**（commit `30c89b6`，runtime `83228e8`）。兩個送審時踩過的坑：
 
-- [x] `eas build` —— build **19**（commit `30c89b6`，runtime `83228e8`，2026-10-01）。
-      build 18 失敗在 `CONFIGURE_EXPO_UPDATES`（本機與 EAS 的 fingerprint 不同），
-      #154 修正，原因見 `/mobile-release` 的 gotchas
-- [x] `eas submit` —— 2026-10-01 上傳成功。前幾次被 Apple 擋下（403
-      `REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`，Developer Program 許可協議更新未接受），
-      帳號持有人接受後約 10 分鐘才生效
-- [x] App Store Connect：「＋」→ 新增版本 1.6 → 貼 `CHANGELOG.md` 1.6 段落到
-      「此版本新增功能」→ 建置版本選新 build（**確認 build 號**）→ 送審 ——
-      已送審，等待結果（2026-10-02 確認）
-- [ ] 上架後：`CHANGELOG.md` 改成「1.6（已上架）」；`fingerprint.config.js` 的新規則
-      生效，恢復「發 OTA 前更新 `whatsNew`」，刪掉上方 1.5 OTA 的三個條件與事故記錄
-      裡只適用 build 17 的段落
+- build 18 失敗在 `CONFIGURE_EXPO_UPDATES`（本機與 EAS 的 fingerprint 不同），
+  #154 修正，原因見 `/mobile-release` 的 gotchas
+- `eas submit` 被 Apple 擋下（403 `REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`，
+  Developer Program 許可協議更新未接受），帳號持有人接受後約 10 分鐘才生效
 
 iOS 最低版本 16.4 不用另外做：SDK 57 的 prebuild 範本已寫死 16.4，2026-10-01 從
 build 17 的 IPA 讀到 `MinimumOSVersion = 16.4`，也就是 1.5 起就已經是 16.4。
@@ -149,11 +131,8 @@ grep dist bundle 驗證關鍵字串（Clerk key 前綴、API URL host）真的�
    `whatsNew` 文案，fingerprint 就一定會跟已經上架、用舊 `whatsNew` 內容建出來
    的 native binary 兜不起來——OTA 因此送不到任何人手上，而且完全沒有錯誤訊息。
    已加 `apps/mobile/fingerprint.config.js`（`sourceSkips:
-["ExpoConfigExtraSection"]`）排除 `extra`，但**這個設定只對下一次 native
-   build（1.6+）生效**——build 17 的 fingerprint 已經用舊規則烤進 binary
-   裡，回溯不了。所以 2026-09-18 這次 OTA 的 `whatsNew` 被迫還原成 build 17
-   當時的舊內容（沒有新的「本次更新」彈窗），只有程式碼本身的修正送出去。
-   **1.6 native build 之後**才能安心恢復「OTA 前更新 whatsNew」這個習慣。
+["ExpoConfigExtraSection"]`）排除 `extra`，從 1.6（build 19）起生效。
+   **不要刪這個檔案**——刪掉之後本機算出的 fingerprint 會跟 build 19 對不上。
 2. **`apps/mobile/eas.json` 在 Windows 上被 `core.autocrlf` 轉成 CRLF**，但
    git 裡存的、EAS 雲端建置環境用的是 LF——這個檔案被當原始位元組算進
    fingerprint，換行符不同雜湊值就不同。已加 `.gitattributes` 強制這個檔案
@@ -163,14 +142,7 @@ grep dist bundle 驗證關鍵字串（Clerk key 前綴、API URL host）真的�
 <真正在架上的 build id> --environment production` 會直接告訴你本機現在的
 fingerprint 跟指定 build 是否一致，比自己 grep bundle 猜測可靠。`eas
 build:list --platform ios --limit 5 --json --non-interactive` 可以查到目前
-上架 build 的 id 與它的 `runtimeVersion`。
-
-⚠️ **`fingerprint.config.js` 存在於工作目錄時會改變本機算 fingerprint 的方式**
-——只要它在，任何一次 `eas fingerprint:compare` 或 `eas update` 算出來的值都
-會跟「當初沒有這個設定檔時建出來的 build」對不上。1.6 native build 上架、
-拿到新的 fingerprint 基準之前，若要對照 1.5（build 17）驗證或發 OTA，必須
-暫時把這個檔案移出目錄（`mv fingerprint.config.js fingerprint.config.js.disabled`），
-用完再移回來——它已經 commit 在 git 裡，本機搬移不影響版本控制。
+上架 build 的 id 與它的 `runtimeVersion`（1.6 = build 19，runtime `83228e8`）。
 
 ## B. Android 首次上架 Google Play（純免費版）
 

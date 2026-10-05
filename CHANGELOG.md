@@ -10,7 +10,7 @@
 由 `/git:changelog` 維護。不追蹤 root `package.json` 版號，也不打 git tag ——
 每次 build / OTA 的 commit hash 由 EAS 記錄（見 expo.dev 的 update / build 頁面）。
 
-## 1.6（審核中）
+## 1.6（已上架）
 
 - 新增示範模式：免費版可從付費頁或設定頁進入，用內建範例資料試用所有 Premium 功能，示範中的新增、修改、刪除都不會動到自己的資料
 - 保單清單與詳情頁顯示保險公司 logo
