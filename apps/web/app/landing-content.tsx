@@ -56,7 +56,7 @@ const FEATURES: Feature[] = [
   { icon: Wallet, title: "淨資產總覽", desc: "一眼看清總資產與淨值" },
   { icon: Scale, title: "資產與負債", desc: "分類管理每一筆進出" },
   { icon: ArrowLeftRight, title: "交易紀錄", desc: "收支一筆不漏，自動歸類" },
-  { icon: PieChart, title: "投資組合", desc: "追蹤持股與報酬表現" },
+  { icon: PieChart, title: "投資組合", desc: "追蹤台股、美股與海外股票的持股與報酬" },
   { icon: Umbrella, title: "保險保障", desc: "集中管理所有保單資訊" },
   { icon: TrendingUp, title: "退休規劃", desc: "預估未來，提早準備" },
 ];
