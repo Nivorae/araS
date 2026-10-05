@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Modal } from "@/components/Modal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { ChartPie, TrendingUp, Wallet } from "lucide-react-native";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 import { useSheetBottomPadding } from "@/hooks/useSheetBottomPadding";
@@ -87,58 +87,56 @@ export function OnboardingSheet({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose}>
-        {/* 內層吃掉點擊，否則點在 sheet 上會被背景的關閉手勢接走。 */}
-        <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
-          <View style={s.handle} />
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={[s.sheet, isTablet && s.sheetTablet]}
+    >
+      <View style={s.handle} />
 
-          <View style={s.pagerZone} onLayout={handleLayout}>
-            {/* pageWidth 量到之前不渲染分頁內容：寬度是 0 的話 pagingEnabled
+      <View style={s.pagerZone} onLayout={handleLayout}>
+        {/* pageWidth 量到之前不渲染分頁內容：寬度是 0 的話 pagingEnabled
                 沒有東西可以對齊，第一次開啟會停在半格。 */}
-            {pageWidth > 0 ? (
-              <ScrollView
-                ref={scrollRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={handleScroll}
-              >
-                {STEPS.map(({ Icon, title, body }) => (
-                  <View key={title} style={[s.slide, { width: pageWidth }]}>
-                    <View style={s.iconBubble}>
-                      <Icon size={30} color="#4b5563" />
-                    </View>
-                    <Text style={s.title}>{title}</Text>
-                    <Text style={s.body}>{body}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : null}
-          </View>
-
-          <View style={s.dots}>
-            {STEPS.map((item, i) => (
-              <View key={item.title} style={[s.dot, i === step && s.dotActive]} />
+        {pageWidth > 0 ? (
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleScroll}
+          >
+            {STEPS.map(({ Icon, title, body }) => (
+              <View key={title} style={[s.slide, { width: pageWidth }]}>
+                <View style={s.iconBubble}>
+                  <Icon size={30} color="#4b5563" />
+                </View>
+                <Text style={s.title}>{title}</Text>
+                <Text style={s.body}>{body}</Text>
+              </View>
             ))}
-          </View>
+          </ScrollView>
+        ) : null}
+      </View>
 
-          <View style={[s.actions, { paddingBottom: bottomPad }]}>
-            <Pressable
-              onPress={handleNext}
-              style={({ pressed }) => [s.btn, { opacity: pressed ? 0.85 : 1 }]}
-            >
-              <Text style={s.btnText}>{isLastStep ? "開始使用" : "繼續"}</Text>
-            </Pressable>
-          </View>
+      <View style={s.dots}>
+        {STEPS.map((item, i) => (
+          <View key={item.title} style={[s.dot, i === step && s.dotActive]} />
+        ))}
+      </View>
+
+      <View style={[s.actions, { paddingBottom: bottomPad }]}>
+        <Pressable
+          onPress={handleNext}
+          style={({ pressed }) => [s.btn, { opacity: pressed ? 0.85 : 1 }]}
+        >
+          <Text style={s.btnText}>{isLastStep ? "開始使用" : "繼續"}</Text>
         </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheet>
   );
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
   handle: {

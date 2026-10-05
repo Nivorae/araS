@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Modal } from "@/components/Modal";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { BottomSheet } from "@/components/BottomSheet";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
@@ -27,9 +27,11 @@ import {
  */
 export default function WhatsNewSheet() {
   const { isTablet } = useResponsive();
+  const { height: windowHeight } = useWindowDimensions();
   const bottomPad = useSheetBottomPadding();
   const { currentlyRunning } = Updates.useUpdates();
   const [content, setContent] = useState<WhatsNew | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -49,7 +51,10 @@ export default function WhatsNewSheet() {
         isEnabled: Updates.isEnabled,
         isEmbeddedLaunch: currentlyRunning.isEmbeddedLaunch,
       });
-      if (show) setContent(whatsNew);
+      if (show) {
+        setContent(whatsNew);
+        setOpen(true);
+      }
     })();
     return () => {
       active = false;
@@ -60,7 +65,8 @@ export default function WhatsNewSheet() {
 
   const handleClose = () => {
     const id = content?.id;
-    setContent(null);
+    // 只收起面板、內容留著，退場動畫才有東西可以滑下去。
+    setOpen(false);
     // 寫入放在關閉時而不是顯示時：使用者真的看到了才算數。失敗就下次再顯示一次。
     if (id) AsyncStorage.setItem(WHATS_NEW_STORAGE_KEY, id).catch(() => {});
   };
@@ -68,7 +74,12 @@ export default function WhatsNewSheet() {
   if (!content) return null;
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={handleClose}>
+    <BottomSheet
+      visible={open}
+      onClose={handleClose}
+      dismissOnBackdrop={false}
+      sheetStyle={[s.sheet, { maxHeight: windowHeight * 0.8 }, isTablet && s.sheetTablet]}
+    >
       {/* 這裡曾經是全螢幕的 Pressable（點背景關閉），但它會跟下面深層的
           ScrollView 搶手勢——同一個觸控要嘛被背景那個大範圍 Pressable 判定成
           「按下去」，要嘛才輪到 ScrollView 當成拖曳，導致打開後往下滑常常沒
@@ -76,33 +87,30 @@ export default function WhatsNewSheet() {
           測試 Modal 隔離驗證過：拿掉背景這層 Pressable 的 onPress 才會消失，
           跟內層包 ScrollView 的 Pressable、Modal 的進場轉場都無關）。改用
           底部「知道了」按鈕當唯一的關閉方式。 */}
-      <View style={s.backdrop}>
-        <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
-          <View style={s.handle} />
-          <Text style={s.title}>本次更新</Text>
 
-          <ScrollView style={s.body} contentContainerStyle={s.bodyContent}>
-            {content.sections.map((section) => (
-              <View key={section.title} style={s.section}>
-                <Text style={s.sectionTitle}>{section.title}</Text>
-                {section.items.map((item) => (
-                  <View key={item} style={s.row}>
-                    <Text style={s.bullet}>・</Text>
-                    <Text style={s.line}>{item}</Text>
-                  </View>
-                ))}
+      <View style={s.handle} />
+      <Text style={s.title}>本次更新</Text>
+
+      <ScrollView style={s.body} contentContainerStyle={s.bodyContent}>
+        {content.sections.map((section) => (
+          <View key={section.title} style={s.section}>
+            <Text style={s.sectionTitle}>{section.title}</Text>
+            {section.items.map((item) => (
+              <View key={item} style={s.row}>
+                <Text style={s.bullet}>・</Text>
+                <Text style={s.line}>{item}</Text>
               </View>
             ))}
-          </ScrollView>
-
-          <View style={[s.actions, { paddingBottom: bottomPad }]}>
-            <Pressable onPress={handleClose} style={[s.btn, s.btnPrimary]}>
-              <Text style={s.btnPrimaryText}>知道了</Text>
-            </Pressable>
           </View>
+        ))}
+      </ScrollView>
+
+      <View style={[s.actions, { paddingBottom: bottomPad }]}>
+        <Pressable onPress={handleClose} style={[s.btn, s.btnPrimary]}>
+          <Text style={s.btnPrimaryText}>知道了</Text>
         </Pressable>
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -116,7 +124,6 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "80%",
   },
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
   handle: {

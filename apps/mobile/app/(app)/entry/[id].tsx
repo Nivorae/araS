@@ -3,8 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,13 +12,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Modal } from "@/components/Modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, ArrowLeftRight, Pencil, Plus, Trash2 } from "lucide-react-native";
+import { ArrowLeft, ArrowLeftRight, Calendar, Pencil, Plus, Trash2 } from "lucide-react-native";
 import * as Sentry from "@sentry/react-native";
 import { TRANSFER_TOP_CATEGORIES, type EntryHistory } from "@repo/shared";
 import { BankLogo } from "@/components/BankLogo";
+import { BottomSheet } from "@/components/BottomSheet";
+import { DatePickerModal } from "@/components/DatePickerModal";
 import DividendSection from "@/components/DividendSection";
 import FundPickerSheet from "@/components/FundPickerSheet";
 import { useFinanceStore } from "@/store/financeStore";
@@ -31,6 +31,8 @@ import { useApi, ApiError } from "@/lib/api";
 import { formatCurrency, toIntegerDigits, formatThousands } from "@/lib/format";
 import { CATEGORIES } from "@/lib/categoryConfig";
 import { fetchFundQuote, formatNavDate, type FundSearchResult } from "@/lib/funds";
+import { fetchTwdRate } from "@/lib/fx";
+import { formatDisplayDate, parseISODate, toISODate } from "@/lib/date";
 
 import {
   STOCK_CATS,
@@ -275,6 +277,7 @@ export default function EntryDetailScreen() {
   const [editingHistory, setEditingHistory] = useState<EntryHistory | null>(null);
   const [editNote, setEditNote] = useState("");
   const [editDate, setEditDate] = useState("");
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [editDelta, setEditDelta] = useState("");
   const [editUnits, setEditUnits] = useState("");
   const [editPricePerShare, setEditPricePerShare] = useState("");
@@ -344,15 +347,9 @@ export default function EntryDetailScreen() {
         );
         if (typeof data.price !== "number") return;
         const currency = data.currency ?? "TWD";
-        let rate = 1;
-        if (currency !== "TWD") {
-          const fx = await apiRef.current
-            .rawGet<{
-              price: number;
-            }>(`/api/stocks/price?symbol=${encodeURIComponent(currency + "TWD=X")}`)
-            .catch(() => null);
-          rate = fx && typeof fx.price === "number" ? fx.price : 1;
-        }
+        // 匯率不明就當作這次報價失敗，保留畫面上原本的數字，不拿原幣價當台幣用。
+        const rate = await fetchTwdRate(apiRef.current.rawGet, currency);
+        if (rate == null) return;
         if (active) {
           setCurrentPrice(data.price);
           setCurrentPriceTWD(data.price * rate);
@@ -377,17 +374,10 @@ export default function EntryDetailScreen() {
       setFundLoading(true);
       try {
         const quote = await fetchFundQuote(apiRef.current, code);
-        let rate = 1;
-        if (quote.currency !== "TWD") {
-          // 非台幣計價的基金要換算成台幣才能跟 EntryHistory 裡的台幣成本相減，
-          // 匯率來源沿用股票那條路徑。
-          const fx = await apiRef.current
-            .rawGet<{
-              price: number;
-            }>(`/api/stocks/price?symbol=${encodeURIComponent(quote.currency + "TWD=X")}`)
-            .catch(() => null);
-          rate = fx && typeof fx.price === "number" ? fx.price : 1;
-        }
+        // 非台幣計價的基金要換算成台幣才能跟 EntryHistory 裡的台幣成本相減，
+        // 匯率來源沿用股票那條路徑。匯率不明就不更新，保留原本的數字。
+        const rate = await fetchTwdRate(apiRef.current.rawGet, quote.currency);
+        if (rate == null) return;
         setCurrentPrice(quote.nav);
         setCurrentPriceTWD(quote.nav * rate);
         setCurrentPriceCurrency(quote.currency !== "TWD" ? quote.currency : null);
@@ -730,136 +720,139 @@ export default function EntryDetailScreen() {
       />
 
       {/* ── Edit History Modal ──────────────────────────────────────────── */}
-      <Modal
+      <BottomSheet
         visible={!!editingHistory}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setEditingHistory(null)}
+        onClose={() => setEditingHistory(null)}
+        sheetStyle={[s.modalSheet, { paddingBottom: sheetBottomPad }]}
       >
-        {/* Full-screen wrapper: backdrop + sheet aligned to bottom */}
-        <View style={s.modalWrapper}>
-          {/* Backdrop — tap to dismiss */}
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setEditingHistory(null)} />
+        <View style={s.modalHandle} />
+        <Text style={s.modalTitle}>編輯記錄</Text>
 
-          {/* Sheet — rendered on top of backdrop */}
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
-            <View style={[s.modalSheet, { paddingBottom: sheetBottomPad }]}>
-              <View style={s.modalHandle} />
-              <Text style={s.modalTitle}>編輯記錄</Text>
-
-              <View style={s.formCard}>
-                <View style={s.formDivider} />
-                <View style={s.formRow}>
-                  <Text style={s.formLabel}>日期</Text>
-                  <TextInput
-                    value={editDate}
-                    onChangeText={setEditDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#c7c7cc"
-                    style={s.formInput}
-                  />
-                </View>
-                <View style={s.formDivider} />
-                <View style={s.formRow}>
-                  <Text style={s.formLabel}>變動金額</Text>
-                  <TextInput
-                    value={formatThousands(editDelta)}
-                    onChangeText={(t) => setEditDelta(toIntegerDigits(t))}
-                    keyboardType="numeric"
-                    placeholder="0"
-                    placeholderTextColor="#c7c7cc"
-                    style={[s.formInput, { fontWeight: "600" }]}
-                  />
-                </View>
-                {isStockEntry && (
-                  <>
-                    <View style={s.formDivider} />
-                    <View style={s.formRow}>
-                      <Text style={s.formLabel}>持有股數</Text>
-                      <TextInput
-                        value={editUnits}
-                        onChangeText={setEditUnits}
-                        keyboardType="numeric"
-                        placeholder="0"
-                        placeholderTextColor="#c7c7cc"
-                        style={s.formInput}
-                      />
-                    </View>
-                    <View style={s.formDivider} />
-                    <View style={s.formRow}>
-                      <Text style={s.formLabel}>單股成交價</Text>
-                      <TextInput
-                        value={editPricePerShare}
-                        onChangeText={setEditPricePerShare}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor="#c7c7cc"
-                        style={s.formInput}
-                      />
-                    </View>
-                  </>
-                )}
-                <View style={s.formRow}>
-                  <Text style={s.formLabel}>備註</Text>
-                  <TextInput
-                    value={editNote}
-                    onChangeText={setEditNote}
-                    placeholder="選填（最多 10 字）"
-                    placeholderTextColor="#c7c7cc"
-                    maxLength={10}
-                    style={s.formInput}
-                  />
-                </View>
+        <View style={s.formCard}>
+          <View style={s.formDivider} />
+          <View style={s.formRow}>
+            <Text style={s.formLabel}>日期</Text>
+            {/* 跟 App 其他日期欄位一樣用日曆選，不再手打 YYYY-MM-DD（打錯格式或
+                      不存在的日期都擋不住）。`editDate` 仍是 YYYY-MM-DD 字串。 */}
+            <TouchableOpacity
+              style={s.formDateBtn}
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowEditDatePicker(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={s.formDateText}>{formatDisplayDate(editDate)}</Text>
+              <Calendar size={16} color="#8e8e93" />
+            </TouchableOpacity>
+          </View>
+          <View style={s.formDivider} />
+          <View style={s.formRow}>
+            <Text style={s.formLabel}>變動金額</Text>
+            <TextInput
+              value={formatThousands(editDelta)}
+              onChangeText={(t) => setEditDelta(toIntegerDigits(t))}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor="#c7c7cc"
+              style={[s.formInput, { fontWeight: "600" }]}
+            />
+          </View>
+          {isStockEntry && (
+            <>
+              <View style={s.formDivider} />
+              <View style={s.formRow}>
+                <Text style={s.formLabel}>持有股數</Text>
+                <TextInput
+                  value={editUnits}
+                  onChangeText={setEditUnits}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#c7c7cc"
+                  style={s.formInput}
+                />
               </View>
-
-              <View style={s.modalBtns}>
-                <TouchableOpacity
-                  onPress={() => setEditingHistory(null)}
-                  disabled={editSaving || editDeleting}
-                  style={[s.cancelBtn, (editSaving || editDeleting) && s.disabledBtn]}
-                >
-                  <Text style={s.cancelBtnText}>取消</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleSave}
-                  disabled={editSaving || editDeleting}
-                  style={[s.saveBtn, (editSaving || editDeleting) && s.disabledBtn]}
-                >
-                  {editSaving ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={s.saveBtnText}>儲存</Text>
-                  )}
-                </TouchableOpacity>
+              <View style={s.formDivider} />
+              <View style={s.formRow}>
+                <Text style={s.formLabel}>單股成交價</Text>
+                <TextInput
+                  value={editPricePerShare}
+                  onChangeText={setEditPricePerShare}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor="#c7c7cc"
+                  style={s.formInput}
+                />
               </View>
-
-              {!confirmDeleteHistory ? (
-                <TouchableOpacity
-                  onPress={() => setConfirmDeleteHistory(true)}
-                  disabled={editSaving || editDeleting}
-                  style={[s.deleteOutlineBtn, (editSaving || editDeleting) && s.disabledBtn]}
-                >
-                  <Trash2 size={16} color="#ff3b30" />
-                  <Text style={s.deleteOutlineBtnText}>刪除此記錄</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={handleDeleteHistoryRecord}
-                  disabled={editSaving || editDeleting}
-                  style={[s.deleteFilledBtn, (editSaving || editDeleting) && s.disabledBtn]}
-                >
-                  {editDeleting ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={s.saveBtnText}>確認刪除</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-              <View style={{ height: 24 }} />
-            </View>
-          </KeyboardAvoidingView>
+            </>
+          )}
+          <View style={s.formRow}>
+            <Text style={s.formLabel}>備註</Text>
+            <TextInput
+              value={editNote}
+              onChangeText={setEditNote}
+              placeholder="選填（最多 10 字）"
+              placeholderTextColor="#c7c7cc"
+              maxLength={10}
+              style={s.formInput}
+            />
+          </View>
         </View>
-      </Modal>
+
+        <View style={s.modalBtns}>
+          <TouchableOpacity
+            onPress={() => setEditingHistory(null)}
+            disabled={editSaving || editDeleting}
+            style={[s.cancelBtn, (editSaving || editDeleting) && s.disabledBtn]}
+          >
+            <Text style={s.cancelBtnText}>取消</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={editSaving || editDeleting}
+            style={[s.saveBtn, (editSaving || editDeleting) && s.disabledBtn]}
+          >
+            {editSaving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={s.saveBtnText}>儲存</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {!confirmDeleteHistory ? (
+          <TouchableOpacity
+            onPress={() => setConfirmDeleteHistory(true)}
+            disabled={editSaving || editDeleting}
+            style={[s.deleteOutlineBtn, (editSaving || editDeleting) && s.disabledBtn]}
+          >
+            <Trash2 size={16} color="#ff3b30" />
+            <Text style={s.deleteOutlineBtnText}>刪除此記錄</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={handleDeleteHistoryRecord}
+            disabled={editSaving || editDeleting}
+            style={[s.deleteFilledBtn, (editSaving || editDeleting) && s.disabledBtn]}
+          >
+            {editDeleting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={s.saveBtnText}>確認刪除</Text>
+            )}
+          </TouchableOpacity>
+        )}
+        <View style={{ height: 24 }} />
+
+        {/* 放在編輯記錄的 Modal 裡面：iOS 上從開著的 Modal 再開一個，必須是它的子元件
+            才疊得上去。 */}
+        <DatePickerModal
+          visible={showEditDatePicker}
+          date={parseISODate(editDate)}
+          onConfirm={(picked) => setEditDate(toISODate(picked))}
+          onClose={() => setShowEditDatePicker(false)}
+        />
+      </BottomSheet>
     </View>
   );
 }
@@ -983,11 +976,6 @@ const s = StyleSheet.create({
   rowMeta: { fontSize: 12, marginTop: 2 },
 
   // Modal — correct bottom-sheet layout
-  modalWrapper: {
-    flex: 1,
-    justifyContent: "flex-end", // push sheet to bottom
-    backgroundColor: "rgba(0,0,0,0.4)", // backdrop color on the wrapper itself
-  },
   modalSheet: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,
@@ -1021,6 +1009,15 @@ const s = StyleSheet.create({
   },
   formLabel: { fontSize: 15, color: "#1c1c1e" },
   formInput: { flex: 1, marginLeft: 16, textAlign: "right", fontSize: 15, color: "#1c1c1e" },
+  formDateBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    marginLeft: 16,
+  },
+  formDateText: { fontSize: 15, color: "#1c1c1e" },
   formDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "rgba(255,255,255,0.7)",

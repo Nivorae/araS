@@ -8,8 +8,9 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
-import { Modal } from "@/components/Modal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { useRouter } from "expo-router";
 import type { Dividend } from "@repo/shared";
 import { Calendar } from "lucide-react-native";
@@ -55,6 +56,7 @@ export default function DividendForm({
 }: DividendFormProps) {
   const isEdit = editing !== null;
   const { isTablet } = useResponsive();
+  const { height: windowHeight } = useWindowDimensions();
   const bottomPad = useSheetBottomPadding();
   const api = useApi();
   const router = useRouter();
@@ -321,171 +323,171 @@ export default function DividendForm({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
-          <View style={s.handle} />
-          <Text style={s.title}>
-            {isEdit ? "編輯股利" : "新增股利"} · {entryName}
-          </Text>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={[s.sheet, { maxHeight: windowHeight * 0.88 }, isTablet && s.sheetTablet]}
+    >
+      <View style={s.handle} />
+      <Text style={s.title}>
+        {isEdit ? "編輯股利" : "新增股利"} · {entryName}
+      </Text>
 
-          <ScrollView style={s.body}>
-            {!isEdit && (
-              <View style={s.segment}>
-                {[
-                  { m: "amount" as const, label: "依總金額" },
-                  { m: "perShare" as const, label: "依每股股利" },
-                ].map(({ m, label }) => (
-                  <Pressable
-                    key={m}
-                    onPress={() => {
-                      setMode(m);
-                      setError(null);
-                    }}
-                    style={[s.segmentBtn, mode === m && s.segmentBtnActive]}
-                  >
-                    <Text style={[s.segmentText, mode === m && s.segmentTextActive]}>{label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
+      <ScrollView style={s.body}>
+        {!isEdit && (
+          <View style={s.segment}>
+            {[
+              { m: "amount" as const, label: "依總金額" },
+              { m: "perShare" as const, label: "依每股股利" },
+            ].map(({ m, label }) => (
+              <Pressable
+                key={m}
+                onPress={() => {
+                  setMode(m);
+                  setError(null);
+                }}
+                style={[s.segmentBtn, mode === m && s.segmentBtnActive]}
+              >
+                <Text style={[s.segmentText, mode === m && s.segmentTextActive]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
-            <Text style={s.label}>發放日</Text>
-            {/* FIX FOR FINDING 5 — a bare TextInput accepted any free-text
+        <Text style={s.label}>發放日</Text>
+        {/* FIX FOR FINDING 5 — a bare TextInput accepted any free-text
                 format (`2026/08/13`, `13-08-2026`, ...). Route through the
                 same DatePickerModal InsuranceForm/EntryForm already use for
                 every other date field in the app; `payDate` stays a
                 YYYY-MM-DD string in state. */}
-            <Pressable style={s.dateRow} onPress={() => setShowDatePicker(true)}>
-              <Text style={s.dateRowText}>{formatDisplayDate(payDate)}</Text>
-              <Calendar size={16} color="#8e8e93" />
-            </Pressable>
+        <Pressable style={s.dateRow} onPress={() => setShowDatePicker(true)}>
+          <Text style={s.dateRowText}>{formatDisplayDate(payDate)}</Text>
+          <Calendar size={16} color="#8e8e93" />
+        </Pressable>
 
-            {mode === "perShare" ? (
-              <>
-                <Text style={s.label}>每股股利{isTWD ? "（TWD）" : "（報價幣別）"}</Text>
-                <TextInput
-                  style={s.input}
-                  value={perShareStr}
-                  onChangeText={(v) => {
-                    setPerShareStr(v);
-                    setError(null);
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="例如 4.5"
-                />
-                <Text style={s.label}>股數</Text>
-                <TextInput
-                  style={s.input}
-                  value={sharesStr}
-                  onChangeText={(v) => {
-                    setSharesStr(v);
-                    setError(null);
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="持股數"
-                />
-              </>
-            ) : (
-              <>
-                <Text style={s.label}>總金額（TWD）</Text>
-                <TextInput
-                  style={s.input}
-                  value={amountStr}
-                  onChangeText={(v) => {
-                    setAmountStr(v);
-                    setError(null);
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="實收總額"
-                />
-              </>
-            )}
-
-            {isEdit ? (
-              <Text style={s.editHint}>
-                每股股利、股數與「同步記為收入」建立後不可修改，需要調整請刪除後重新建立。
-              </Text>
-            ) : (
-              <Text style={s.computed}>換算後入帳：NT$ {amountTWD.toLocaleString()}</Text>
-            )}
-            {/* FIX FOR FINDING 3 — surface the in-flight FX fetch so the user
-                knows why 儲存 is disabled, instead of it silently sending an
-                understated amount. */}
-            {!isTWD && fxLoading && <Text style={s.fxHint}>正在讀取匯率…</Text>}
-
-            <Text style={s.label}>入帳帳戶</Text>
-            <View style={s.bankList}>
-              <Pressable
-                onPress={() => {
-                  setBankEntryId(null);
-                  setError(null);
-                }}
-                style={[s.bankChip, bankEntryId === null && s.bankChipActive]}
-              >
-                <Text style={[s.bankChipText, bankEntryId === null && s.bankChipTextActive]}>
-                  不記錄
-                </Text>
-              </Pressable>
-              {cashEntries.map((e) => (
-                <Pressable
-                  key={e.id}
-                  onPress={() => {
-                    setBankEntryId(e.id);
-                    setError(null);
-                  }}
-                  style={[s.bankChip, bankEntryId === e.id && s.bankChipActive]}
-                >
-                  <Text style={[s.bankChipText, bankEntryId === e.id && s.bankChipTextActive]}>
-                    {e.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {!isEdit && (
-              <View style={s.switchRow}>
-                <Text style={s.label}>同步記為收入</Text>
-                <Switch
-                  value={recordIncome}
-                  onValueChange={(v) => {
-                    setRecordIncome(v);
-                    setError(null);
-                  }}
-                />
-              </View>
-            )}
-
-            <Text style={s.label}>備註</Text>
+        {mode === "perShare" ? (
+          <>
+            <Text style={s.label}>每股股利{isTWD ? "（TWD）" : "（報價幣別）"}</Text>
             <TextInput
               style={s.input}
-              value={note}
+              value={perShareStr}
               onChangeText={(v) => {
-                setNote(v);
+                setPerShareStr(v);
                 setError(null);
               }}
-              placeholder="選填"
+              keyboardType="decimal-pad"
+              placeholder="例如 4.5"
             />
+            <Text style={s.label}>股數</Text>
+            <TextInput
+              style={s.input}
+              value={sharesStr}
+              onChangeText={(v) => {
+                setSharesStr(v);
+                setError(null);
+              }}
+              keyboardType="decimal-pad"
+              placeholder="持股數"
+            />
+          </>
+        ) : (
+          <>
+            <Text style={s.label}>總金額（TWD）</Text>
+            <TextInput
+              style={s.input}
+              value={amountStr}
+              onChangeText={(v) => {
+                setAmountStr(v);
+                setError(null);
+              }}
+              keyboardType="decimal-pad"
+              placeholder="實收總額"
+            />
+          </>
+        )}
 
-            {error && <Text style={s.error}>{error}</Text>}
-          </ScrollView>
+        {isEdit ? (
+          <Text style={s.editHint}>
+            每股股利、股數與「同步記為收入」建立後不可修改，需要調整請刪除後重新建立。
+          </Text>
+        ) : (
+          <Text style={s.computed}>換算後入帳：NT$ {amountTWD.toLocaleString()}</Text>
+        )}
+        {/* FIX FOR FINDING 3 — surface the in-flight FX fetch so the user
+                knows why 儲存 is disabled, instead of it silently sending an
+                understated amount. */}
+        {!isTWD && fxLoading && <Text style={s.fxHint}>正在讀取匯率…</Text>}
 
-          <View style={[s.actions, { paddingBottom: bottomPad }]}>
-            <Pressable onPress={onClose} style={[s.btn, s.btnGhost]}>
-              <Text style={s.btnGhostText}>取消</Text>
-            </Pressable>
+        <Text style={s.label}>入帳帳戶</Text>
+        <View style={s.bankList}>
+          <Pressable
+            onPress={() => {
+              setBankEntryId(null);
+              setError(null);
+            }}
+            style={[s.bankChip, bankEntryId === null && s.bankChipActive]}
+          >
+            <Text style={[s.bankChipText, bankEntryId === null && s.bankChipTextActive]}>
+              不記錄
+            </Text>
+          </Pressable>
+          {cashEntries.map((e) => (
             <Pressable
-              onPress={handleSubmit}
-              disabled={submitting || fxLoading}
-              style={[s.btn, s.btnPrimary, (submitting || fxLoading) && s.btnDisabled]}
+              key={e.id}
+              onPress={() => {
+                setBankEntryId(e.id);
+                setError(null);
+              }}
+              style={[s.bankChip, bankEntryId === e.id && s.bankChipActive]}
             >
-              <Text style={s.btnPrimaryText}>
-                {submitting ? "儲存中…" : fxLoading ? "匯率讀取中…" : isEdit ? "更新" : "儲存"}
+              <Text style={[s.bankChipText, bankEntryId === e.id && s.bankChipTextActive]}>
+                {e.name}
               </Text>
             </Pressable>
+          ))}
+        </View>
+
+        {!isEdit && (
+          <View style={s.switchRow}>
+            <Text style={s.label}>同步記為收入</Text>
+            <Switch
+              value={recordIncome}
+              onValueChange={(v) => {
+                setRecordIncome(v);
+                setError(null);
+              }}
+            />
           </View>
+        )}
+
+        <Text style={s.label}>備註</Text>
+        <TextInput
+          style={s.input}
+          value={note}
+          onChangeText={(v) => {
+            setNote(v);
+            setError(null);
+          }}
+          placeholder="選填"
+        />
+
+        {error && <Text style={s.error}>{error}</Text>}
+      </ScrollView>
+
+      <View style={[s.actions, { paddingBottom: bottomPad }]}>
+        <Pressable onPress={onClose} style={[s.btn, s.btnGhost]}>
+          <Text style={s.btnGhostText}>取消</Text>
         </Pressable>
-      </Pressable>
+        <Pressable
+          onPress={handleSubmit}
+          disabled={submitting || fxLoading}
+          style={[s.btn, s.btnPrimary, (submitting || fxLoading) && s.btnDisabled]}
+        >
+          <Text style={s.btnPrimaryText}>
+            {submitting ? "儲存中…" : fxLoading ? "匯率讀取中…" : isEdit ? "更新" : "儲存"}
+          </Text>
+        </Pressable>
+      </View>
 
       <DatePickerModal
         visible={showDatePicker}
@@ -496,7 +498,7 @@ export default function DividendForm({
         }}
         onClose={() => setShowDatePicker(false)}
       />
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -504,12 +506,10 @@ const s = StyleSheet.create({
   // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
   // and centring it keeps it sheet-shaped.
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "88%",
   },
   handle: {
     width: 36,

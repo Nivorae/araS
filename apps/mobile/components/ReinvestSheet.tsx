@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Modal } from "@/components/Modal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { useRouter } from "expo-router";
 import { useApi } from "@/lib/api";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
@@ -181,85 +181,85 @@ export default function ReinvestSheet({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <Pressable style={s.backdrop} onPress={handleClose}>
-        <Pressable style={[s.sheet, isTablet && s.sheetTablet]} onPress={() => {}}>
-          <View style={s.handle} />
-          <Text style={s.title}>再投資 · {entryName}</Text>
+    <BottomSheet
+      visible={visible}
+      onClose={handleClose}
+      sheetStyle={[s.sheet, isTablet && s.sheetTablet]}
+    >
+      <View style={s.handle} />
+      <Text style={s.title}>再投資 · {entryName}</Text>
 
-          <View style={s.body}>
-            <Text style={s.label}>再投資金額（TWD）</Text>
-            <TextInput
-              style={s.input}
-              value={amountStr}
-              onChangeText={(v) => {
-                setAmountStr(v);
-                setError(null);
-              }}
-              keyboardType="decimal-pad"
-            />
+      <View style={s.body}>
+        <Text style={s.label}>再投資金額（TWD）</Text>
+        <TextInput
+          style={s.input}
+          value={amountStr}
+          onChangeText={(v) => {
+            setAmountStr(v);
+            setError(null);
+          }}
+          keyboardType="decimal-pad"
+        />
 
-            <Text style={s.label}>
-              買入價格{!isTWD ? `（${currency}）` : ""}
-              {priceLoading ? "（讀取現價中…）" : ""}
-            </Text>
-            <TextInput
-              style={s.input}
-              value={priceStr}
-              onChangeText={(v) => {
-                setPriceStr(v);
-                setError(null);
-              }}
-              keyboardType="decimal-pad"
-              placeholder="抓不到現價時請手動填入"
-            />
-            {/* FIX FOR FINDING 1 — surface the in-flight FX fetch, same as
+        <Text style={s.label}>
+          買入價格{!isTWD ? `（${currency}）` : ""}
+          {priceLoading ? "（讀取現價中…）" : ""}
+        </Text>
+        <TextInput
+          style={s.input}
+          value={priceStr}
+          onChangeText={(v) => {
+            setPriceStr(v);
+            setError(null);
+          }}
+          keyboardType="decimal-pad"
+          placeholder="抓不到現價時請手動填入"
+        />
+        {/* FIX FOR FINDING 1 — surface the in-flight FX fetch, same as
                 DividendForm.tsx, so the user knows why 確認再投資 is disabled. */}
-            {!isTWD && fxLoading && <Text style={s.fxHint}>正在讀取匯率…</Text>}
+        {!isTWD && fxLoading && <Text style={s.fxHint}>正在讀取匯率…</Text>}
 
-            <View style={s.summary}>
-              {bankName ? (
-                <Text style={s.summaryLine}>
-                  {bankName}
-                  {"　"}−NT$ {amount.toLocaleString()}
-                </Text>
-              ) : (
-                <Text style={s.summaryMuted}>這筆股利未記錄入帳帳戶，不會扣款</Text>
-              )}
-              <Text style={s.summaryLine}>
-                {entryName}
-                {"　"}+NT$ {amount.toLocaleString()}
-              </Text>
-              <Text style={s.summaryLine}>
-                增加{"　"}
-                {units > 0 ? units.toFixed(2) : "—"} 股
-              </Text>
-            </View>
+        <View style={s.summary}>
+          {bankName ? (
+            <Text style={s.summaryLine}>
+              {bankName}
+              {"　"}−NT$ {amount.toLocaleString()}
+            </Text>
+          ) : (
+            <Text style={s.summaryMuted}>這筆股利未記錄入帳帳戶，不會扣款</Text>
+          )}
+          <Text style={s.summaryLine}>
+            {entryName}
+            {"　"}+NT$ {amount.toLocaleString()}
+          </Text>
+          <Text style={s.summaryLine}>
+            增加{"　"}
+            {units > 0 ? units.toFixed(2) : "—"} 股
+          </Text>
+        </View>
 
-            {error && <Text style={s.error}>{error}</Text>}
-          </View>
+        {error && <Text style={s.error}>{error}</Text>}
+      </View>
 
-          <View style={[s.actions, { paddingBottom: bottomPad }]}>
-            <Pressable
-              onPress={handleClose}
-              disabled={submitting}
-              style={[s.btn, s.btnGhost, submitting && s.btnDisabled]}
-            >
-              <Text style={s.btnGhostText}>取消</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleSubmit}
-              disabled={submitting || fxLoading}
-              style={[s.btn, s.btnPrimary, (submitting || fxLoading) && s.btnDisabled]}
-            >
-              <Text style={s.btnPrimaryText}>
-                {submitting ? "處理中…" : fxLoading ? "匯率讀取中…" : "確認再投資"}
-              </Text>
-            </Pressable>
-          </View>
+      <View style={[s.actions, { paddingBottom: bottomPad }]}>
+        <Pressable
+          onPress={handleClose}
+          disabled={submitting}
+          style={[s.btn, s.btnGhost, submitting && s.btnDisabled]}
+        >
+          <Text style={s.btnGhostText}>取消</Text>
         </Pressable>
-      </Pressable>
-    </Modal>
+        <Pressable
+          onPress={handleSubmit}
+          disabled={submitting || fxLoading}
+          style={[s.btn, s.btnPrimary, (submitting || fxLoading) && s.btnDisabled]}
+        >
+          <Text style={s.btnPrimaryText}>
+            {submitting ? "處理中…" : fxLoading ? "匯率讀取中…" : "確認再投資"}
+          </Text>
+        </Pressable>
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -267,7 +267,6 @@ const s = StyleSheet.create({
   // A full-bleed bottom sheet becomes a 1024pt-wide slab on an iPad; capping
   // and centring it keeps it sheet-shaped.
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   handle: {
     width: 36,

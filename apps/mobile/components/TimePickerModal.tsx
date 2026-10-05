@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Modal } from "@/components/Modal";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { BottomSheet } from "@/components/BottomSheet";
 import { CONTENT_MAX_WIDTH, useResponsive } from "@/hooks/useResponsive";
 
 // ─── Pure-JS time picker (no native module → OTA-safe) ───────────────────────
@@ -54,63 +54,63 @@ export function TimePickerModal({
   const minuteIndex = Math.max(0, _TP_MINUTES.indexOf(m) - centreOffset);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={tpS.backdrop} onPress={onClose} />
-      <View style={[tpS.sheet, isTablet && tpS.sheetTablet]}>
-        <View style={tpS.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={tpS.cancel}>取消</Text>
-          </TouchableOpacity>
-          <Text style={tpS.title}>選擇提醒時間</Text>
-          <TouchableOpacity
-            onPress={() => {
-              onConfirm(h, m);
-              onClose();
-            }}
-          >
-            <Text style={tpS.done}>完成</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={tpS.cols}>
-          <FlatList
-            style={tpS.col}
-            data={_TP_HOURS}
-            keyExtractor={(item) => `h${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={getItemLayout}
-            initialScrollIndex={hourIndex}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={tpS.itemRow} onPress={() => setH(item)}>
-                <Text style={[tpS.item, item === h && tpS.active]}>
-                  {String(item).padStart(2, "0")} 時
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-          <FlatList
-            style={tpS.col}
-            data={_TP_MINUTES}
-            keyExtractor={(item) => `m${item}`}
-            showsVerticalScrollIndicator={false}
-            getItemLayout={getItemLayout}
-            initialScrollIndex={minuteIndex}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={tpS.itemRow} onPress={() => setM(item)}>
-                <Text style={[tpS.item, item === m && tpS.active]}>
-                  {String(item).padStart(2, "0")} 分
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={[tpS.sheet, isTablet && tpS.sheetTablet]}
+    >
+      <View style={tpS.header}>
+        <TouchableOpacity onPress={onClose}>
+          <Text style={tpS.cancel}>取消</Text>
+        </TouchableOpacity>
+        <Text style={tpS.title}>選擇提醒時間</Text>
+        <TouchableOpacity
+          onPress={() => {
+            onConfirm(h, m);
+            onClose();
+          }}
+        >
+          <Text style={tpS.done}>完成</Text>
+        </TouchableOpacity>
       </View>
-    </Modal>
+      <View style={tpS.cols}>
+        <FlatList
+          style={tpS.col}
+          data={_TP_HOURS}
+          keyExtractor={(item) => `h${item}`}
+          showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={hourIndex}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={tpS.itemRow} onPress={() => setH(item)}>
+              <Text style={[tpS.item, item === h && tpS.active]}>
+                {String(item).padStart(2, "0")} 時
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+        <FlatList
+          style={tpS.col}
+          data={_TP_MINUTES}
+          keyExtractor={(item) => `m${item}`}
+          showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={minuteIndex}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={tpS.itemRow} onPress={() => setM(item)}>
+              <Text style={[tpS.item, item === m && tpS.active]}>
+                {String(item).padStart(2, "0")} 分
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    </BottomSheet>
   );
 }
 
 const tpS = StyleSheet.create({
   sheetTablet: { width: CONTENT_MAX_WIDTH, alignSelf: "center" },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,

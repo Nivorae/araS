@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { dismissKeyboardOnTabBlur } from "@/lib/keyboard";
 import { View } from "react-native";
 import { useAuth } from "@clerk/clerk-expo";
 import { useEffect, useRef, type ComponentProps } from "react";
@@ -74,6 +75,7 @@ export default function TabsLayout() {
     <View style={{ flex: 1, backgroundColor: "#f2f2f7" }}>
       <DataLoader />
       <Tabs
+        screenListeners={dismissKeyboardOnTabBlur}
         screenOptions={{
           headerShown: false,
           // Bottom tab bar hidden — navigation lives in the floating TopGlassNav.

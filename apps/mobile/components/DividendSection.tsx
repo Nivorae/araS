@@ -8,8 +8,9 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
-import { Modal } from "@/components/Modal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { pressFeedback, longPressFeedback } from "@/lib/haptics";
 import type { Dividend } from "@repo/shared";
 import { useFinanceActions } from "@/hooks/useFinanceActions";
@@ -140,6 +141,7 @@ export default function DividendSection({
   // stale after add/reinvest/delete until the user leaves and returns.
   const { fetchDividends, deleteDividend, fetchAll, fetchEntryHistory } = useFinanceActions();
   const entries = useFinanceStore((s) => s.entries);
+  const { height: windowHeight } = useWindowDimensions();
 
   const [rows, setRows] = useState<Dividend[]>([]);
   const [formOpen, setFormOpen] = useState(false);
@@ -357,39 +359,33 @@ export default function DividendSection({
       )}
 
       {/* ── 股利明細 Modal — 點左下角卡片或「歷史紀錄」都會開這個 ─────────── */}
-      <Modal
+      <BottomSheet
         visible={historyOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setHistoryOpen(false)}
+        onClose={() => setHistoryOpen(false)}
+        sheetStyle={[s.modalSheet, { maxHeight: windowHeight * 0.8 }]}
       >
-        <View style={s.modalWrapper}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setHistoryOpen(false)} />
-          <View style={s.modalSheet}>
-            <View style={s.modalHandle} />
-            <Text style={s.modalTitle}>股利紀錄</Text>
-            <ScrollView style={s.modalScroll} contentContainerStyle={s.modalListContent}>
-              {rows.length === 0 ? (
-                <Text style={s.empty}>還沒有股利紀錄</Text>
-              ) : (
-                rows.map((d, i) => (
-                  <View key={d.id}>
-                    {i > 0 && <View style={s.separator} />}
-                    <DividendRow
-                      dividend={d}
-                      isDeleting={deletingId === d.id}
-                      onPress={() => openEdit(d)}
-                      onLongPress={() => confirmDelete(d)}
-                      onReinvest={() => setReinvestTarget(d)}
-                    />
-                  </View>
-                ))
-              )}
-            </ScrollView>
-            <Text style={s.hint}>點一下可編輯，長按可刪除</Text>
-          </View>
-        </View>
-      </Modal>
+        <View style={s.modalHandle} />
+        <Text style={s.modalTitle}>股利紀錄</Text>
+        <ScrollView style={s.modalScroll} contentContainerStyle={s.modalListContent}>
+          {rows.length === 0 ? (
+            <Text style={s.empty}>還沒有股利紀錄</Text>
+          ) : (
+            rows.map((d, i) => (
+              <View key={d.id}>
+                {i > 0 && <View style={s.separator} />}
+                <DividendRow
+                  dividend={d}
+                  isDeleting={deletingId === d.id}
+                  onPress={() => openEdit(d)}
+                  onLongPress={() => confirmDelete(d)}
+                  onReinvest={() => setReinvestTarget(d)}
+                />
+              </View>
+            ))
+          )}
+        </ScrollView>
+        <Text style={s.hint}>點一下可編輯，長按可刪除</Text>
+      </BottomSheet>
 
       <DividendForm
         visible={formOpen || editTarget !== null}
@@ -533,17 +529,11 @@ const s = StyleSheet.create({
   brHistoryBtnText: { fontSize: 12, fontWeight: "600", color: "#66788E" },
 
   // ── 股利明細 Modal — 單純文字條列，不用色塊 ─────────────────────
-  modalWrapper: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
   modalSheet: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 12,
-    maxHeight: "80%",
   },
   modalHandle: {
     width: 40,

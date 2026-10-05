@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Modal } from "@/components/Modal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Reanimated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { useAuth } from "@clerk/clerk-expo";
@@ -148,42 +148,39 @@ function NumberPickerInput({
         </View>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <Pressable style={s.pickerBackdrop} onPress={() => setOpen(false)} />
-        <View style={s.pickerSheet}>
-          <View style={s.pickerHeader}>
-            <Text style={s.pickerTitle}>{label}</Text>
-            <TouchableOpacity onPress={() => setOpen(false)}>
-              <Text style={s.pickerDone}>完成</Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={options}
-            keyExtractor={(n) => String(n)}
-            getItemLayout={(_, i) => ({ length: PICKER_ROW_H, offset: PICKER_ROW_H * i, index: i })}
-            initialScrollIndex={Math.max(0, options.indexOf(value))}
-            showsVerticalScrollIndicator={false}
-            style={s.pickerList}
-            renderItem={({ item }) => {
-              const active = item === value;
-              return (
-                <TouchableOpacity
-                  style={s.pickerItemRow}
-                  onPress={() => {
-                    onChange(item);
-                    setOpen(false);
-                  }}
-                >
-                  <Text style={[s.pickerItem, active && s.pickerItemActive]}>
-                    {item}
-                    {suffix ? ` ${suffix}` : ""}
-                  </Text>
-                </TouchableOpacity>
-              );
-            }}
-          />
+      <BottomSheet visible={open} onClose={() => setOpen(false)} sheetStyle={s.pickerSheet}>
+        <View style={s.pickerHeader}>
+          <Text style={s.pickerTitle}>{label}</Text>
+          <TouchableOpacity onPress={() => setOpen(false)}>
+            <Text style={s.pickerDone}>完成</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
+        <FlatList
+          data={options}
+          keyExtractor={(n) => String(n)}
+          getItemLayout={(_, i) => ({ length: PICKER_ROW_H, offset: PICKER_ROW_H * i, index: i })}
+          initialScrollIndex={Math.max(0, options.indexOf(value))}
+          showsVerticalScrollIndicator={false}
+          style={s.pickerList}
+          renderItem={({ item }) => {
+            const active = item === value;
+            return (
+              <TouchableOpacity
+                style={s.pickerItemRow}
+                onPress={() => {
+                  onChange(item);
+                  setOpen(false);
+                }}
+              >
+                <Text style={[s.pickerItem, active && s.pickerItemActive]}>
+                  {item}
+                  {suffix ? ` ${suffix}` : ""}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </BottomSheet>
     </>
   );
 }
@@ -1189,7 +1186,6 @@ const s = StyleSheet.create({
   },
 
   // Number picker (bottom sheet)
-  pickerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   pickerSheet: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,

@@ -10,6 +10,8 @@ import { BankPickerPage, BANKS, type BankItem } from "./BankPickerPage";
 import { LoanFormFields, type LoanFormValues } from "./LoanFormFields";
 import { RecurrenceFormPage } from "./RecurrenceFormPage";
 import { promptMobileApp, MOBILE_APP_PROMPT } from "../../lib/mobileAppPrompt";
+import { buildYfSymbol, OVERSEAS_SUBCATEGORY, STOCK_CATS } from "../../lib/stockSymbol";
+import { fetchTwdQuote } from "../../lib/twdQuote";
 import type { Recurrence } from "@repo/shared";
 
 interface EditItem {
@@ -41,6 +43,7 @@ function getUnitsLabel(subCategoryName: string): string {
       return "基金份額";
     case "台股":
     case "美股":
+    case OVERSEAS_SUBCATEGORY:
       return "持有股數";
     case "加密貨幣":
       return "持有數量";
@@ -61,16 +64,17 @@ function getBalanceLabel(topCategory: string): string {
   return "帳戶餘額";
 }
 
-const INVESTMENT_CATEGORIES = ["投資基金", "台股", "美股", "加密貨幣", "貴金屬", "其他投資"];
-const STOCK_PICKER_CATEGORIES = ["台股", "美股", "加密貨幣", "貴金屬"];
+const INVESTMENT_CATEGORIES = [
+  "投資基金",
+  "台股",
+  "美股",
+  OVERSEAS_SUBCATEGORY,
+  "加密貨幣",
+  "貴金屬",
+  "其他投資",
+];
+const STOCK_PICKER_CATEGORIES = STOCK_CATS;
 const LOAN_SUBCATEGORIES = ["房屋貸款", "汽車貸款", "消費貸款", "學生貸款", "其他貸款"];
-
-const METAL_YF_SYMBOL: Record<string, string> = {
-  xau: "GC=F", // Gold Futures
-  xag: "SI=F", // Silver Futures
-  xap: "PL=F", // Platinum Futures
-  xpd: "PA=F", // Palladium Futures
-};
 
 const PRECIOUS_METALS: StockItem[] = [
   { code: "twgd", name: "Taiwan gold (tael) (New Taiwan Dollar/Taiwan tael)" },
@@ -205,38 +209,17 @@ export function AccountFormPage({
 
     // Fetch current price when editing an existing stock entry
     if (editItem?.stockCode && hasStockPicker) {
-      let yfSymbol = "";
-      if (subCategoryName === "貴金屬") {
-        yfSymbol = METAL_YF_SYMBOL[editItem.stockCode.toLowerCase()] ?? "";
-      } else {
-        const suffix =
-          subCategoryName === "台股" ? ".TW" : subCategoryName === "加密貨幣" ? "-USD" : "";
-        yfSymbol = editItem.stockCode + suffix;
-      }
+      const yfSymbol = buildYfSymbol(subCategoryName, editItem.stockCode);
       if (yfSymbol) {
         setPriceLoading(true);
-        fetch(`/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`)
-          .then((r) => r.json())
-          .then(async (data) => {
-            if (typeof data.price !== "number") return;
-            setOriginalPrice(data.price as number);
-            const fetchedCurrency = (data.currency as string) ?? "TWD";
-            setCurrency(fetchedCurrency);
-            if (fetchedCurrency !== "TWD") {
-              try {
-                const fxRes = await fetch(
-                  `/api/stocks/price?symbol=${encodeURIComponent(fetchedCurrency + "TWD=X")}`
-                );
-                const fxData = await fxRes.json();
-                if (typeof fxData.price === "number") setExchangeRate(fxData.price as number);
-              } catch {
-                /* keep rate = 1 */
-              }
-            } else {
-              setExchangeRate(1);
-            }
+        fetchTwdQuote(yfSymbol)
+          .then((quote) => {
+            // 報價或匯率拿不到就停在「--」，手動輸入的股價以台幣計。
+            if (!quote) return;
+            setOriginalPrice(quote.price);
+            setCurrency(quote.currency);
+            setExchangeRate(quote.rate);
           })
-          .catch(() => {})
           .finally(() => setPriceLoading(false));
       }
       return;
@@ -261,6 +244,10 @@ export function AccountFormPage({
         } else if (subCategoryName === "美股") {
           const res = await fetch("/api/stocks/us");
           stocks = (await res.json()) as StockItem[];
+        } else if (subCategoryName === OVERSEAS_SUBCATEGORY) {
+          // 海外股票沒有完整清單，用名稱去搜尋，再比對完全相同的名稱。
+          const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(nameSuggestion)}`);
+          stocks = res.ok ? ((await res.json()) as StockItem[]) : [];
         } else if (subCategoryName === "加密貨幣") {
           const res = await fetch("/api/stocks/crypto");
           stocks = (await res.json()) as StockItem[];
@@ -277,46 +264,18 @@ export function AccountFormPage({
 
       setSelectedStock(match);
 
-      let yfSymbol = "";
-      if (subCategoryName === "貴金屬") {
-        yfSymbol = METAL_YF_SYMBOL[match.code.toLowerCase()] ?? "";
-      } else {
-        const suffix =
-          subCategoryName === "台股" ? ".TW" : subCategoryName === "加密貨幣" ? "-USD" : "";
-        yfSymbol = match.code + suffix;
-      }
+      const yfSymbol = buildYfSymbol(subCategoryName, match.code);
       if (!yfSymbol) return;
 
       setPriceLoading(true);
-      try {
-        const r = await fetch(`/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`);
-        const priceData = await r.json();
-        if (cancelled) return;
-        if (typeof priceData.price === "number") {
-          const fetchedPrice = priceData.price as number;
-          const fetchedCurrency = (priceData.currency as string) ?? "USD";
-          setOriginalPrice(fetchedPrice);
-          setCurrency(fetchedCurrency);
-          if (fetchedCurrency !== "TWD") {
-            try {
-              const fxRes = await fetch(
-                `/api/stocks/price?symbol=${encodeURIComponent(fetchedCurrency + "TWD=X")}`
-              );
-              const fxData = await fxRes.json();
-              if (!cancelled && typeof fxData.price === "number")
-                setExchangeRate(fxData.price as number);
-            } catch {
-              /* keep rate = 1 */
-            }
-          } else {
-            setExchangeRate(1);
-          }
-        }
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) setPriceLoading(false);
+      const quote = await fetchTwdQuote(yfSymbol);
+      if (cancelled) return;
+      if (quote) {
+        setOriginalPrice(quote.price);
+        setCurrency(quote.currency);
+        setExchangeRate(quote.rate);
       }
+      setPriceLoading(false);
     };
     run();
     return () => {
@@ -330,48 +289,25 @@ export function AccountFormPage({
     setIsPriceManual(false);
     setManualPriceStr("");
 
-    // Build Yahoo Finance symbol: 台股 → code.TW, 加密貨幣 → code-USD, 美股 → code as-is
-    // 貴金屬 → use predefined mapping (xau→XAU=X, etc.); unmapped metals skip price fetch
-    let yfSymbol: string;
-    if (subCategoryName === "貴金屬") {
-      yfSymbol = METAL_YF_SYMBOL[stock.code.toLowerCase()] ?? "";
-    } else {
-      const suffix =
-        subCategoryName === "台股" ? ".TW" : subCategoryName === "加密貨幣" ? "-USD" : "";
-      yfSymbol = stock.code + suffix;
-    }
+    // 台股 → code.TW, 加密貨幣 → code-USD, 美股/海外股票 → code as-is,
+    // 貴金屬 → predefined mapping; unmapped metals skip the price fetch.
+    const yfSymbol = buildYfSymbol(subCategoryName, stock.code);
 
-    if (!yfSymbol) {
-      setOriginalPrice(0);
-      setCurrency("TWD");
-      setExchangeRate(1);
-      return;
-    }
+    // Reset first so a failed fetch shows "--" instead of the previous stock's
+    // price × rate — a manual price is then entered in TWD.
+    setOriginalPrice(0);
+    setCurrency("TWD");
+    setExchangeRate(1);
+    if (!yfSymbol) return;
 
     setPriceLoading(true);
-    fetch(`/api/stocks/price?symbol=${encodeURIComponent(yfSymbol)}`)
-      .then((r) => r.json())
-      .then(async (data) => {
-        if (typeof data.price !== "number") return;
-        const fetchedPrice = data.price as number;
-        const fetchedCurrency = (data.currency as string) ?? "USD";
-        setOriginalPrice(fetchedPrice);
-        setCurrency(fetchedCurrency);
-        if (fetchedCurrency !== "TWD") {
-          try {
-            const fxRes = await fetch(
-              `/api/stocks/price?symbol=${encodeURIComponent(fetchedCurrency + "TWD=X")}`
-            );
-            const fxData = await fxRes.json();
-            if (typeof fxData.price === "number") setExchangeRate(fxData.price as number);
-          } catch {
-            /* keep rate = 1 */
-          }
-        } else {
-          setExchangeRate(1);
-        }
+    fetchTwdQuote(yfSymbol)
+      .then((quote) => {
+        if (!quote) return;
+        setOriginalPrice(quote.price);
+        setCurrency(quote.currency);
+        setExchangeRate(quote.rate);
       })
-      .catch(() => {})
       .finally(() => setPriceLoading(false));
   };
 
