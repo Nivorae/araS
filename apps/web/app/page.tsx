@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     "淨值",
     "記帳 App",
     "資產負債表",
-    "投資組合追蹤",
+    "投資組合追蹤（台股、美股、海外股票）",
     "退休規劃",
   ],
   alternates: { canonical: "/" },
