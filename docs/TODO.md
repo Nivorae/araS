@@ -11,7 +11,8 @@
 - **海外股票 + 安全審查修正 —— 已上線**（2026-10-05）。網頁端隨 release PR #171
   上 `main`，手機端 OTA（iOS update group `c5506a77`，runtime `83228e8`，只有 1.6 收得到）。
   規格：`docs/superpowers/specs/2026-10-02-overseas-stocks-design.md`。剩下：
-  1. 更新行銷頁與 `llms.txt`，加入海外股票（規格「不做的事」最後一條）。
+  1. ~~更新行銷頁與 `llms.txt`~~ —— 2026-10-05 上線（#175、#176），已送 IndexNow；
+     Search Console 對 `/`、`/about` 要求建立索引。
   2. **#162（RevenueCat 換帳號 logIn）沒做真機驗證**就上線了（使用者決定跳過）。
      之後若有人反映換帳號後 Premium 記錯人，從這裡查起。要驗證的話：preview build
      （Ad Hoc 描述檔 2026-10-05 已重做，含推播與 Associated Domains）會覆蓋手機上的
