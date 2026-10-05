@@ -25,12 +25,15 @@ changelog tracks App Store versions, **not** the root `package.json` version.
 
 ## Instructions
 
-### 1. Branch check + sync
+### 1. Branch setup
 
-- Run `git branch --show-current`. If not `develop`, stop and print:
-  > ❌ `/git:changelog` must run on `develop`. Current: `<branch>`.
+Like every other change, the changelog goes in on its own branch cut from
+`main` (CLAUDE.md "Git workflow": branch off `main`, never off `develop`).
+
 - Abort if the working tree is dirty (`git status --porcelain` non-empty).
-- `git pull --ff-only origin develop`. Stop on failure.
+- `git fetch origin`, then `git checkout -b docs/changelog-<YYYY-MM-DD> origin/main`.
+- `git merge --no-edit origin/develop` so the commits and `docs/TODO.md` being
+  described are all present. Stop on conflict.
 
 ### 1.5. Read docs/TODO.md in full
 
@@ -178,7 +181,12 @@ Failing to update this is fail-safe by design: a stale or missing `id` shows
 
 Commit with the changelog in step 6 — they are one concern.
 
-### 7. Report
+### 7. Open the PR — do not merge
+
+Push the branch and open a PR with base `develop` (`/create-pr`). **Ask the
+user before merging it**, same as any other PR.
+
+### 8. Report
 
 Print the entries added, and for `--release` mode remind the user:
 

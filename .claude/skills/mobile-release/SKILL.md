@@ -102,7 +102,7 @@ update, which is why tagging was deliberately dropped.
 
 ### Record it in CHANGELOG.md
 
-After the release, run **`/git:changelog`** on `develop`:
+After the release, run **`/git:changelog`** (it cuts its own branch from `main`):
 
 - Road A → `/git:changelog --ota` (dated bullet under the current version)
 - Road B → `/git:changelog --release` (new `## X.Y` section)

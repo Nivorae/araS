@@ -247,8 +247,8 @@ main ──► feature/* ──(/create-pr)──► develop ──(release PR)�
 1. **`/git:branch`** — cut a branch from `main` (from the staged diff or the conversation).
 2. **Develop** — don't commit file-by-file; commit once the whole feature is done.
 3. **`/git:commit`** — Conventional Commits, `<72` chars, **no scope**, no body; suggests splits when needed.
-4. **`/create-pr`** — run on the feature branch (**never** on `develop`/`main`). Pushes, opens a PR with **base `develop`**, merges once green.
-5. **`/git:changelog`** — run on `develop` with a clean tree; writes `CHANGELOG.md` (`--ota` or `--release`).
+4. **`/create-pr`** — run on the feature branch (**never** on `develop`/`main`). Pushes, opens a PR with **base `develop`**. **Ask the user before merging** — every PR, including docs-only ones.
+5. **`/git:changelog`** — run with a clean tree; cuts its own branch from `main` (merging in `develop`), writes `CHANGELOG.md` (`--ota` or `--release`).
 6. **Release PR** — `gh pr create --base main --head develop`. **CI (`.github/workflows/ci.yml`) only runs on PRs whose base is `main`** — a `develop`-based PR shows only the Vercel check, which looks like green CI but isn't. This release PR is the only place Lint / Type Check / Build / Security Scan actually run, so never `git merge` straight to `main` to skip it. (This is the same limitation noted under "Known won't-fix".)
 7. **Ship** — see "Mobile release"; `/mobile-release` decides OTA vs App Store.
 
