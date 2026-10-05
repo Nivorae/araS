@@ -8,37 +8,18 @@
 
 ## 下一步
 
-- **海外股票**（2026-10-02）。已合併進 `develop`（#166），實機驗證通過（2026-10-02），**尚未上線**。
-  規格：`docs/superpowers/specs/2026-10-02-overseas-stocks-design.md`。新增「海外股票」
-  子分類（Yahoo 搜尋選股）、換匯計算機（11 種常用幣別），並修好輔幣（`GBp`）換算、
-  匯率失敗退回 1、網頁詳情頁市值沒換匯。同一個 PR 也帶了：離開畫面／關閉 Modal 收起
-  鍵盤、編輯記錄的日期改用日曆、日曆／時間選擇器的黑底改成淡入淡出（`BottomSheet`）。
-  1. ~~手機實機驗證~~ —— 2026-10-02 通過。
-  2. 純 JS 改動，手機端走 OTA —— 跟下面安全審查修正那批一起發（1.6 已上架，可以發了），
-     記得更新 `whatsNew`。網頁端隨下一次 `develop` → `main` 的 release PR 上線。
-  3. 上線後再更新行銷頁與 `llms.txt`（規格「不做的事」最後一條）。
-  4. 其他底部面板改用 `components/BottomSheet.tsx`（黑底淡入淡出）—— 換匯計算機、
-     股利、股利紀錄、再投資、基金選擇、編輯記錄、新手引導、本次更新、退休頁的數字
-     選擇與說明。實機驗證通過（2026-10-02），之後跟這批一起發 OTA。
-
-- **安全審查修正**（2026-10-02）。審查報告在 `~/security-audit-skill/araS/run-1/`
-  （repo 外，不進版控）。全部已合併進 `develop`；#157、#158 已隨 #160 上線。
-  - **#163 上 main 前，先對正式資料庫套兩個 migration，再合併 release PR**：
-    `20261002060000_enable_rls_on_public_tables`、
-    `20261002070000_add_subscription_last_signed_at`。程式碼會讀
-    `Subscription.lastSignedAt`，欄位不存在時所有訂閱查詢都會失敗 ——
-    Premium 判斷、新增資產（會先查 Premium）一起壞。兩個 migration 只加限制與
-    可為空的欄位，不刪資料，已在 dev 驗證。
-  - **手機端 OTA（1.6 已上架，可以開始）**：#159（換帳號清快取）、#161（鎖定畫面蓋住
-    Modal）、#162（RevenueCat 換帳號 logIn）、#163 的退休資料／選股紀錄分帳號。
-    只有 1.6 收得到（1.5 以前 fingerprint 不同）。步驟：
-    1. `eas build --profile preview` 打一包，真機用 Sandbox 測「A 登入 → 登出 →
-       B 登入 → 購買 → Premium 給的是 B 不是 A」—— Expo Go 沒有 RevenueCat，測不到。
-    2. 通過後 `/mobile-release` 發 OTA（記得更新 `whatsNew`）。
-  - 仍未處理：Supabase Data API 開關（後台曾 `Failed to fetch`，換網路再關；
-    RLS migration 上線後即使沒關也讀不到資料）。`appleAccountToken` 不帶密鑰
-    **刻意不改** —— 改 HMAC 會讓現有訂閱者的續訂通知對不上；#163 只處理了
-    token 被搶佔時通知無限失敗的問題。
+- **海外股票 + 安全審查修正 —— 已上線**（2026-10-05）。網頁端隨 release PR #171
+  上 `main`，手機端 OTA（iOS update group `c5506a77`，runtime `83228e8`，只有 1.6 收得到）。
+  規格：`docs/superpowers/specs/2026-10-02-overseas-stocks-design.md`。剩下：
+  1. 更新行銷頁與 `llms.txt`，加入海外股票（規格「不做的事」最後一條）。
+  2. **#162（RevenueCat 換帳號 logIn）沒做真機驗證**就上線了（使用者決定跳過）。
+     之後若有人反映換帳號後 Premium 記錯人，從這裡查起。要驗證的話：preview build
+     （Ad Hoc 描述檔 2026-10-05 已重做，含推播與 Associated Domains）會覆蓋手機上的
+     正式版，用 Sandbox 測「A 登入 → 登出 → B 登入 → 購買 → Premium 給的是 B」。
+  3. 安全審查仍未處理：Supabase Data API 開關（後台曾 `Failed to fetch`，換網路再關；
+     RLS 已上線，即使沒關也讀不到資料）。`appleAccountToken` 不帶密鑰**刻意不改** ——
+     改 HMAC 會讓現有訂閱者的續訂通知對不上。審查報告在
+     `~/security-audit-skill/araS/run-1/`（repo 外）。
   - 新增資料表時，migration 要一併 `ENABLE ROW LEVEL SECURITY`（見 RLS
     migration 開頭註解）。
 
