@@ -164,6 +164,47 @@ Don't re-propose these — each was raised and rejected on purpose:
   already makes the web account premium — the only stuck case is a web-only user
   with no iPhone, judged out of scope for this product.
 
+## Architecture diagram
+
+The system diagram in `README.md` is generated, not hand-drawn. Files in
+`docs/diagrams/`:
+
+| File                                 | Role                                                        |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `aras-architecture.json`             | **Source of truth** — archify spec, every node cites source |
+| `aras-architecture.html`             | Interactive render (from the JSON via the `archify` skill)  |
+| `aras-architecture.{light,dark}.png` | Static export embedded in README (`pnpm diagram:png`)       |
+
+**It must be kept in sync on every PR and every release.** Before `/create-pr`
+and before the release PR (`develop` → `main`), check the diff
+(`git diff --name-only origin/main...HEAD`) against these triggers:
+
+- a new or removed app/package (`apps/*`, `packages/*`)
+- `apps/web/middleware.ts`, or how a Route Handler authenticates
+- a new top-level API area under `apps/web/app/api/*`, or a new webhook
+- a new third-party service or external API host (new SDK in a `package.json`,
+  new `fetch("https://…")` host in `apps/web/services` / `app/api`)
+- deployment / hosting changes (`apps/web/vercel.json`, a new database or region)
+- `apps/mobile/lib/api.ts`, `purchases.ts`, or `analytics/client.ts` changing
+  who the app talks to
+- any file cited in the JSON's `sources` being moved or rewritten so the line
+  ranges no longer point at the claim
+
+If none match, the diagram is untouched — say so in the PR and move on. If one
+matches:
+
+1. Edit `docs/diagrams/aras-architecture.json` (nodes, edges, cards, `sources`
+   line ranges). Set `meta.repository.revision` to the current `HEAD`
+   (`git rev-parse HEAD`) — archify verifies cited lines against that commit, so
+   the cited code must already be committed.
+2. Re-render with the `archify` skill (installed globally:
+   `npx skills add tt-a1i/archify -g`):
+   `node ~/.agents/skills/archify/bin/archify.mjs finalize architecture docs/diagrams/aras-architecture.json docs/diagrams/aras-architecture.html --repo-root . --quality showcase --out-dir .archify/evidence --json`
+   — every gate must pass. Keep `--out-dir`; without it receipts land in
+   `docs/diagrams/`.
+3. `pnpm diagram:png` to refresh both PNGs (uses the local Chrome).
+4. Commit the JSON + HTML + PNGs together as `docs: update architecture diagram`.
+
 ## Web SEO / GEO
 
 The marketing site (`arasasset.com`) is optimised for both Google and AI answer
@@ -247,9 +288,9 @@ main ──► feature/* ──(/create-pr)──► develop ──(release PR)�
 1. **`/git:branch`** — cut a branch from `main` (from the staged diff or the conversation).
 2. **Develop** — don't commit file-by-file; commit once the whole feature is done.
 3. **`/git:commit`** — Conventional Commits, `<72` chars, **no scope**, no body; suggests splits when needed.
-4. **`/create-pr`** — run on the feature branch (**never** on `develop`/`main`). Pushes, opens a PR with **base `develop`**, merges once green.
+4. **`/create-pr`** — run on the feature branch (**never** on `develop`/`main`). Checks the architecture-diagram triggers (see "Architecture diagram"), then pushes, opens a PR with **base `develop`**, merges once green.
 5. **`/git:changelog`** — run on `develop` with a clean tree; writes `CHANGELOG.md` (`--ota` or `--release`).
-6. **Release PR** — `gh pr create --base main --head develop`. **CI (`.github/workflows/ci.yml`) only runs on PRs whose base is `main`** — a `develop`-based PR shows only the Vercel check, which looks like green CI but isn't. This release PR is the only place Lint / Type Check / Build / Security Scan actually run, so never `git merge` straight to `main` to skip it. (This is the same limitation noted under "Known won't-fix".)
+6. **Release PR** — first re-check the architecture-diagram triggers over the whole release range (`git diff --name-only origin/main...develop`) so nothing missed per-PR ships with a stale diagram; then `gh pr create --base main --head develop`. **CI (`.github/workflows/ci.yml`) only runs on PRs whose base is `main`** — a `develop`-based PR shows only the Vercel check, which looks like green CI but isn't. This release PR is the only place Lint / Type Check / Build / Security Scan actually run, so never `git merge` straight to `main` to skip it. (This is the same limitation noted under "Known won't-fix".)
 7. **Ship** — see "Mobile release"; `/mobile-release` decides OTA vs App Store.
 
 **Hotfix exception**: a production-down or security issue may go straight to a `main`-based PR. Back-fill `develop` afterward (`gh pr create --base develop --head main`) so history doesn't diverge.

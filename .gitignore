@@ -82,3 +82,8 @@ bash.exe.stackdump
 .worktrees/
 .superpowers/
 .docs/superpowers/
+# archify diagram receipts — `finalize` evidence (--out-dir .archify/evidence)
+# and the per-run delivery receipt it drops next to the HTML. Machine-local
+# paths, regenerated on every run; only the .json/.html/.png sources are tracked.
+.archify/
+docs/diagrams/*.delivery.json

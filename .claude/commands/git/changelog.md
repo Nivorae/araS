@@ -178,6 +178,21 @@ Failing to update this is fail-safe by design: a stale or missing `id` shows
 
 Commit with the changelog in step 6 — they are one concern.
 
+### 6.7. Architecture diagram check for the release range
+
+This is the last stop on `develop` before the release PR to `main`, so catch
+any diagram drift that individual PRs missed:
+
+```bash
+git diff --name-only origin/main...develop
+```
+
+Compare against the trigger list in `CLAUDE.md` → "Architecture diagram". If
+one matches and `docs/diagrams/aras-architecture.json` was not already updated
+in this range, follow that section's steps and commit as its own
+`docs: update architecture diagram` commit (never folded into the changelog
+commit). Report which outcome applied.
+
 ### 7. Report
 
 Print the entries added, and for `--release` mode remind the user:

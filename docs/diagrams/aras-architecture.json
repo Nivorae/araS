@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "araS 系統架構",
+    "locale": "zh-TW",
+    "output": "docs/diagrams/aras-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Nivorae/araS.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "911dec58b124d3f9f1ec5a82c418aa40fe8045d6"
+    }
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "使用者",
+      "sublabel": "iPhone / 瀏覽器",
+      "pos": [40, 240],
+      "size": [130, 64]
+    },
+    {
+      "id": "mobile",
+      "type": "frontend",
+      "label": "iOS App",
+      "sublabel": "Expo + Expo Router",
+      "pos": [240, 150],
+      "size": [160, 64],
+      "sources": [
+        {
+          "path": "apps/mobile/lib/api.ts",
+          "line": 23,
+          "end_line": 45,
+          "label": "Bearer 呼叫 /api"
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Web 前端",
+      "sublabel": "Next.js 15 + React 19",
+      "pos": [240, 330],
+      "size": [160, 64],
+      "sources": [{ "path": "apps/web/lib/api-client.ts", "line": 12, "label": "fetch /api" }]
+    },
+    {
+      "id": "revenuecat",
+      "type": "external",
+      "label": "RevenueCat",
+      "sublabel": "iOS IAP 訂閱",
+      "pos": [240, 20],
+      "size": [160, 64],
+      "sources": [
+        {
+          "path": "apps/mobile/lib/purchases.ts",
+          "line": 55,
+          "end_line": 70,
+          "label": "Purchases.configure"
+        }
+      ]
+    },
+    {
+      "id": "clerk",
+      "type": "security",
+      "label": "Clerk",
+      "sublabel": "Google / LINE OAuth",
+      "pos": [520, 60],
+      "size": [160, 64],
+      "sources": [
+        { "path": "apps/mobile/app/_layout.tsx", "line": 102, "label": "ClerkProvider (mobile)" },
+        { "path": "apps/web/app/layout.tsx", "line": 24, "label": "ClerkProvider (web)" }
+      ]
+    },
+    {
+      "id": "middleware",
+      "type": "security",
+      "label": "middleware.ts",
+      "sublabel": "clerkMiddleware",
+      "pos": [520, 240],
+      "size": [160, 64],
+      "sources": [{ "path": "apps/web/middleware.ts", "line": 1, "end_line": 22 }]
+    },
+    {
+      "id": "routes",
+      "type": "backend",
+      "label": "Route Handlers",
+      "sublabel": "app/api/** · auth() + Zod",
+      "pos": [800, 240],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "apps/web/app/api/entries/route.ts",
+          "line": 22,
+          "end_line": 38,
+          "label": "auth → Zod → service"
+        }
+      ]
+    },
+    {
+      "id": "services",
+      "type": "backend",
+      "label": "Services",
+      "sublabel": "商業邏輯 · userId scope",
+      "pos": [1060, 240],
+      "size": [170, 64],
+      "sources": [{ "path": "apps/web/services/entries.service.ts", "line": 183, "end_line": 190 }]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Supabase",
+      "pos": [1340, 240],
+      "size": [150, 64],
+      "sources": [
+        { "path": "apps/web/prisma/schema.prisma", "line": 5, "end_line": 9 },
+        { "path": "apps/web/lib/prisma.ts", "line": 1, "end_line": 15 }
+      ]
+    },
+    {
+      "id": "apple",
+      "type": "external",
+      "label": "App Store",
+      "sublabel": "Server Notifications",
+      "pos": [800, 430],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "apps/web/app/api/webhooks/app-store-notifications/route.ts",
+          "line": 32,
+          "end_line": 60
+        }
+      ]
+    },
+    {
+      "id": "market",
+      "type": "external",
+      "label": "行情來源",
+      "sublabel": "Yahoo · TWSE · Finnhub 等",
+      "pos": [1060, 430],
+      "size": [170, 64],
+      "sources": [
+        { "path": "apps/web/services/quotes.service.ts", "line": 128, "label": "Finnhub" },
+        {
+          "path": "apps/web/app/api/stocks/tw/route.ts",
+          "line": 8,
+          "end_line": 10,
+          "label": "TWSE"
+        },
+        { "path": "apps/web/app/api/exchange-rate/route.ts", "line": 13, "label": "匯率" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Vercel（apps/web，hnd1）",
+      "wraps": ["middleware", "routes", "services"]
+    },
+    { "kind": "region", "label": "Supabase", "wraps": ["db"] }
+  ],
+  "connections": [
+    { "id": "users-mobile", "from": "users", "to": "mobile" },
+    { "id": "users-web", "from": "users", "to": "web" },
+    {
+      "id": "mobile-iap",
+      "from": "mobile",
+      "to": "revenuecat",
+      "label": "購買訂閱",
+      "variant": "dashed"
+    },
+    {
+      "id": "mobile-signin",
+      "from": "mobile",
+      "to": "clerk",
+      "label": "OAuth 登入",
+      "variant": "security"
+    },
+    {
+      "id": "mobile-api",
+      "from": "mobile",
+      "to": "middleware",
+      "label": "Bearer token",
+      "variant": "emphasis"
+    },
+    {
+      "id": "web-api",
+      "from": "web",
+      "to": "middleware",
+      "label": "session cookie",
+      "variant": "emphasis"
+    },
+    {
+      "id": "clerk-verify",
+      "from": "clerk",
+      "to": "middleware",
+      "label": "驗證 session",
+      "variant": "security"
+    },
+    {
+      "id": "mw-routes",
+      "from": "middleware",
+      "to": "routes",
+      "label": "auth.protect()",
+      "variant": "emphasis"
+    },
+    {
+      "id": "routes-services",
+      "from": "routes",
+      "to": "services",
+      "label": "Zod 驗證後",
+      "variant": "emphasis"
+    },
+    {
+      "id": "services-db",
+      "from": "services",
+      "to": "db",
+      "label": "Prisma",
+      "variant": "emphasis"
+    },
+    {
+      "id": "apple-webhook",
+      "from": "apple",
+      "to": "routes",
+      "label": "JWS webhook",
+      "variant": "dashed"
+    },
+    {
+      "id": "services-market",
+      "from": "services",
+      "to": "market",
+      "label": "HTTPS 行情",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Monorepo",
+      "items": [
+        "apps/web：網頁 + API（Vercel）",
+        "apps/mobile：Expo iOS App（EAS）",
+        "@repo/shared：共用 Zod schema 與 ApiResponse",
+        "@repo/ui：shadcn/ui 元件"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "認證與隔離",
+      "items": [
+        "每個 Route Handler 自行 auth()，無 userId 回 401",
+        "行情 proxy 另在 middleware auth.protect()",
+        "Services 查詢一律帶 userId"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "訂閱",
+      "items": [
+        "App Store 通知 → Subscription 表",
+        "PREMIUM_OWNER_USER_IDS 可免購買升級",
+        "Web 沒有付費 UI"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "觀測",
+      "items": ["Sentry：web + mobile 錯誤監控", "PostHog：mobile 取得漏斗事件"]
+    }
+  ]
+}

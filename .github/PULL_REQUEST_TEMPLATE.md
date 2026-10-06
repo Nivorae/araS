@@ -18,3 +18,4 @@
 - [ ] I have added tests that prove my fix/feature works
 - [ ] New and existing unit tests pass locally
 - [ ] I have added a changeset (run `npm run changeset`)
+- [ ] Architecture diagram is in sync — either no trigger in CLAUDE.md "Architecture diagram" matched, or `docs/diagrams/` is updated in this PR

@@ -114,8 +114,18 @@ pnpm --filter @repo/mobile start -c   # 啟動 Expo，iOS 相機掃 QR 開啟 Ex
 | `pnpm db:generate`   | 改完 schema 後重新產生 Prisma client |
 | `pnpm db:migrate`    | 執行 migration（dev）                |
 | `pnpm db:studio`     | Prisma Studio GUI                    |
+| `pnpm diagram:png`   | 由架構圖 HTML 重新匯出 README 用 PNG |
 
 ## Architecture
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/aras-architecture.dark.png">
+  <img alt="araS 系統架構圖：iOS App 與 Web 前端經 Clerk 認證，呼叫 Vercel 上的 middleware → Route Handlers → Services，以 Prisma 存取 Supabase PostgreSQL；App Store 通知走 webhook，行情來自 Yahoo / TWSE / Finnhub 等" src="docs/diagrams/aras-architecture.light.png">
+</picture>
+
+可互動版本（點節點看原始碼位置、切換深淺色、匯出）：[`docs/diagrams/aras-architecture.html`](docs/diagrams/aras-architecture.html)，
+下載後用瀏覽器開。圖的來源是 [`aras-architecture.json`](docs/diagrams/aras-architecture.json)，
+架構有變動時的更新方式見 [CLAUDE.md](CLAUDE.md) 的「Architecture diagram」。
 
 ### API request lifecycle
 
