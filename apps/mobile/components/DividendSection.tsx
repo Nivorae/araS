@@ -188,6 +188,23 @@ export default function DividendSection({
   // from a row *inside* that modal) left the history modal half-alive and
   // ate touches on the whole screen afterwards. Closing it the instant any
   // of those open keeps exactly one Modal mounted-visible at once.
+  //
+  // Opening the next sheet in that same instant isn't enough, though: the
+  // history BottomSheet keeps its Modal up for its exit animation, and iOS
+  // silently drops a Modal presented while another is still on screen — the
+  // 再投資 / edit tap did nothing. Row actions therefore close the history sheet
+  // first and run once it's fully gone (BottomSheet `onClosed`).
+  const afterHistoryClosed = useRef<(() => void) | null>(null);
+  const openFromHistory = (open: () => void) => {
+    afterHistoryClosed.current = open;
+    setHistoryOpen(false);
+  };
+  const runAfterHistoryClosed = () => {
+    const open = afterHistoryClosed.current;
+    afterHistoryClosed.current = null;
+    open?.();
+  };
+
   useEffect(() => {
     if (formOpen || editTarget !== null || reinvestTarget !== null) {
       setHistoryOpen(false);
@@ -227,7 +244,7 @@ export default function DividendSection({
       );
       return;
     }
-    setEditTarget(d);
+    openFromHistory(() => setEditTarget(d));
   };
 
   const confirmDelete = (d: Dividend) => {
@@ -362,6 +379,7 @@ export default function DividendSection({
       <BottomSheet
         visible={historyOpen}
         onClose={() => setHistoryOpen(false)}
+        onClosed={runAfterHistoryClosed}
         sheetStyle={[s.modalSheet, { maxHeight: windowHeight * 0.8 }]}
       >
         <View style={s.modalHandle} />
@@ -378,7 +396,7 @@ export default function DividendSection({
                   isDeleting={deletingId === d.id}
                   onPress={() => openEdit(d)}
                   onLongPress={() => confirmDelete(d)}
-                  onReinvest={() => setReinvestTarget(d)}
+                  onReinvest={() => openFromHistory(() => setReinvestTarget(d))}
                 />
               </View>
             ))
