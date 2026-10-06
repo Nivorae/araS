@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Animated,
   Easing,
@@ -37,6 +37,7 @@ export function BottomSheet({
   onClose,
   sheetStyle,
   dismissOnBackdrop = true,
+  onClosed,
   children,
 }: {
   visible: boolean;
@@ -44,6 +45,12 @@ export function BottomSheet({
   sheetStyle?: StyleProp<ViewStyle>;
   /** false：點黑底不關閉（例如內容很長、怕跟捲動搶手勢的面板）。 */
   dismissOnBackdrop?: boolean;
+  /**
+   * 面板完全消失（原生 Modal 也收掉）之後才呼叫。要從這個面板裡接著開另一個
+   * 面板時用它：iOS 同一時間只能呈現一個 Modal，前一個還在退場就 present 下一個，
+   * 下一個會被系統直接丟掉，畫面上看起來就是「按了沒反應」。
+   */
+  onClosed?: () => void;
   children: ReactNode;
 }) {
   const { height: windowHeight } = useWindowDimensions();
@@ -52,12 +59,22 @@ export function BottomSheet({
   // 面板實際高度；量到之前先用螢幕高度，保證一開始完全在畫面外。
   const [sheetHeight, setSheetHeight] = useState(0);
   const wasVisible = useRef(visible);
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
+  // 這次關閉是否已經通知過 onClosed（onDismiss 與保險用的計時器只算一次）。
+  const closedNotified = useRef(true);
+  const notifyClosed = useCallback(() => {
+    if (closedNotified.current) return;
+    closedNotified.current = true;
+    onClosedRef.current?.();
+  }, []);
 
   useEffect(() => {
     // 只在「開 → 關」那一刻收鍵盤；掛載時就是關著的面板不能動到所在畫面的鍵盤。
     if (wasVisible.current && !visible) Keyboard.dismiss();
     wasVisible.current = visible;
     if (visible) {
+      closedNotified.current = true;
       setMounted(true);
       Animated.timing(progress, {
         toValue: 1,
@@ -72,10 +89,16 @@ export function BottomSheet({
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (finished) setMounted(false);
+        if (!finished) return;
+        closedNotified.current = false;
+        setMounted(false);
+        // iOS 等原生 Modal 真的收掉（onDismiss）；Android 可以疊 Modal，直接通知。
+        // 計時器是保險：萬一 onDismiss 沒觸發，下一個面板也不會永遠開不起來。
+        if (Platform.OS === "ios") setTimeout(notifyClosed, 500);
+        else notifyClosed();
       });
     }
-  }, [visible, progress]);
+  }, [visible, progress, notifyClosed]);
 
   const translateY = progress.interpolate({
     inputRange: [0, 1],
@@ -83,7 +106,13 @@ export function BottomSheet({
   });
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+    <Modal
+      visible={mounted}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      onDismiss={notifyClosed}
+    >
       <Animated.View style={[StyleSheet.absoluteFill, s.backdrop, { opacity: progress }]}>
         {dismissOnBackdrop && <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />}
       </Animated.View>
