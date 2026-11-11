@@ -9,7 +9,9 @@ const deleteMock = vi.fn();
 vi.mock("@clerk/nextjs", () => ({
   useUser: () => ({
     user: {
+      firstName: "Max",
       fullName: "Max Chen",
+      hasImage: false,
       primaryEmailAddress: { emailAddress: "max@example.com" },
       emailAddresses: [{ emailAddress: "max@example.com" }],
     },
@@ -19,6 +21,10 @@ vi.mock("@clerk/nextjs", () => ({
 
 vi.mock("../../lib/api-client", () => ({
   api: { delete: (path: string) => deleteMock(path) },
+}));
+
+vi.mock("../../hooks/useIsPremium", () => ({
+  useIsPremium: () => ({ isPremium: false, loading: false }),
 }));
 
 function openDeleteSheet() {
@@ -31,15 +37,23 @@ describe("Settings (MorePage)", () => {
     deleteMock.mockResolvedValue({ success: true, data: { deleted: true } });
   });
 
-  it("shows the signed-in account name and email", () => {
+  it("greets the user by first name", () => {
     render(<MorePage />);
+    expect(screen.getByRole("heading", { name: "Hi, Max" })).toBeInTheDocument();
+  });
+
+  it("shows the account name and email in the avatar menu", () => {
+    render(<MorePage />);
+    expect(screen.queryByText("max@example.com")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "帳號選單" }));
     expect(screen.getByText("Max Chen")).toBeInTheDocument();
     expect(screen.getByText("max@example.com")).toBeInTheDocument();
   });
 
-  it("signs out to the welcome page", () => {
+  it("signs out to the welcome page from the avatar menu", () => {
     render(<MorePage />);
-    fireEvent.click(screen.getByRole("button", { name: /登出/ }));
+    fireEvent.click(screen.getByRole("button", { name: "帳號選單" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /登出/ }));
     expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: "/welcome" });
   });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Spinner } from "../ui/Spinner";
+import { BottomSheet } from "../ui/BottomSheet";
 import { useFinanceStore } from "../../store/useFinanceStore";
 import { buildYfSymbol } from "../../lib/stockSymbol";
 import { promptMobileApp } from "../../lib/mobileAppPrompt";
@@ -130,83 +131,78 @@ export function ReinvestSheet({
     onClose();
   }
 
-  if (!open) return null;
-
   return (
-    <>
-      <div className="fixed inset-0 z-[80] bg-black/40" onClick={handleClose} />
-      <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto max-w-md rounded-t-2xl bg-white px-5 pt-4 pb-10 md:max-w-xl lg:max-w-2xl">
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e5e5ea]" />
-        <p className="mb-5 text-center text-[16px] font-semibold text-[#1c1c1e]">
-          再投資 · {entryName}
+    <BottomSheet open={open} onClose={handleClose} panelClassName="px-5 pt-4 pb-10" label="再投資">
+      <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e5e5ea]" />
+      <p className="mb-5 text-center text-[16px] font-semibold text-[#1c1c1e]">
+        再投資 · {entryName}
+      </p>
+
+      <label className="mb-1.5 block text-[13px] text-[#8e8e93]">再投資金額（TWD）</label>
+      <input
+        type="number"
+        value={amountStr}
+        onChange={(e) => {
+          setAmountStr(e.target.value);
+          setError(null);
+        }}
+        className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
+      />
+
+      <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">
+        買入價格{!isTWD ? `（${currency}）` : ""}
+        {priceLoading ? "（讀取現價中…）" : ""}
+      </label>
+      <input
+        type="number"
+        value={priceStr}
+        onChange={(e) => {
+          setPriceStr(e.target.value);
+          setError(null);
+        }}
+        placeholder="抓不到現價時請手動填入"
+        className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
+      />
+      {!isTWD && fxLoading && <p className="mt-1 text-[12px] text-[#8e8e93]">正在讀取匯率…</p>}
+
+      <div className="mt-4 flex flex-col gap-1.5 rounded-xl bg-[#f2f2f7] p-3.5">
+        {bankName ? (
+          <p className="text-[14px] text-[#1c1c1e]">
+            {bankName}
+            {"　"}−NT$ {amount.toLocaleString()}
+          </p>
+        ) : (
+          <p className="text-[13px] text-[#8e8e93]">這筆股利未記錄入帳帳戶，不會扣款</p>
+        )}
+        <p className="text-[14px] text-[#1c1c1e]">
+          {entryName}
+          {"　"}+NT$ {amount.toLocaleString()}
         </p>
-
-        <label className="mb-1.5 block text-[13px] text-[#8e8e93]">再投資金額（TWD）</label>
-        <input
-          type="number"
-          value={amountStr}
-          onChange={(e) => {
-            setAmountStr(e.target.value);
-            setError(null);
-          }}
-          className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
-        />
-
-        <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">
-          買入價格{!isTWD ? `（${currency}）` : ""}
-          {priceLoading ? "（讀取現價中…）" : ""}
-        </label>
-        <input
-          type="number"
-          value={priceStr}
-          onChange={(e) => {
-            setPriceStr(e.target.value);
-            setError(null);
-          }}
-          placeholder="抓不到現價時請手動填入"
-          className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
-        />
-        {!isTWD && fxLoading && <p className="mt-1 text-[12px] text-[#8e8e93]">正在讀取匯率…</p>}
-
-        <div className="mt-4 flex flex-col gap-1.5 rounded-xl bg-[#f2f2f7] p-3.5">
-          {bankName ? (
-            <p className="text-[14px] text-[#1c1c1e]">
-              {bankName}
-              {"　"}−NT$ {amount.toLocaleString()}
-            </p>
-          ) : (
-            <p className="text-[13px] text-[#8e8e93]">這筆股利未記錄入帳帳戶，不會扣款</p>
-          )}
-          <p className="text-[14px] text-[#1c1c1e]">
-            {entryName}
-            {"　"}+NT$ {amount.toLocaleString()}
-          </p>
-          <p className="text-[14px] text-[#1c1c1e]">
-            增加{"　"}
-            {units > 0 ? units.toFixed(2) : "—"} 股
-          </p>
-        </div>
-
-        {error && <p className="mt-3 text-[13px] text-[#ff3b30]">{error}</p>}
-
-        <div className="mt-4 flex gap-3">
-          <button
-            onClick={handleClose}
-            disabled={submitting}
-            className="flex-1 rounded-full border border-[#e5e5ea] py-3 text-[15px] font-semibold text-[#1c1c1e] active:bg-[#f2f2f7] disabled:opacity-40"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || fxLoading}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#66788E] py-3 text-[15px] font-semibold text-white active:opacity-80 disabled:opacity-40"
-          >
-            {submitting && <Spinner size={14} />}
-            {submitting ? "處理中…" : fxLoading ? "匯率讀取中…" : "確認再投資"}
-          </button>
-        </div>
+        <p className="text-[14px] text-[#1c1c1e]">
+          增加{"　"}
+          {units > 0 ? units.toFixed(2) : "—"} 股
+        </p>
       </div>
-    </>
+
+      {error && <p className="mt-3 text-[13px] text-[#ff3b30]">{error}</p>}
+
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={handleClose}
+          disabled={submitting}
+          className="flex-1 rounded-full border border-[#e5e5ea] py-3 text-[15px] font-semibold text-[#1c1c1e] active:bg-[#f2f2f7] disabled:opacity-40"
+        >
+          取消
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || fxLoading}
+          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#66788E] py-3 text-[15px] font-semibold text-white active:opacity-80 disabled:opacity-40"
+        >
+          {submitting && <Spinner size={14} />}
+          {submitting ? "處理中…" : fxLoading ? "匯率讀取中…" : "確認再投資"}
+        </button>
+      </div>
+    </BottomSheet>
   );
 }

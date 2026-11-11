@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, Check, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, X } from "lucide-react";
 import { Spinner } from "../ui/Spinner";
+import { DateField } from "../ui/DatePickerSheet";
+import { InsurerLogo } from "../ui/InsurerLogo";
+import { InsurerPickerPage, CoveragePickerPage } from "./InsurerPickerPage";
 import { promptMobileApp } from "../../lib/mobileAppPrompt";
 import {
   INSURANCE_TYPES,
@@ -48,7 +51,8 @@ export function InsuranceFormPage({ open, onClose, onSaved, categoryColor, editI
   const [coveragePeriod, setCoveragePeriod] = useState("");
   const [annualPremium, setAnnualPremium] = useState("");
   const [coverage, setCoverage] = useState<CoverageRowState[]>([]);
-  const [pendingCoverageKey, setPendingCoverageKey] = useState("");
+  const [showInsurerPicker, setShowInsurerPicker] = useState(false);
+  const [showCoveragePicker, setShowCoveragePicker] = useState(false);
 
   const [errors, setErrors] = useState<{
     insuranceType?: string;
@@ -88,10 +92,6 @@ export function InsuranceFormPage({ open, onClose, onSaved, categoryColor, editI
     return INSURANCE_COVERAGE_OPTIONS[insuranceType].filter((o) => !used.has(o.key));
   }, [insuranceType, coverage]);
 
-  useEffect(() => {
-    setPendingCoverageKey(remainingOptions[0]?.key ?? "");
-  }, [remainingOptions]);
-
   const canAddMore =
     coverage.length < MAX_COVERAGE_ITEMS &&
     !!insuranceType &&
@@ -104,15 +104,20 @@ export function InsuranceFormPage({ open, onClose, onSaved, categoryColor, editI
     setErrors(({ insuranceType: _dropped, ...rest }) => rest);
   };
 
+  // OTHER adds a free-text row; every other type picks from its option list.
   const handleAddCoverage = () => {
     if (!insuranceType) return;
     if (insuranceType === "OTHER") {
       setCoverage((prev) => [...prev, { key: generateCoverageKey(), label: "", valueStr: "" }]);
     } else {
-      const opt = remainingOptions.find((o) => o.key === pendingCoverageKey);
-      if (!opt) return;
-      setCoverage((prev) => [...prev, { key: opt.key, label: opt.label, valueStr: "" }]);
+      setShowCoveragePicker(true);
     }
+  };
+
+  const addCoverageOption = (key: string) => {
+    const opt = remainingOptions.find((o) => o.key === key);
+    if (!opt) return;
+    setCoverage((prev) => [...prev, { key: opt.key, label: opt.label, valueStr: "" }]);
   };
 
   const updateCoverageLabel = (key: string, label: string) =>
@@ -200,7 +205,9 @@ export function InsuranceFormPage({ open, onClose, onSaved, categoryColor, editI
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
+            disabled={submitting}
+            aria-label="返回"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white shadow-sm disabled:opacity-40"
           >
             <ChevronLeft size={20} className="text-[#1c1c1e]" />
           </button>
@@ -223,234 +230,243 @@ export function InsuranceFormPage({ open, onClose, onSaved, categoryColor, editI
           {isEdit ? "編輯保單" : "新增保單"}
         </p>
 
-        {/* 險種 */}
-        <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
-          <p className="px-5 pt-4 pb-1 text-[13px] font-semibold text-[#8e8e93]">險種</p>
-          <div className="flex flex-wrap gap-2 px-5 pb-4">
-            {INSURANCE_TYPES.map((type) => {
-              const active = insuranceType === type;
-              return (
-                <button
-                  key={type}
-                  onClick={() => handleSelectType(type)}
-                  className="rounded-full px-3.5 py-2 text-[13px] font-semibold"
-                  style={{
-                    backgroundColor: active ? categoryColor : "#f2f2f7",
-                    color: active ? "#ffffff" : "#8e8e93",
-                  }}
-                >
-                  {INSURANCE_TYPE_LABELS[type]}
-                </button>
-              );
-            })}
+        <fieldset disabled={submitting} className="min-w-0 disabled:opacity-60">
+          {/* 險種 */}
+          <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+            <p className="px-5 pt-4 pb-1 text-[13px] font-semibold text-[#8e8e93]">險種</p>
+            <div className="flex flex-wrap gap-2 px-5 pb-4">
+              {INSURANCE_TYPES.map((type) => {
+                const active = insuranceType === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => handleSelectType(type)}
+                    className="rounded-full px-3.5 py-2 text-[13px] font-semibold"
+                    style={{
+                      backgroundColor: active ? categoryColor : "#f2f2f7",
+                      color: active ? "#ffffff" : "#8e8e93",
+                    }}
+                  >
+                    {INSURANCE_TYPE_LABELS[type]}
+                  </button>
+                );
+              })}
+            </div>
+            {errors.insuranceType && (
+              <p className="px-5 pb-3 text-[12px] text-[#ff3b30]">{errors.insuranceType}</p>
+            )}
           </div>
-          {errors.insuranceType && (
-            <p className="px-5 pb-3 text-[12px] text-[#ff3b30]">{errors.insuranceType}</p>
-          )}
-        </div>
 
-        {/* 基本資料 */}
-        <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="shrink-0 text-[16px] font-medium text-[#1c1c1e]">保險公司</p>
+          {/* 基本資料 */}
+          <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
             {insurerMode === "list" ? (
-              <select
-                value={insurer}
-                onChange={(e) => {
-                  if (e.target.value === "__other__") {
-                    setInsurerMode("other");
-                    setInsurer("");
-                  } else {
-                    setInsurer(e.target.value);
-                  }
-                }}
-                className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[14px] text-[#1c1c1e] outline-none"
+              <button
+                type="button"
+                onClick={() => setShowInsurerPicker(true)}
+                className="flex w-full cursor-pointer items-center justify-between px-5 py-4 active:bg-[#f2f2f7]"
               >
-                <option value="" disabled>
-                  未選擇
-                </option>
-                {INSURER_LIST.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-                <option value="__other__">其他（自行填寫）</option>
-              </select>
+                <span className="shrink-0 text-[15px] font-medium text-[#1c1c1e]">保險公司</span>
+                <span className="ml-4 flex min-w-0 items-center gap-2">
+                  {insurer ? (
+                    <>
+                      <InsurerLogo name={insurer} size={22} />
+                      <span className="truncate text-[15px] text-[#1c1c1e]">{insurer}</span>
+                    </>
+                  ) : (
+                    <span className="text-[15px] text-[#c7c7cc]">未選擇</span>
+                  )}
+                  <ChevronRight size={16} className="shrink-0 text-[#c7c7cc]" />
+                </span>
+              </button>
             ) : (
-              <div className="ml-4 flex min-w-0 flex-1 items-center gap-2">
-                <input
-                  type="text"
-                  value={insurer}
-                  onChange={(e) => setInsurer(e.target.value)}
-                  placeholder="輸入保險公司名稱"
-                  className="min-w-0 flex-1 bg-transparent text-right text-[14px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
-                />
+              <div className="px-5 py-4">
+                <div className="flex items-center justify-between">
+                  <p className="shrink-0 text-[15px] font-medium text-[#1c1c1e]">保險公司</p>
+                  <input
+                    type="text"
+                    value={insurer}
+                    onChange={(e) => {
+                      setInsurer(e.target.value);
+                      setErrors(({ insurer: _dropped, ...rest }) => rest);
+                    }}
+                    placeholder="輸入保險公司名稱"
+                    aria-label="保險公司"
+                    className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+                  />
+                </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setInsurerMode("list");
                     setInsurer("");
                   }}
-                  className="shrink-0 text-[12px] text-[#374254]"
+                  className="mt-1.5 block w-full cursor-pointer text-right text-[12px] text-[#374254]"
                 >
-                  改用清單
+                  改用清單選擇
                 </button>
               </div>
             )}
-          </div>
-          {errors.insurer && (
-            <p className="px-5 pb-3 text-[12px] text-[#ff3b30]">{errors.insurer}</p>
-          )}
-          <div className="mx-5 h-px bg-[#f2f2f7]" />
+            {errors.insurer && (
+              <p className="px-5 pb-3 text-[12px] text-[#ff3b30]">{errors.insurer}</p>
+            )}
+            <div className="mx-5 h-px bg-[#f2f2f7]" />
 
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="text-[16px] font-medium text-[#1c1c1e]">被保人</p>
-            <input
-              type="text"
-              value={insuredName}
-              onChange={(e) => setInsuredName(e.target.value)}
-              placeholder="本人"
-              className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[14px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
-            />
-          </div>
-          {errors.insuredName && (
-            <p className="px-5 pb-3 text-[12px] text-[#ff3b30]">{errors.insuredName}</p>
-          )}
-          <div className="mx-5 h-px bg-[#f2f2f7]" />
+            <div className="flex items-center justify-between px-5 py-4">
+              <p className="text-[15px] font-medium text-[#1c1c1e]">被保人</p>
+              <input
+                type="text"
+                value={insuredName}
+                onChange={(e) => {
+                  setInsuredName(e.target.value);
+                  setErrors(({ insuredName: _dropped, ...rest }) => rest);
+                }}
+                placeholder="本人"
+                className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+              />
+            </div>
+            {errors.insuredName && (
+              <p className="px-5 pb-3 text-[12px] text-[#ff3b30]">{errors.insuredName}</p>
+            )}
+            <div className="mx-5 h-px bg-[#f2f2f7]" />
 
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="text-[16px] font-medium text-[#1c1c1e]">保單名稱</p>
-            <input
-              type="text"
-              value={policyName}
-              onChange={(e) => setPolicyName(e.target.value)}
-              placeholder="選填"
-              className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[14px] text-[#8e8e93] outline-none placeholder:text-[#c7c7cc]"
-            />
-          </div>
-          <div className="mx-5 h-px bg-[#f2f2f7]" />
+            <div className="flex items-center justify-between px-5 py-4">
+              <p className="text-[15px] font-medium text-[#1c1c1e]">保單名稱</p>
+              <input
+                type="text"
+                value={policyName}
+                onChange={(e) => setPolicyName(e.target.value)}
+                placeholder="選填"
+                className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+              />
+            </div>
+            <div className="mx-5 h-px bg-[#f2f2f7]" />
 
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="text-[16px] font-medium text-[#1c1c1e]">保單號碼</p>
-            <input
-              type="text"
-              value={policyNumber}
-              onChange={(e) => setPolicyNumber(e.target.value)}
-              placeholder="選填"
-              className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[14px] text-[#8e8e93] outline-none placeholder:text-[#c7c7cc]"
-            />
-          </div>
-          <div className="mx-5 h-px bg-[#f2f2f7]" />
+            <div className="flex items-center justify-between px-5 py-4">
+              <p className="text-[15px] font-medium text-[#1c1c1e]">保單號碼</p>
+              <input
+                type="text"
+                value={policyNumber}
+                onChange={(e) => setPolicyNumber(e.target.value)}
+                placeholder="選填"
+                className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+              />
+            </div>
+            <div className="mx-5 h-px bg-[#f2f2f7]" />
 
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="text-[16px] font-medium text-[#1c1c1e]">投保日期</p>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-right text-[14px] text-[#8e8e93] outline-none"
-            />
-          </div>
-          <div className="mx-5 h-px bg-[#f2f2f7]" />
+            <div className="flex items-center justify-between px-5 py-4">
+              <p className="text-[15px] font-medium text-[#1c1c1e]">投保日期</p>
+              <DateField value={startDate} onChange={setStartDate} ariaLabel="投保日期" />
+            </div>
+            <div className="mx-5 h-px bg-[#f2f2f7]" />
 
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="text-[16px] font-medium text-[#1c1c1e]">繳費年期（年）</p>
-            <input
-              type="number"
-              value={paymentTermYears}
-              onChange={(e) => setPaymentTermYears(e.target.value)}
-              placeholder="選填"
-              min="1"
-              className="ml-4 w-20 bg-transparent text-right text-[14px] text-[#8e8e93] outline-none placeholder:text-[#c7c7cc]"
-            />
-          </div>
-          <div className="mx-5 h-px bg-[#f2f2f7]" />
+            <div className="flex items-center justify-between px-5 py-4">
+              <p className="text-[15px] font-medium text-[#1c1c1e]">繳費年期（年）</p>
+              <input
+                type="number"
+                value={paymentTermYears}
+                onChange={(e) => setPaymentTermYears(e.target.value)}
+                placeholder="選填"
+                min="1"
+                className="ml-4 w-20 bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+              />
+            </div>
+            <div className="mx-5 h-px bg-[#f2f2f7]" />
 
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="text-[16px] font-medium text-[#1c1c1e]">保障期間</p>
-            <input
-              type="text"
-              value={coveragePeriod}
-              onChange={(e) => setCoveragePeriod(e.target.value)}
-              placeholder="終身／定期到 X 歲"
-              className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[14px] text-[#8e8e93] outline-none placeholder:text-[#c7c7cc]"
-            />
-          </div>
-          <div className="mx-5 h-px bg-[#f2f2f7]" />
+            <div className="flex items-center justify-between px-5 py-4">
+              <p className="text-[15px] font-medium text-[#1c1c1e]">保障期間</p>
+              <input
+                type="text"
+                value={coveragePeriod}
+                onChange={(e) => setCoveragePeriod(e.target.value)}
+                placeholder="終身／定期到 X 歲"
+                className="ml-4 min-w-0 flex-1 bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+              />
+            </div>
+            <div className="mx-5 h-px bg-[#f2f2f7]" />
 
-          <div className="flex items-center justify-between px-5 py-4">
-            <p className="text-[16px] font-medium text-[#1c1c1e]">年繳保費</p>
-            <input
-              type="number"
-              value={annualPremium}
-              onChange={(e) => setAnnualPremium(e.target.value)}
-              placeholder="選填"
-              min="0"
-              className="ml-4 w-24 bg-transparent text-right text-[14px] text-[#8e8e93] outline-none placeholder:text-[#c7c7cc]"
-            />
+            <div className="flex items-center justify-between px-5 py-4">
+              <p className="text-[15px] font-medium text-[#1c1c1e]">年繳保費</p>
+              <input
+                type="number"
+                value={annualPremium}
+                onChange={(e) => setAnnualPremium(e.target.value)}
+                placeholder="選填"
+                min="0"
+                className="ml-4 w-24 bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* 保障細項 */}
-        {insuranceType && (
-          <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
-            <p className="px-5 pt-4 pb-1 text-[13px] font-semibold text-[#8e8e93]">
-              保障項目（最多 {MAX_COVERAGE_ITEMS} 項）
-            </p>
-            <div className="px-5 pb-2">
-              {coverage.map((item) => (
-                <div key={item.key} className="flex items-center gap-3 py-2">
-                  {insuranceType === "OTHER" ? (
+          {/* 保障細項 */}
+          {insuranceType && (
+            <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+              <p className="px-5 pt-4 pb-1 text-[13px] font-semibold text-[#8e8e93]">
+                保障項目（最多 {MAX_COVERAGE_ITEMS} 項）
+              </p>
+              <div className="px-5 pb-2">
+                {coverage.map((item) => (
+                  <div key={item.key} className="flex items-center gap-3 py-2">
+                    {insuranceType === "OTHER" ? (
+                      <input
+                        type="text"
+                        value={item.label}
+                        onChange={(e) => updateCoverageLabel(item.key, e.target.value)}
+                        placeholder="保障名稱"
+                        className="min-w-0 flex-1 border-b border-[#e5e5ea] bg-transparent py-1 text-[14px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+                      />
+                    ) : (
+                      <p className="flex-1 truncate text-[14px] text-[#1c1c1e]">{item.label}</p>
+                    )}
                     <input
-                      type="text"
-                      value={item.label}
-                      onChange={(e) => updateCoverageLabel(item.key, e.target.value)}
-                      placeholder="保障名稱"
-                      className="min-w-0 flex-1 border-b border-[#e5e5ea] bg-transparent py-1 text-[14px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
+                      type="number"
+                      value={item.valueStr}
+                      onChange={(e) => updateCoverageValue(item.key, e.target.value)}
+                      placeholder="0"
+                      className="w-24 border-b border-[#e5e5ea] bg-transparent py-1 text-right text-[15px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
                     />
-                  ) : (
-                    <p className="flex-1 truncate text-[14px] text-[#1c1c1e]">{item.label}</p>
-                  )}
-                  <input
-                    type="number"
-                    value={item.valueStr}
-                    onChange={(e) => updateCoverageValue(item.key, e.target.value)}
-                    placeholder="0"
-                    className="w-24 border-b border-[#e5e5ea] bg-transparent py-1 text-right text-[14px] text-[#1c1c1e] outline-none placeholder:text-[#c7c7cc]"
-                  />
-                  <button onClick={() => removeCoverage(item.key)}>
-                    <X size={16} className="text-[#8e8e93]" />
+                    <button onClick={() => removeCoverage(item.key)}>
+                      <X size={16} className="text-[#8e8e93]" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {canAddMore && (
+                <div className="px-5 pb-4">
+                  <button
+                    type="button"
+                    onClick={handleAddCoverage}
+                    className="cursor-pointer text-[14px] font-semibold text-[#374254]"
+                  >
+                    + 新增保障
                   </button>
                 </div>
-              ))}
+              )}
             </div>
-            {canAddMore && (
-              <div className="flex items-center gap-2 px-5 pb-4">
-                {insuranceType !== "OTHER" && (
-                  <select
-                    value={pendingCoverageKey}
-                    onChange={(e) => setPendingCoverageKey(e.target.value)}
-                    className="min-w-0 flex-1 rounded-lg bg-[#f2f2f7] px-3 py-2 text-[13px] text-[#1c1c1e] outline-none"
-                  >
-                    {remainingOptions.map((o) => (
-                      <option key={o.key} value={o.key}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <button
-                  onClick={handleAddCoverage}
-                  className="shrink-0 text-[14px] font-semibold text-[#374254]"
-                >
-                  + 新增保障
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </fieldset>
 
         {error && <p className="mt-3 text-center text-[13px] text-[#ff3b30]">{error}</p>}
       </div>
+
+      <InsurerPickerPage
+        open={showInsurerPicker}
+        selected={insurer}
+        onClose={() => setShowInsurerPicker(false)}
+        onSelect={(name) => {
+          setInsurer(name);
+          setErrors(({ insurer: _dropped, ...rest }) => rest);
+        }}
+        onOther={() => {
+          setInsurerMode("other");
+          setInsurer("");
+        }}
+      />
+      <CoveragePickerPage
+        open={showCoveragePicker}
+        options={remainingOptions}
+        onClose={() => setShowCoveragePicker(false)}
+        onPick={addCoverageOption}
+      />
     </div>
   );
 }

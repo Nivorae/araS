@@ -1,6 +1,7 @@
 "use client";
 
 import type { RepaymentType } from "@repo/shared";
+import { DateField } from "../ui/DatePickerSheet";
 
 export interface LoanFormValues {
   loanName: string;
@@ -86,11 +87,11 @@ export function LoanFormFields({ values, color, onChange, errors }: Props) {
       <div className="flex divide-x divide-[#f2f2f7]">
         <div className="w-1/2 px-5 py-4">
           <p className="mb-1 text-[12px] text-[#8e8e93]">撥款日期</p>
-          <input
-            type="date"
+          <DateField
             value={values.startDate}
-            onChange={(e) => set("startDate")(e.target.value)}
-            className="w-full bg-transparent text-[15px] font-semibold text-[#1c1c1e] outline-none"
+            onChange={set("startDate")}
+            ariaLabel="撥款日期"
+            className="font-semibold"
           />
           {errors?.startDate && (
             <p className="mt-1 text-[12px] text-[#ff3b30]">{errors.startDate}</p>

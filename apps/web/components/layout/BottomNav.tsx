@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   GalleryVerticalEnd,
@@ -27,6 +27,21 @@ export function BottomNav() {
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const { addAction } = useNavContext();
   const { isSignedIn } = useAuth();
+  // The icon that just became active hops once (not on first mount).
+  const [hopHref, setHopHref] = useState<string | null>(null);
+  const prevPath = useRef(pathname);
+  useEffect(() => {
+    if (prevPath.current === pathname) return;
+    prevPath.current = pathname;
+    setHopHref(pathname);
+    const t = setTimeout(() => setHopHref(null), 520);
+    return () => clearTimeout(t);
+  }, [pathname]);
+
+  // "+" is on every tab, like mobile: a page can register its own action
+  // (the assets page opens its picker in place); elsewhere it goes to the
+  // assets tab and opens the picker there.
+  const handleAdd = addAction ?? (() => navigate("/assets?add=1"));
 
   const navigate = (href: string) => {
     if (href === pathname) return;
@@ -108,17 +123,37 @@ export function BottomNav() {
               key={href}
               onClick={() => navigate(href)}
               aria-label={label}
+              aria-current={active ? "page" : undefined}
               disabled={loading}
-              className="relative z-10 flex cursor-pointer items-center justify-center rounded-full p-3 transition-all duration-200"
+              className="group relative z-10 flex cursor-pointer items-center justify-center rounded-full p-3 transition-colors duration-200"
               style={{
                 color: active ? "rgba(30,30,40,0.85)" : "rgba(30,30,40,0.32)",
               }}
             >
-              {loading ? (
-                <Loader2 size={22} className="animate-spin" />
-              ) : (
-                <Icon size={22} strokeWidth={active ? 2.5 : 1.5} />
-              )}
+              {/* Active highlight — springs in behind the icon. */}
+              <span
+                aria-hidden
+                className="absolute top-1/2 left-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[rgba(30,30,40,0.08)]"
+                style={{
+                  opacity: active ? 1 : 0,
+                  scale: active ? "1" : "0.5",
+                  transition: "opacity 250ms ease-out, scale 380ms cubic-bezier(0.34,1.56,0.64,1)",
+                }}
+              />
+              <span
+                className="relative inline-flex transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-active:scale-[0.72] group-active:duration-75"
+                style={
+                  hopHref === href
+                    ? { animation: "nav-hop 520ms cubic-bezier(0.34,1.56,0.64,1)" }
+                    : undefined
+                }
+              >
+                {loading ? (
+                  <Loader2 size={22} className="animate-spin" />
+                ) : (
+                  <Icon size={22} strokeWidth={active ? 2.5 : 1.5} />
+                )}
+              </span>
             </button>
           );
         })}
@@ -135,14 +170,14 @@ export function BottomNav() {
           <LastIcon size={22} strokeWidth={lastActive ? 2.5 : 1.5} />
         </button>
 
-        {addAction && (
+        {(isSignedIn || addAction) && (
           <>
             <div
               className="relative z-10 mx-1 h-5 w-px"
               style={{ background: "rgba(0,0,0,0.12)" }}
             />
             <button
-              onClick={addAction}
+              onClick={handleAdd}
               aria-label="新增"
               className="relative z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition-opacity active:opacity-70"
               style={{
