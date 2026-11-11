@@ -16,6 +16,7 @@ import {
   Flag,
   Globe,
   HandCoins,
+  Plus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -47,6 +48,7 @@ export const CATEGORIES: TopCategory[] = [
         children: [
           { name: "Line Pay", icon: Smartphone },
           { name: "Apple Pay", icon: Smartphone },
+          { name: "街口支付", icon: Smartphone },
         ],
       },
       { name: "金融卡", icon: CreditCard },
@@ -97,25 +99,26 @@ export const CATEGORIES: TopCategory[] = [
     ],
   },
   {
-    name: "保險",
-    color: "#B8865E",
-    textColor: "#FFFFFF",
-    isLiability: false,
-    // Empty: insurance type isn't a categoryConfig child node — it's the first
-    // step inside InsuranceFormPage. Selecting this top category skips the
-    // drill-down menu and opens the insurance form directly (see
-    // AddAccountPage's onSelectInsurance branch).
-    children: [],
-  },
-
-  {
     name: "應收款",
     color: "#0e1424",
     textColor: "#ffffff",
     isLiability: false,
     children: [{ name: "一般應收款", icon: Receipt }],
   },
+  {
+    // Same as mobile: pale grey with dark text, listed last (top of the deck),
+    // and a single 新增 child that opens the insurance form — 險種 is step one
+    // inside the form, not a node here.
+    name: "保險",
+    color: "#f2f2f7",
+    textColor: "#1c1c1e",
+    isLiability: false,
+    children: [{ name: "新增", icon: Plus }],
+  },
 ];
+
+/** Accent for the insurance form / policy pages (the category card itself is pale grey). */
+export const INSURANCE_ACCENT = "#B8865E";
 
 /** Find a node anywhere in the tree by name */
 function findNode(nodes: CategoryNode[], name: string): CategoryNode | null {

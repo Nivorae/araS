@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { CATEGORIES, type CategoryNode, type TopCategory } from "./categoryConfig";
+import { DrillCarousel } from "./DrillCarousel";
 
 /**
  * 版面比例 —— 與 apps/mobile/app/(app)/entry/new.tsx 同一套：上方 15%、空隙 0%、
@@ -61,17 +61,30 @@ interface Props {
   onSelectCategory: (
     topCategory: string,
     isLiability: boolean,
-    nameSuggestion: string,
-    icon: LucideIcon,
+    subCategoryName: string,
     color: string
   ) => void;
   onSelectInsurance: () => void;
+  /** Open with this category's card already expanded (a category card's "+ 新增"). */
+  initialExpanded?: string | null;
 }
 
-export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsurance }: Props) {
+export function AddAccountPage({
+  open,
+  onClose,
+  onSelectCategory,
+  onSelectInsurance,
+  initialExpanded = null,
+}: Props) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [drillTarget, setDrillTarget] = useState<DrillTarget | null>(null);
   const showStack = !drillTarget;
+
+  useEffect(() => {
+    if (!open) return;
+    setDrillTarget(null);
+    setExpandedCategory(initialExpanded);
+  }, [open, initialExpanded]);
 
   // 卡片高度是「容器決定內容」，所以得先量到堆疊區的實際高度才能平分；展開的
   // 子項目區也要量（chip 依寬度換行，行數算不出來）。
@@ -136,19 +149,16 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
   };
 
   const handleTopCategoryClick = (topCat: TopCategory) => {
-    // web 的 categoryConfig 裡保險是 children: []（險種是保險表單自己的第一步，
-    // 不是這裡的子節點），展開會是一排空的 —— 所以它跳過展開直接開表單。
-    // mobile 的設定給了保險一個「新增」子項目，所以那邊是展開後再點。這是既有
-    // 的設定差異，不是這次改版造成的。
+    setExpandedCategory((prev) => (prev === topCat.name ? null : topCat.name));
+  };
+
+  const handleSubItemClick = (node: CategoryNode, topCat: TopCategory) => {
+    // 保險的唯一子項目「新增」開保險表單 —— 險種是表單自己的第一步。
     if (topCat.name === "保險") {
       handleClose();
       onSelectInsurance();
       return;
     }
-    setExpandedCategory((prev) => (prev === topCat.name ? null : topCat.name));
-  };
-
-  const handleSubItemClick = (node: CategoryNode, topCat: TopCategory) => {
     if (node.children && node.children.length > 0) {
       setDrillTarget({
         title: node.name,
@@ -159,7 +169,7 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
         items: node.children,
       });
     } else {
-      onSelectCategory(topCat.name, topCat.isLiability, node.name, node.icon, topCat.color);
+      onSelectCategory(topCat.name, topCat.isLiability, node.name, topCat.color);
     }
   };
 
@@ -169,7 +179,6 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
       drillTarget.topCategory,
       drillTarget.isLiability,
       node.name,
-      node.icon,
       drillTarget.color
     );
   };
@@ -189,7 +198,7 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
         <ChevronLeft size={24} className="text-[#1c1c1e]" />
       </button>
       <h1 className="flex-1 text-center text-[20px] font-bold text-[#1c1c1e]">
-        {drillTarget ? drillTarget.title : "新增帳戶"}
+        {drillTarget ? drillTarget.title : "新增資產"}
       </h1>
       <div className="h-10 w-10 shrink-0" />
     </div>
@@ -205,23 +214,12 @@ export function AddAccountPage({ open, onClose, onSelectCategory, onSelectInsura
         {drillTarget ? (
           <>
             {header}
-            <div className="flex-1 space-y-2 overflow-y-auto px-4 pb-8">
-              {drillTarget.items.map((node) => {
-                const Icon = node.icon;
-                const isDark = drillTarget.textColor === "#ffffff";
-                const iconColor = isDark ? drillTarget.color : "#3c3c3e";
-                return (
-                  <button
-                    key={node.name}
-                    onClick={() => handleDrillItemClick(node)}
-                    className="flex w-full items-center gap-3.5 rounded-2xl bg-white px-5 py-4 text-left shadow-sm transition-colors active:bg-[#f2f2f7]"
-                  >
-                    <Icon size={22} style={{ color: iconColor }} />
-                    <p className="text-[16px] font-medium text-[#1c1c1e]">{node.name}</p>
-                  </button>
-                );
-              })}
-            </div>
+            <DrillCarousel
+              key={drillTarget.title}
+              topColor={drillTarget.color}
+              items={drillTarget.items}
+              onSubmit={handleDrillItemClick}
+            />
           </>
         ) : (
           <>

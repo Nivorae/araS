@@ -1,37 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import type { AssetAllocation } from "@repo/shared";
-import { api } from "../../lib/api-client";
+import { useCachedFetch } from "../../hooks/useCachedFetch";
+import { useFinanceStore } from "../../store/useFinanceStore";
+import { chartedEntries } from "../../lib/chartedEntries";
+import { OVERSEAS_SUBCATEGORY } from "../../lib/stockSymbol";
 import { formatCurrency } from "../../lib/format";
 import { getTopCategory } from "./categoryConfig";
 
 const LIABILITY_COLOR = getTopCategory("負債")?.color ?? "#C7C7D4";
 
 export function AssetAllocationView() {
-  const [data, setData] = useState<AssetAllocation | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    api
-      .get<AssetAllocation>("/entries/allocation")
-      .then((res) => {
-        if (!active) return;
-        if (res.success) {
-          setData(res.data);
-          setError(null);
-        } else {
-          setError(res.error?.message ?? "載入失敗");
-        }
-      })
-      .catch(() => {
-        if (active) setError("載入失敗，請重試");
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  // Every entry mutation bumps the epoch, so this pane revalidates even while
+  // it's kept mounted (hidden) behind the other views.
+  const epoch = useFinanceStore((s) => s.netWorthHistoryEpoch);
+  const { data, loading, error } = useCachedFetch<AssetAllocation>("/entries/allocation", epoch);
+  // 台股／美股不在 allocation 的 topCategory breakdown 裡（只到「投資」這層），
+  // 自己從 entries 篩，維持跟折線圖同一組「納入圖表」項目。
+  const entries = useFinanceStore((s) => s.entries);
+  const { twValue, usValue, overseasValue } = useMemo(
+    () =>
+      chartedEntries(entries).reduce(
+        (acc, e) => {
+          if (e.subCategory === "台股") acc.twValue += e.value;
+          else if (e.subCategory === "美股") acc.usValue += e.value;
+          else if (e.subCategory === OVERSEAS_SUBCATEGORY) acc.overseasValue += e.value;
+          return acc;
+        },
+        { twValue: 0, usValue: 0, overseasValue: 0 }
+      ),
+    [entries]
+  );
+  const stockTotal = twValue + usValue + overseasValue;
+  const pct = (v: number) => `${((v / stockTotal) * 100).toFixed(1)}%`;
+  // 沒有海外持股時維持原本的「台股 x% / 美股 y%」；有的話只列有金額的市場。
+  const marketRatio =
+    overseasValue > 0
+      ? (
+          [
+            ["台股", twValue],
+            ["美股", usValue],
+            ["海外", overseasValue],
+          ] as const
+        )
+          .filter(([, v]) => v > 0)
+          .map(([label, v]) => `${label} ${pct(v)}`)
+          .join(" / ")
+      : `台股 ${pct(twValue)} / 美股 ${pct(usValue)}`;
 
   if (error) {
     return (
@@ -41,7 +57,7 @@ export function AssetAllocationView() {
     );
   }
 
-  if (!data) {
+  if (loading || !data) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#e5e5ea] border-t-[#8e8e93]" />
@@ -94,6 +110,15 @@ export function AssetAllocationView() {
         </div>
         <p className="text-[13px] font-bold text-[#1c1c1e]">
           {data.debtToAssetRatio === null ? "尚無資料" : `${data.debtToAssetRatio.toFixed(1)}%`}
+        </p>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between border-t border-[#e5e5ea] pt-2.5">
+        <p className="text-[13px] text-[#8e8e93]">
+          {overseasValue > 0 ? "股票市場比例" : "台股／美股比例"}
+        </p>
+        <p className="text-[13px] font-bold text-[#1c1c1e]">
+          {stockTotal === 0 ? "尚無資料" : marketRatio}
         </p>
       </div>
     </div>

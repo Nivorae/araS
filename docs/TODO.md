@@ -8,6 +8,22 @@
 
 ## 下一步
 
+- **網頁版與手機版同步（進行中，2026-11-11）** —— 分支 `feature/web-mobile-parity`，
+  尚未 commit／開 PR。已移植：理財規劃模式、資產頁（市值、納入圖表規則、漩渦空狀態、
+  排序、進場動畫）、新增流程（輪番卡、新增記錄／編輯帳戶／貸款編輯三種模式、依金額＋
+  換匯計算機、pricePerShare）、詳情頁（交錯卡片、股息 2×2 卡、日曆選日期、台股紅漲綠跌）、
+  資產損益頁（折線圖＋tooltip、分段切換動畫、台股／美股比例）、設定頁、保單總覽 3D 卡片、
+  換帳號清快取。剩下：
+  1. **登入狀態下實測**：這次只在訪客（demo 資料）模式下用瀏覽器看過，Premium、保單、
+     股息、全域「+」都只有單元測試。
+  2. 已刪除不再被引用的網頁獨有元件（2026-11-11）：`LoanDetailSheet`（攤還表／同步，
+     貸款改走詳情頁）、`AmortizationTable`、`RecurrenceFormPage`、`AddItemActionSheet`、
+     `AddPortfolioItemModal`、`AssetTreemap`、`FinanceCategoryCard`、`PnlChart`、
+     `PortfolioSection`、`hooks/useExchangeRate.ts`。後端 `/api/loans/[id]/rate|sync`、
+     `/api/recurrences`、`/api/portfolio` 沒動（手機或資料流程仍可能用到）。
+  3. 刻意沒搬：Face ID、記帳提醒、IAP 付費／管理訂閱、示範模式、OTA 更新內容（鈴鐺）。
+     保單編輯在網頁是開全頁表單，手機是在放大的卡片裡直接編輯。
+
 - **海外股票 + 安全審查修正 —— 已上線**（2026-10-05）。網頁端隨 release PR #171
   上 `main`，手機端 OTA（iOS update group `c5506a77`，runtime `83228e8`，只有 1.6 收得到）。
   規格：`docs/superpowers/specs/2026-10-02-overseas-stocks-design.md`。剩下：

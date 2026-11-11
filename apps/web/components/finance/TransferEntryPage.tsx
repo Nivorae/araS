@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { Check, ChevronLeft } from "lucide-react";
+import { DateField } from "../ui/DatePickerSheet";
+import { NoticeSheet } from "../ui/ConfirmSheet";
+import { todayISO } from "../../lib/date";
 import { Spinner } from "../ui/Spinner";
 import type { Entry } from "@repo/shared";
 import { TRANSFER_TOP_CATEGORIES } from "@repo/shared";
@@ -37,9 +40,10 @@ export function TransferEntryPage({ open, entry, onClose, onDone }: Props) {
   const [amount, setAmount] = useState("");
   const [fee, setFee] = useState("");
   const [note, setNote] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0] ?? "");
+  const [date, setDate] = useState(todayISO);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
 
   const toEntry = useMemo(
     () => candidateGroups.flatMap((g) => g.items).find((e) => e.id === toEntryId) ?? null,
@@ -53,7 +57,7 @@ export function TransferEntryPage({ open, entry, onClose, onDone }: Props) {
     setAmount("");
     setFee("");
     setNote("");
-    setDate(new Date().toISOString().split("T")[0] ?? "");
+    setDate(todayISO());
     setError(null);
   }
 
@@ -75,9 +79,12 @@ export function TransferEntryPage({ open, entry, onClose, onDone }: Props) {
     } catch (e) {
       const code = e instanceof Error ? (e as Error & { code?: string }).code : undefined;
       if (code === "INSUFFICIENT_BALANCE") {
-        window.alert("餘額不足：來源項目的餘額不夠支付這筆轉帳（含手續費）。");
+        setNotice({ title: "餘額不足", message: "來源項目的餘額不夠支付這筆轉帳（含手續費）。" });
+      } else if (e instanceof TypeError) {
+        // fetch() rejects with a TypeError when the request never got through.
+        setNotice({ title: "網路連線中斷", message: "轉帳未完成，請確認網路後再試一次。" });
       } else {
-        window.alert("轉帳失敗，請重試");
+        setNotice({ title: "轉帳失敗", message: e instanceof Error ? e.message : "請重試" });
       }
     } finally {
       setSubmitting(false);
@@ -147,12 +154,7 @@ export function TransferEntryPage({ open, entry, onClose, onDone }: Props) {
             <div className="mx-4 h-px bg-[#f2f2f7]" />
             <div className="flex items-center justify-between px-4 py-3.5">
               <p className="text-[15px] text-[#1c1c1e]">日期</p>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="bg-transparent text-right text-[15px] text-[#1c1c1e] outline-none"
-              />
+              <DateField value={date} onChange={setDate} ariaLabel="日期" />
             </div>
             <div className="mx-4 h-px bg-[#f2f2f7]" />
             <div className="flex items-center justify-between px-4 py-3.5">
@@ -214,6 +216,7 @@ export function TransferEntryPage({ open, entry, onClose, onDone }: Props) {
                           >
                             {formatCurrency(c.value)}
                           </p>
+                          {selected && <Check size={18} className="ml-2 shrink-0 text-white" />}
                         </button>
                       </div>
                     );
@@ -234,7 +237,7 @@ export function TransferEntryPage({ open, entry, onClose, onDone }: Props) {
           {error && <p className="mt-3 text-center text-[13px] text-[#ff3b30]">{error}</p>}
         </div>
 
-        <div className="px-4 pt-3 pb-8">
+        <div className="border-t border-[#e5e5ea] px-4 pt-3 pb-8">
           <button
             onClick={handleSubmit}
             disabled={!canSubmit}
@@ -245,6 +248,13 @@ export function TransferEntryPage({ open, entry, onClose, onDone }: Props) {
           </button>
         </div>
       </div>
+
+      <NoticeSheet
+        open={notice !== null}
+        title={notice?.title ?? ""}
+        message={notice?.message ?? ""}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 }

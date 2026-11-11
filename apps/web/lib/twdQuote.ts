@@ -22,6 +22,33 @@ export interface TwdQuote {
   rate: number;
 }
 
+/** 換匯計算機提供的常用幣別（同 apps/mobile/lib/fx.ts）。 */
+export const POPULAR_CURRENCIES: { code: string; name: string }[] = [
+  { code: "USD", name: "美元" },
+  { code: "JPY", name: "日圓" },
+  { code: "EUR", name: "歐元" },
+  { code: "KRW", name: "韓圓" },
+  { code: "GBP", name: "英鎊" },
+  { code: "HKD", name: "港幣" },
+  { code: "CNY", name: "人民幣" },
+  { code: "AUD", name: "澳幣" },
+  { code: "SGD", name: "新加坡幣" },
+  { code: "CAD", name: "加幣" },
+  { code: "CHF", name: "瑞士法郎" },
+];
+
+/**
+ * 計算機的幣別選項：這檔股票的報價幣別排第一，後面接常用幣別，不重複。報價幣別
+ * 不在常用清單裡（例如 SEK）時，名稱就只顯示代碼。
+ */
+export function calculatorCurrencies(quoteCurrency: string): { code: string; name: string }[] {
+  const quote = POPULAR_CURRENCIES.find((c) => c.code === quoteCurrency) ?? {
+    code: quoteCurrency,
+    name: quoteCurrency,
+  };
+  return [quote, ...POPULAR_CURRENCIES.filter((c) => c.code !== quoteCurrency)];
+}
+
 /** 報價加上換匯。報價或匯率任一個拿不到就回 `null`，呼叫端當作抓不到價格。 */
 export async function fetchTwdQuote(symbol: string): Promise<TwdQuote | null> {
   try {

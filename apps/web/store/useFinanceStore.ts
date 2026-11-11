@@ -33,9 +33,28 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   const json = await res.json();
-  if (!json.success) throw new Error(json.error?.message ?? "API error");
+  if (!json.success) {
+    // Keep the envelope's error code (e.g. ENTRY_LIMIT_REACHED) so callers can
+    // branch on it instead of matching message text.
+    throw Object.assign(new Error(json.error?.message ?? "API error"), {
+      code: json.error?.code as string | undefined,
+    });
+  }
   return json.data as T;
 }
+
+// PUT /api/entries/:id returns the bare Entry row — no `units`, `loan` or
+// `insurance`, which only the list endpoint joins in. Replacing the stored
+// entry with it made those vanish until the next full fetch, so mutations
+// merge the response over what the list gave us instead.
+function mergeEntry(existing: Entry | undefined, updated: Entry): Entry {
+  return existing ? { ...existing, ...updated } : updated;
+}
+
+// Net-worth requests in flight, per range, with the epoch each started under:
+// concurrent callers share one request, and a request from an older epoch is
+// neither shared nor allowed to write.
+const netWorthInFlight = new Map<NetWorthRange, { epoch: number; promise: Promise<void> }>();
 
 function makeSnapshot(entries: Entry[]): ValueSnapshot {
   // Entries with 納入圖表 off (includeInChart === false) are excluded from the
@@ -60,12 +79,20 @@ interface FinanceState {
   // Cleared whenever an entry mutation lands, since every mutation writes a
   // fresh EntryHistory row server-side and makes the cached points stale.
   netWorthHistory: Partial<Record<NetWorthRange, NetWorthPoint[]>>;
+  // Bumped on every entry mutation and on reset. A net-worth request that
+  // started under an older epoch is stale (a mutation landed mid-flight) and
+  // must not write its points; the allocation view also revalidates on it.
+  netWorthHistoryEpoch: number;
   loading: boolean;
   error: string | null;
   lastFetchedAt: number | null;
   isGuest: boolean;
-  fetchAll: (isSignedIn?: boolean) => Promise<void>;
+  fetchAll: (isSignedIn?: boolean, opts?: { force?: boolean }) => Promise<void>;
   refreshEntries: () => Promise<void>;
+  /** Drop everything cached for the current account (sign-out / account switch). */
+  reset: () => void;
+  /** Save only 納入圖表 and merge just that field — the PUT response lacks units/loan/insurance. */
+  setEntryIncludeInChart: (id: string, includeInChart: boolean) => Promise<void>;
   fetchNetWorthHistory: (range: NetWorthRange) => Promise<void>;
   addEntry: (data: CreateEntry) => Promise<void>;
   updateEntry: (id: string, data: UpdateEntry) => Promise<void>;
@@ -98,22 +125,30 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   recurrences: [],
   valueSnapshots: [],
   netWorthHistory: {},
+  netWorthHistoryEpoch: 0,
   loading: true,
   error: null,
   lastFetchedAt: null,
   isGuest: false,
 
-  fetchAll: async (isSignedIn?: boolean) => {
+  fetchAll: async (isSignedIn?: boolean, opts?: { force?: boolean }) => {
     const { lastFetchedAt, isGuest } = get();
 
-    // Called without arg (from pages) — skip if data already loaded
+    // Called without auth state (from pages): only a forced refresh of the
+    // current mode does anything; otherwise FinanceDataProvider owns loading.
     if (isSignedIn === undefined) {
-      if (lastFetchedAt) return;
-      return;
+      if (!opts?.force || lastFetchedAt === null) return;
+      isSignedIn = !isGuest;
     }
 
     // Skip if auth state unchanged and cache is warm (30s)
-    if (lastFetchedAt && Date.now() - lastFetchedAt < 30_000 && isGuest === !isSignedIn) return;
+    if (
+      !opts?.force &&
+      lastFetchedAt &&
+      Date.now() - lastFetchedAt < 30_000 &&
+      isGuest === !isSignedIn
+    )
+      return;
 
     if (!isSignedIn) {
       // Guest: load static demo data
@@ -137,8 +172,13 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       return;
     }
 
-    // Signed in: original API fetch logic
-    set({ isGuest: false, loading: true, error: null });
+    // Signed in: keep showing what's cached while refetching — only the first
+    // load (nothing cached yet) shows the spinner.
+    set((s) => ({
+      isGuest: false,
+      loading: s.lastFetchedAt === null || s.isGuest,
+      error: null,
+    }));
     try {
       const [entries, portfolio] = await Promise.all([
         apiFetch<Entry[]>("/api/entries"),
@@ -177,7 +217,47 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   refreshEntries: async () => {
     if (get().isGuest) return;
     const entries = await apiFetch<Entry[]>("/api/entries");
-    set({ entries });
+    set((s) => ({
+      entries,
+      netWorthHistory: {},
+      netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
+    }));
+  },
+
+  reset: () => {
+    netWorthInFlight.clear();
+    set((s) => ({
+      entries: [],
+      transactions: [],
+      portfolio: [],
+      recurrences: [],
+      valueSnapshots: [],
+      netWorthHistory: {},
+      netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
+      loading: true,
+      error: null,
+      lastFetchedAt: null,
+    }));
+  },
+
+  setEntryIncludeInChart: async (id, includeInChart) => {
+    if (get().isGuest) {
+      set((s) => ({
+        entries: s.entries.map((e) => (e.id === id ? { ...e, includeInChart } : e)),
+      }));
+      return;
+    }
+    const saved = await apiFetch<Entry>(`/api/entries/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ includeInChart }),
+    });
+    set((s) => ({
+      entries: s.entries.map((e) =>
+        e.id === id ? { ...e, includeInChart: saved.includeInChart } : e
+      ),
+      netWorthHistory: {},
+      netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
+    }));
   },
 
   // Cached per range — the server rebuilds these points from EntryHistory,
@@ -185,10 +265,27 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   // clears the whole cache (see addEntry/updateEntry/deleteEntry below).
   fetchNetWorthHistory: async (range) => {
     if (get().netWorthHistory[range]) return;
-    const history = await apiFetch<NetWorthHistory>(
-      `/api/entries/net-worth-history?range=${range}`
-    );
-    set((s) => ({ netWorthHistory: { ...s.netWorthHistory, [range]: history.points } }));
+    // Guests browse static demo data — there is no server history to ask for
+    // (the route would answer 401), so the chart shows its empty state.
+    if (get().isGuest) {
+      set((s) => ({ netWorthHistory: { ...s.netWorthHistory, [range]: [] } }));
+      return;
+    }
+    const epoch = get().netWorthHistoryEpoch;
+    const pending = netWorthInFlight.get(range);
+    if (pending && pending.epoch === epoch) return pending.promise;
+    const promise = apiFetch<NetWorthHistory>(`/api/entries/net-worth-history?range=${range}`)
+      .then((history) => {
+        // A mutation (or account switch) landed while this was in flight —
+        // its points predate it, so drop them rather than pin stale data.
+        if (get().netWorthHistoryEpoch !== epoch) return;
+        set((s) => ({ netWorthHistory: { ...s.netWorthHistory, [range]: history.points } }));
+      })
+      .finally(() => {
+        if (netWorthInFlight.get(range)?.promise === promise) netWorthInFlight.delete(range);
+      });
+    netWorthInFlight.set(range, { epoch, promise });
+    return promise;
   },
 
   addEntry: async (data) => {
@@ -207,35 +304,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       return;
     }
 
-    // If an entry with the same name + topCategory + subCategory already exists, merge by summing values
-    const existing = get().entries.find(
-      (e) =>
-        e.name === data.name &&
-        e.topCategory === data.topCategory &&
-        e.subCategory === data.subCategory
-    );
-
-    if (existing) {
-      const merged = await apiFetch<Entry>(`/api/entries/${existing.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          value: existing.value + data.value,
-          ...(data.stockCode ? { stockCode: data.stockCode } : {}),
-          ...(data.bankCode ? { bankCode: data.bankCode } : {}),
-          ...(data.units != null ? { units: data.units } : {}),
-        }),
-      });
-      set((s) => {
-        const newEntries = s.entries.map((e) => (e.id === existing.id ? merged : e));
-        return {
-          entries: newEntries,
-          valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
-          netWorthHistory: {},
-        };
-      });
-      return;
-    }
-
     const entry = await apiFetch<Entry>("/api/entries", {
       method: "POST",
       body: JSON.stringify(data),
@@ -246,6 +314,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         entries: newEntries,
         valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
         netWorthHistory: {},
+        netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
       };
     });
   },
@@ -265,11 +334,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       body: JSON.stringify(data),
     });
     set((s) => {
-      const newEntries = s.entries.map((e) => (e.id === id ? entry : e));
+      const newEntries = s.entries.map((e) => (e.id === id ? mergeEntry(e, entry) : e));
       return {
         entries: newEntries,
         valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
         netWorthHistory: {},
+        netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
       };
     });
   },
@@ -287,6 +357,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         entries: newEntries,
         valueSnapshots: [...s.valueSnapshots, makeSnapshot(newEntries)],
         netWorthHistory: {},
+        netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
       };
     });
   },
@@ -331,6 +402,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       entries,
       valueSnapshots: [...s.valueSnapshots, makeSnapshot(entries)],
       netWorthHistory: {},
+      netWorthHistoryEpoch: s.netWorthHistoryEpoch + 1,
     }));
   },
 

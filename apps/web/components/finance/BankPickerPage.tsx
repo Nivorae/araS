@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
+import { BankLogo } from "../ui/BankLogo";
 
 export interface BankItem {
   code: string;
@@ -47,48 +48,32 @@ export function BankPickerPage({ open, onClose, onSelect, selectedCode }: Props)
         open ? "translate-x-0" : "pointer-events-none translate-x-full"
       }`}
     >
-      <div className="mx-auto max-w-md px-4 pt-14 md:max-w-xl lg:max-w-2xl">
-        <div className="mb-6 flex items-center">
+      <div className="mx-auto flex h-full max-w-md flex-col px-4 pt-12 md:max-w-xl lg:max-w-2xl">
+        <div className="mb-5 flex items-center">
           <button
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
+            aria-label="返回"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white shadow-sm"
           >
             <ChevronLeft size={20} className="text-[#1c1c1e]" />
           </button>
-          <h1 className="ml-4 text-[20px] font-bold text-[#1c1c1e]">選擇 Icon</h1>
+          <h1 className="ml-4 text-[20px] font-bold text-[#1c1c1e]">選擇銀行</h1>
         </div>
 
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-          <div className="grid grid-cols-4 gap-3 p-4 md:grid-cols-6">
+        {/* Each bank is its own white card (mobile BankPickerModal). */}
+        <div className="min-h-0 flex-1 overflow-y-auto pb-10">
+          <div className="grid grid-cols-4 gap-2.5 md:grid-cols-6">
             {BANKS.map((bank) => (
               <button
                 key={bank.code}
                 onClick={() => handleSelect(bank)}
-                className={`flex flex-col items-center justify-start rounded-xl p-2 transition-all active:bg-[#f2f2f7] ${
-                  selectedCode === bank.code
-                    ? "outline outline-2 outline-offset-1 outline-[#374254]"
-                    : ""
+                aria-pressed={selectedCode === bank.code}
+                className={`flex cursor-pointer flex-col items-center gap-2 rounded-[14px] border-2 bg-white px-1 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)] active:opacity-70 ${
+                  selectedCode === bank.code ? "border-[#374254]" : "border-transparent"
                 }`}
               >
-                <div className="relative h-11 w-11">
-                  <img
-                    src={`/banks/${bank.code}.svg`}
-                    alt={bank.name}
-                    className="h-full w-full rounded-xl object-contain"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                      const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
-                      if (fallback) fallback.style.display = "flex";
-                    }}
-                  />
-                  <div
-                    className="absolute inset-0 flex items-center justify-center rounded-xl bg-[#e5e5ea] text-[11px] font-bold text-[#636366]"
-                    style={{ display: "none" }}
-                  >
-                    {bank.name[0]}
-                  </div>
-                </div>
-                <span className="mt-1 max-w-full truncate text-center text-[10px] leading-tight text-[#1c1c1e]">
+                <BankLogo code={bank.code} name={bank.name} size={40} />
+                <span className="max-w-full truncate text-center text-[11px] leading-tight font-medium text-[#1c1c1e]">
                   {bank.name}
                 </span>
               </button>

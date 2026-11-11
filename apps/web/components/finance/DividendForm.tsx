@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Dividend } from "@repo/shared";
 import { Spinner } from "../ui/Spinner";
+import { BottomSheet } from "../ui/BottomSheet";
+import { DateField } from "../ui/DatePickerSheet";
+import { todayISO } from "../../lib/date";
 import { useFinanceStore } from "../../store/useFinanceStore";
 import { buildYfSymbol } from "../../lib/stockSymbol";
 import { promptMobileApp } from "../../lib/mobileAppPrompt";
@@ -43,7 +46,7 @@ export function DividendForm({
   const cashEntries = useMemo(() => entries.filter((e) => e.topCategory === "流動資金"), [entries]);
 
   const [mode, setMode] = useState<"amount" | "perShare">("amount");
-  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payDate, setPayDate] = useState(() => todayISO());
   const [perShareStr, setPerShareStr] = useState("");
   const [sharesStr, setSharesStr] = useState(currentShares != null ? String(currentShares) : "");
   const [amountStr, setAmountStr] = useState("");
@@ -76,7 +79,7 @@ export function DividendForm({
       // 判斷要不要重放收入，前端傳什麼都不會被採用。
       return;
     }
-    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayDate(todayISO());
     setAmountStr("");
     setBankEntryId(null);
     setRecordIncome(true);
@@ -229,189 +232,190 @@ export function DividendForm({
     }
   }
 
-  if (!open) return null;
-
   return (
-    <>
-      <div className="fixed inset-0 z-[80] bg-black/40" onClick={onClose} />
-      <div className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-h-[88vh] max-w-md flex-col rounded-t-2xl bg-white px-5 pt-4 pb-10 md:max-w-xl lg:max-w-2xl">
-        <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-[#e5e5ea]" />
-        <p className="mb-5 shrink-0 text-center text-[16px] font-semibold text-[#1c1c1e]">
-          {isEdit ? "編輯股利" : "新增股利"} · {entryName}
-        </p>
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      maxHeight="88dvh"
+      panelClassName="px-5 pt-4 pb-10"
+      label={isEdit ? "編輯股利" : "新增股利"}
+    >
+      <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-[#e5e5ea]" />
+      <p className="mb-5 shrink-0 text-center text-[16px] font-semibold text-[#1c1c1e]">
+        {isEdit ? "編輯股利" : "新增股利"} · {entryName}
+      </p>
 
-        <div className="overflow-y-auto">
-          {!isEdit && (
-            <div className="mb-4 flex rounded-[10px] bg-[#f2f2f7] p-[3px]">
-              {(
-                [
-                  { m: "amount" as const, label: "依總金額" },
-                  { m: "perShare" as const, label: "依每股股利" },
-                ] as const
-              ).map(({ m, label }) => (
-                <button
-                  key={m}
-                  onClick={() => {
-                    setMode(m);
-                    setError(null);
-                  }}
-                  className={`flex-1 rounded-lg py-2 text-[13px] font-semibold ${
-                    mode === m ? "bg-white text-[#1c1c1e]" : "text-[#8e8e93]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">發放日</label>
-          <input
-            type="date"
-            value={payDate}
-            onChange={(e) => {
-              setPayDate(e.target.value);
-              setError(null);
-            }}
-            className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
-          />
-
-          {mode === "perShare" ? (
-            <>
-              <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">
-                每股股利{isTWD ? "（TWD）" : "（報價幣別）"}
-              </label>
-              <input
-                type="number"
-                value={perShareStr}
-                onChange={(e) => {
-                  setPerShareStr(e.target.value);
-                  setError(null);
-                }}
-                placeholder="例如 4.5"
-                className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
-              />
-              <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">股數</label>
-              <input
-                type="number"
-                value={sharesStr}
-                onChange={(e) => {
-                  setSharesStr(e.target.value);
-                  setError(null);
-                }}
-                placeholder="持股數"
-                className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
-              />
-            </>
-          ) : (
-            <>
-              <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">總金額（TWD）</label>
-              <input
-                type="number"
-                value={amountStr}
-                onChange={(e) => {
-                  setAmountStr(e.target.value);
-                  setError(null);
-                }}
-                placeholder="實收總額"
-                className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
-              />
-            </>
-          )}
-
-          {isEdit ? (
-            <p className="mt-3.5 text-[12px] leading-[17px] text-[#8e8e93]">
-              每股股利、股數與「同步記為收入」建立後不可修改，需要調整請刪除後重新建立。
-            </p>
-          ) : (
-            <p className="mt-3.5 text-[14px] font-semibold text-[#66788E]">
-              換算後入帳：NT$ {amountTWD.toLocaleString()}
-            </p>
-          )}
-          {!isTWD && fxLoading && <p className="mt-1 text-[12px] text-[#8e8e93]">正在讀取匯率…</p>}
-
-          <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">入帳帳戶</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => {
-                setBankEntryId(null);
-                setError(null);
-              }}
-              className={`rounded-2xl px-3 py-2 text-[13px] ${
-                bankEntryId === null ? "bg-[#66788E] text-white" : "bg-[#f2f2f7] text-[#1c1c1e]"
-              }`}
-            >
-              不記錄
-            </button>
-            {cashEntries.map((e) => (
+      <div className="overflow-y-auto">
+        {!isEdit && (
+          <div className="mb-4 flex rounded-[10px] bg-[#f2f2f7] p-[3px]">
+            {(
+              [
+                { m: "amount" as const, label: "依總金額" },
+                { m: "perShare" as const, label: "依每股股利" },
+              ] as const
+            ).map(({ m, label }) => (
               <button
-                key={e.id}
+                key={m}
                 onClick={() => {
-                  setBankEntryId(e.id);
+                  setMode(m);
                   setError(null);
                 }}
-                className={`rounded-2xl px-3 py-2 text-[13px] ${
-                  bankEntryId === e.id ? "bg-[#66788E] text-white" : "bg-[#f2f2f7] text-[#1c1c1e]"
+                className={`flex-1 rounded-lg py-2 text-[13px] font-semibold ${
+                  mode === m ? "bg-white text-[#1c1c1e]" : "text-[#8e8e93]"
                 }`}
               >
-                {e.name}
+                {label}
               </button>
             ))}
           </div>
+        )}
 
-          <div className={`mt-3 flex items-center justify-between ${isEdit ? "hidden" : ""}`}>
-            <p className="text-[13px] text-[#8e8e93]">同步記為收入</p>
-            <button
-              role="switch"
-              aria-checked={recordIncome}
-              onClick={() => {
-                setRecordIncome((v) => !v);
+        <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">發放日</label>
+        <DateField
+          value={payDate}
+          onChange={(v) => {
+            setPayDate(v);
+            setError(null);
+          }}
+          ariaLabel="發放日"
+          className="w-full justify-between rounded-[10px] border border-[#e5e5ea] px-3 py-2.5"
+        />
+
+        {mode === "perShare" ? (
+          <>
+            <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">
+              每股股利{isTWD ? "（TWD）" : "（報價幣別）"}
+            </label>
+            <input
+              type="number"
+              value={perShareStr}
+              onChange={(e) => {
+                setPerShareStr(e.target.value);
                 setError(null);
               }}
-              className={`h-6 w-10 rounded-full transition-colors ${
-                recordIncome ? "bg-[#374254]" : "bg-[#e5e5ea]"
-              }`}
-            >
-              <span
-                className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
-                  recordIncome ? "translate-x-[18px]" : "translate-x-0.5"
-                }`}
-              />
-            </button>
-          </div>
+              placeholder="例如 4.5"
+              className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
+            />
+            <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">股數</label>
+            <input
+              type="number"
+              value={sharesStr}
+              onChange={(e) => {
+                setSharesStr(e.target.value);
+                setError(null);
+              }}
+              placeholder="持股數"
+              className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
+            />
+          </>
+        ) : (
+          <>
+            <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">總金額（TWD）</label>
+            <input
+              type="number"
+              value={amountStr}
+              onChange={(e) => {
+                setAmountStr(e.target.value);
+                setError(null);
+              }}
+              placeholder="實收總額"
+              className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
+            />
+          </>
+        )}
 
-          <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">備註</label>
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => {
-              setNote(e.target.value);
+        {isEdit ? (
+          <p className="mt-3.5 text-[12px] leading-[17px] text-[#8e8e93]">
+            每股股利、股數與「同步記為收入」建立後不可修改，需要調整請刪除後重新建立。
+          </p>
+        ) : (
+          <p className="mt-3.5 text-[14px] font-semibold text-[#66788E]">
+            換算後入帳：NT$ {amountTWD.toLocaleString()}
+          </p>
+        )}
+        {!isTWD && fxLoading && <p className="mt-1 text-[12px] text-[#8e8e93]">正在讀取匯率…</p>}
+
+        <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">入帳帳戶</label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              setBankEntryId(null);
               setError(null);
             }}
-            placeholder="選填"
-            className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
-          />
-
-          {error && <p className="mt-3 text-[13px] text-[#ff3b30]">{error}</p>}
+            className={`rounded-2xl px-3 py-2 text-[13px] ${
+              bankEntryId === null ? "bg-[#66788E] text-white" : "bg-[#f2f2f7] text-[#1c1c1e]"
+            }`}
+          >
+            不記錄
+          </button>
+          {cashEntries.map((e) => (
+            <button
+              key={e.id}
+              onClick={() => {
+                setBankEntryId(e.id);
+                setError(null);
+              }}
+              className={`rounded-2xl px-3 py-2 text-[13px] ${
+                bankEntryId === e.id ? "bg-[#66788E] text-white" : "bg-[#f2f2f7] text-[#1c1c1e]"
+              }`}
+            >
+              {e.name}
+            </button>
+          ))}
         </div>
 
-        <div className="mt-4 flex shrink-0 gap-3">
+        <div className={`mt-3 flex items-center justify-between ${isEdit ? "hidden" : ""}`}>
+          <p className="text-[13px] text-[#8e8e93]">同步記為收入</p>
           <button
-            onClick={onClose}
-            className="flex-1 rounded-full border border-[#e5e5ea] py-3 text-[15px] font-semibold text-[#1c1c1e] active:bg-[#f2f2f7]"
+            role="switch"
+            aria-checked={recordIncome}
+            onClick={() => {
+              setRecordIncome((v) => !v);
+              setError(null);
+            }}
+            className={`h-6 w-10 rounded-full transition-colors ${
+              recordIncome ? "bg-[#374254]" : "bg-[#e5e5ea]"
+            }`}
           >
-            取消
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || fxLoading}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#66788E] py-3 text-[15px] font-semibold text-white active:opacity-80 disabled:opacity-40"
-          >
-            {submitting && <Spinner size={14} />}
-            {submitting ? "儲存中..." : fxLoading ? "匯率讀取中…" : isEdit ? "更新" : "儲存"}
+            <span
+              className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
+                recordIncome ? "translate-x-[18px]" : "translate-x-0.5"
+              }`}
+            />
           </button>
         </div>
+
+        <label className="mt-3 mb-1.5 block text-[13px] text-[#8e8e93]">備註</label>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => {
+            setNote(e.target.value);
+            setError(null);
+          }}
+          placeholder="選填"
+          className="w-full rounded-[10px] border border-[#e5e5ea] px-3 py-2.5 text-[15px] text-[#1c1c1e] outline-none"
+        />
+
+        {error && <p className="mt-3 text-[13px] text-[#ff3b30]">{error}</p>}
       </div>
-    </>
+
+      <div className="mt-4 flex shrink-0 gap-3">
+        <button
+          onClick={onClose}
+          className="flex-1 rounded-full border border-[#e5e5ea] py-3 text-[15px] font-semibold text-[#1c1c1e] active:bg-[#f2f2f7]"
+        >
+          取消
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || fxLoading}
+          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#66788E] py-3 text-[15px] font-semibold text-white active:opacity-80 disabled:opacity-40"
+        >
+          {submitting && <Spinner size={14} />}
+          {submitting ? "儲存中..." : fxLoading ? "匯率讀取中…" : isEdit ? "更新" : "儲存"}
+        </button>
+      </div>
+    </BottomSheet>
   );
 }
