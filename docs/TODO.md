@@ -256,14 +256,22 @@ effect 另有 `if (!visible) return`）。
 
 ## 技術債（不阻塞任何事）
 
-- [ ] **`pnpm audit` 剩 1 個 high**：`deepmerge-ts@7`（`prisma` 的傳遞依賴），要升
-      Prisma 7 這個大版本才修得掉，暫不處理。2026-10-01 已用 `next` 15.5.27、
-      `vitest` 3.2.7 與 `overrides` 修掉其餘（4 critical / 73 high → 0 / 3，另兩個
-      是上方待手機驗證的 Clerk）。完整 audit 報告約 500MB，預設 heap 會 OOM，本機
-      要加 `NODE_OPTIONS=--max-old-space-size=8192`（CI 已加）。
-      **2026-11-19 重跑：high＋critical 又回到 19 個**，新的公告包括 `next`
-      critical（未驗證 RCE）、`@sentry/nextjs` critical、`tinypool` critical。
-      加 Storybook 前後都是同樣 19 個，不是 Storybook 帶進來的。要另開一個任務處理。
+- [ ] **`pnpm audit` 剩 3 個 high、0 critical**（2026-11-19：4 critical / 16 high →
+      0 / 3；`next` 15.5.29、`@sentry/nextjs` 10.78、`overrides` 補 vite／tinypool／
+      source-map-js／node-forge／compression）。剩下三個都是刻意不修：
+  - `deepmerge-ts@7`：`prisma` 的傳遞依賴，要升 Prisma 7 這個大版本。
+  - `zod@3.25.76`（GHSA-mrhx-c7xc-m3w5，修補版只有 zod 4）：web API 和 shared 直接用到。
+    已在程式碼這邊擋：唯一接收陣列的請求 schema（保單 `coverage`）改用
+    `boundedArray()`，超過長度就不再解析元素。之後新增任何接收陣列的 schema 都要用它；
+    完整修法是升 zod 4。
+  - `decode-uri-component@0.2.2`：手機 `expo-router` → `query-string@7` 的依賴，
+    修補版 0.5.x 只有 ESM，`query-string@7` 用 `require` 載入，會直接壞掉。影響只是
+    使用者自己的裝置解析 URL 時變慢，等 Expo 升級帶進來。
+
+  `tinypool` 的 override 跨了大版本（1.x 沒有修補版），升 vitest 4 後就可以刪掉。完整
+  audit 報告約 500MB，預設 heap 會 OOM，本機要加 `NODE_OPTIONS=--max-old-space-size=8192`
+  （CI 已加）。
+
 - [ ] **`@repo/ui` 的 Button 有變體沒有樣式**：`destructive`／`secondary`／`ghost`／
       `outline` 用到的 `destructive`、`secondary`、`accent` token 不在
       `app/globals.css` 的 `@theme` 裡，Storybook 的 `Shared UI/Button` 看得到這些

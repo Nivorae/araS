@@ -106,4 +106,23 @@ describe("write schema length limits", () => {
     });
     expect(r.success).toBe(false);
   });
+
+  // GHSA-mrhx-c7xc-m3w5: zod 3 keeps validating every element after `.max()`
+  // fails, collecting one issue per bad element — a huge array of junk can
+  // exhaust the function's memory. The length check must stop it first.
+  it.each([
+    ["create", (coverage: unknown) => CreateInsuranceSchema.safeParse({ ...ins, coverage })],
+    ["update", (coverage: unknown) => UpdateInsuranceSchema.safeParse({ coverage })],
+  ])("rejects an oversized coverage array on %s without parsing its items", (_, parse) => {
+    const r = parse(Array.from({ length: 100_000 }, () => 0));
+    expect(r.success).toBe(false);
+    expect(r.error?.issues).toHaveLength(1);
+    expect(r.error?.issues[0]).toMatchObject({ code: "too_big", path: ["coverage"] });
+  });
+
+  it("still validates each coverage item when the array is within the limit", () => {
+    const r = UpdateInsuranceSchema.safeParse({ coverage: [0, 0] });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues).toHaveLength(2);
+  });
 });
