@@ -9,6 +9,8 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build-storybook": "storybook build",
     "gen-icons": "node scripts/gen-icons.mjs",
     "indexnow": "node scripts/indexnow.mjs",
     "db:generate": "prisma generate",
@@ -46,6 +48,9 @@
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
+    "@storybook/addon-a11y": "^10.6.7",
+    "@storybook/addon-docs": "^10.6.7",
+    "@storybook/nextjs-vite": "^10.6.7",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.9.0",
@@ -55,6 +60,7 @@
     "dotenv-cli": "^7.4.0",
     "jsdom": "^25.0.0",
     "prisma": "^6.0.0",
+    "storybook": "^10.6.7",
     "tsx": "^4.21.0",
     "typescript": "^5.6.3",
     "vitest": "^3.2.7"

@@ -27,6 +27,14 @@
     },
     "test": {
       "outputs": []
+    },
+    "build-storybook": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/src/**",
+        "$TURBO_ROOT$/packages/shared/src/**"
+      ],
+      "outputs": ["storybook-static/**"]
     }
   }
 }

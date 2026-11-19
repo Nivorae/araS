@@ -87,6 +87,22 @@ jobs:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
+  # Catches stories that type-check but fail to bundle (a broken import, a
+  # component that now needs a mock). Needs no secrets: the stories run on the
+  # guest-mode demo data. `--test` skips docs/autodocs — only bundling matters here.
+  storybook:
+    name: Storybook Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build-storybook --filter=@repo/web -- --test
+
   security:
     name: Security Scan
     runs-on: ubuntu-latest
