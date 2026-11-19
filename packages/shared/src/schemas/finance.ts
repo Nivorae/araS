@@ -337,10 +337,37 @@ export const CoverageItemSchema = z.object({
 });
 export type CoverageItem = z.infer<typeof CoverageItemSchema>;
 
-const coverageArray = z
-  .array(CoverageItemSchema)
-  .max(MAX_COVERAGE_ITEMS, `最多 ${MAX_COVERAGE_ITEMS} 項保障`)
-  .optional();
+/**
+ * `z.array(item).max(max)` for request input. zod 3's own `.max()` reports the
+ * length but still validates every element, adding one issue per bad item, so
+ * a single huge array can exhaust memory (GHSA-mrhx-c7xc-m3w5; zod 3 has no
+ * patch). The length is checked first and a fatal issue stops the pipe before
+ * any element is parsed.
+ */
+function boundedArray<T extends z.ZodTypeAny>(item: T, max: number, message: string) {
+  return z
+    .unknown()
+    .superRefine((value, ctx) => {
+      if (Array.isArray(value) && value.length > max) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.too_big,
+          maximum: max,
+          type: "array",
+          inclusive: true,
+          exact: false,
+          message,
+          fatal: true,
+        });
+      }
+    })
+    .pipe(z.array(item).max(max, message));
+}
+
+const coverageArray = boundedArray(
+  CoverageItemSchema,
+  MAX_COVERAGE_ITEMS,
+  `最多 ${MAX_COVERAGE_ITEMS} 項保障`
+).optional();
 
 // Cross-field rule: for the six structured types, every coverage key must be a
 // known option for that type. OTHER is free-form (any key allowed).
