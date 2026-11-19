@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { motion } from "motion/react";
-import type { Entry } from "@repo/shared";
 import { useNavContext } from "../nav-context";
 import { useFinanceStore } from "../../../store/useFinanceStore";
 import { useInvestmentMarketValues } from "../../../hooks/useInvestmentMarketValues";
@@ -11,11 +10,7 @@ import { formatCurrency } from "../../../lib/format";
 import { chartedEntries } from "../../../lib/chartedEntries";
 import { Spinner } from "../../../components/ui/Spinner";
 import { AddAccountPage } from "../../../components/finance/AddAccountPage";
-import {
-  CATEGORIES,
-  getNodeIcon,
-  INSURANCE_ACCENT,
-} from "../../../components/finance/categoryConfig";
+import { getNodeIcon, INSURANCE_ACCENT } from "../../../components/finance/categoryConfig";
 import { InsuranceFormPage } from "../../../components/finance/InsuranceFormPage";
 import {
   EntrySheetsHost,
@@ -24,13 +19,9 @@ import {
 import { EmptyAssetsVortex } from "../../../components/finance/EmptyAssetsVortex";
 import {
   CategoryCardStack,
+  buildStackCategories,
   type CategoryCardStackHandle,
-  type StackCategory,
 } from "../../../components/finance/CategoryCardStack";
-
-// Deck order, bottom card → top card. The LAST name renders at the very top of
-// the stack, so 保險 is forced to the end (same as mobile).
-const CARD_ORDER = [...CATEGORIES.map((c) => c.name).filter((n) => n !== "保險"), "保險"];
 
 export default function AssetsPage() {
   const { entries, loading, refreshEntries } = useFinanceStore();
@@ -81,27 +72,7 @@ export default function AssetsPage() {
     return assets - liabilities;
   }, [displayEntries]);
 
-  const stackCategories: StackCategory[] = useMemo(() => {
-    const grouped = displayEntries.reduce<Record<string, Entry[]>>((acc, e) => {
-      (acc[e.topCategory] ??= []).push(e);
-      return acc;
-    }, {});
-    return CARD_ORDER.flatMap((name) => {
-      const cfg = CATEGORIES.find((c) => c.name === name)!;
-      const catEntries = grouped[name] ?? [];
-      if (catEntries.length === 0) return [];
-      return [
-        {
-          name,
-          color: cfg.color,
-          textColor: cfg.textColor,
-          isLiability: cfg.isLiability,
-          entries: catEntries,
-          total: chartedEntries(catEntries).reduce((s, e) => s + e.value, 0),
-        },
-      ];
-    });
-  }, [displayEntries]);
+  const stackCategories = useMemo(() => buildStackCategories(displayEntries), [displayEntries]);
 
   const sheets = (
     <>

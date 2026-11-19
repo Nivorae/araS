@@ -1,0 +1,7 @@
+/* The app's real stylesheet (Tailwind 4 @theme tokens, keyframes, base font). */
+@import "../app/globals.css";
+
+/* Tailwind only scans apps/web by default; packages/ui's classes would be
+   missing from the build. Kept here, not in globals.css, so production CSS
+   doesn't grow by classes the app never renders. */
+@source "../../../packages/ui/src";

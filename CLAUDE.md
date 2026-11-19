@@ -52,6 +52,10 @@ pnpm test:coverage        # With 80% threshold enforcement
 # Run a single test file
 pnpm --filter @repo/web exec vitest run tests/services/entries.service.test.ts
 
+# Storybook (web components only — apps/mobile is not covered)
+pnpm storybook            # Dev server on :6006
+pnpm build-storybook      # Static build → apps/web/storybook-static (CI runs this)
+
 # Database (all of these act on whatever .env points at — keep it on dev)
 pnpm db:check             # Abort if the target looks like production (>3 users)
 pnpm db:generate          # Generate Prisma client after schema changes
@@ -116,6 +120,24 @@ Clerk is used for authentication. `apps/web/middleware.ts` uses `clerkMiddleware
 Personal-finance models in `apps/web/prisma/schema.prisma`, all scoped by Clerk `userId`:
 
 - `Entry` (assets/liabilities, with `EntryHistory`), `Loan`, `Transaction`, `PortfolioItem`, `Insurance`, `Recurrence` (MONTHLY/WEEKLY/BIWEEKLY/YEARLY auto-generated transactions)
+
+### Storybook
+
+Lives inside `apps/web` (`@storybook/nextjs-vite`, config in `apps/web/.storybook/`),
+not as its own app — so it adds no architecture-diagram node. Stories sit next to
+their component (`components/**/*.stories.tsx`, `packages/ui/src/**/*.stories.tsx`).
+Stories need no `.env`, network or database:
+
+- `useFinanceStore` is reset before every story and loaded through its own guest
+  path (`fetchAll(false)` → `data/demo.json`; `.storybook/mocks/financeStore.ts`,
+  override with `parameters.financeStore`). Guest mode is what keeps stories off
+  `/api/*`, so **only guest branches are reachable** — signed-in states need MSW.
+- Nothing mocks Clerk yet, because no storied component imports it. The first one
+  that does should use Storybook's `sb.mock("@clerk/nextjs")` + `apps/web/__mocks__/`,
+  with one session parameter that also drives `isGuest` so the two can't disagree.
+- `.storybook/storybook.css` imports `app/globals.css` and adds `@source` for
+  `packages/ui` — keep that `@source` out of `globals.css` so production CSS
+  doesn't grow.
 
 ### Env vars
 

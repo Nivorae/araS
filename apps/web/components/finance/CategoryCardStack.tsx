@@ -6,8 +6,10 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Entry } from "@repo/shared";
 import { INSURANCE_TYPE_LABELS } from "@repo/shared";
+import { chartedEntries } from "../../lib/chartedEntries";
 import { formatCurrency } from "../../lib/format";
 import { BankLogo } from "../ui/BankLogo";
+import { CATEGORIES } from "./categoryConfig";
 
 export interface StackCategory {
   name: string;
@@ -16,6 +18,33 @@ export interface StackCategory {
   isLiability: boolean;
   entries: Entry[];
   total: number;
+}
+
+// Deck order, bottom card → top card. The LAST name renders at the very top of
+// the stack, so 保險 is forced to the end (same as mobile).
+const CARD_ORDER = [...CATEGORIES.map((c) => c.name).filter((n) => n !== "保險"), "保險"];
+
+/** Groups entries into the deck's cards, skipping categories with no entries. */
+export function buildStackCategories(entries: Entry[]): StackCategory[] {
+  const grouped = entries.reduce<Record<string, Entry[]>>((acc, e) => {
+    (acc[e.topCategory] ??= []).push(e);
+    return acc;
+  }, {});
+  return CARD_ORDER.flatMap((name) => {
+    const cfg = CATEGORIES.find((c) => c.name === name)!;
+    const catEntries = grouped[name] ?? [];
+    if (catEntries.length === 0) return [];
+    return [
+      {
+        name,
+        color: cfg.color,
+        textColor: cfg.textColor,
+        isLiability: cfg.isLiability,
+        entries: catEntries,
+        total: chartedEntries(catEntries).reduce((s, e) => s + e.value, 0),
+      },
+    ];
+  });
 }
 
 interface Props {

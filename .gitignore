@@ -25,6 +25,7 @@ apps/web/public/workbox-*.js.map
 # build output
 dist/
 build/
+storybook-static/
 
 # misc
 .DS_Store

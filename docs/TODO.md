@@ -8,8 +8,26 @@
 
 ## 下一步
 
+- **Storybook（進行中，2026-11-19）** —— 分支 `feature/storybook`，從 parity commit
+  `61ba9b0` 開出（parity 已在 develop、還沒上 main，從 main 開會看不到那些元件）。
+  已完成：`apps/web/.storybook/`（store 走 guest 模式載 demo.json、Tailwind 4）、
+  `components/ui/*` 全部、`packages/ui` 的 Button/Card、finance 的 10 個元件、CI
+  `Storybook Build` job。剩下：
+  1. 還沒寫 stories 的元件：`AccountFormPage`、`InsuranceFormPage`、
+     `InsuranceOverviewPage`、`RetirementPage`、`DividendSection`／`DividendForm`／
+     `DividendOverview`、`ReinvestSheet`、`FxCalculatorSheet`、`StockPickerPage`、
+     `AssetAllocationView`、`layout/BottomNav`。這些會直接打 `/api/*`
+     （報價、股息、配置、Premium），要先加 fetch mock（例如 MSW）才看得到有資料的畫面。
+     做法：MSW 當預設、登入狀態下跑，guest 只當其中一種變體；不要直接疊在現在的
+     guest 模式上，不然登入後的程式分支還是看不到。用到 Clerk 的元件改用
+     `sb.mock("@clerk/nextjs")`，並用同一個 session 參數同時決定 Clerk 和 `isGuest`。
+  2. 可再考慮：`eslint-plugin-storybook`、`@storybook/addon-vitest`（把 stories 當元件測試跑）。
+  3. `apps/web/tsconfig.json` 現在含 `.storybook/` 和 stories，`next build` 的 type-check
+     會多載入 Storybook 型別（實測 tsc +3.8s、+130MB）。要省的話，拆出
+     `tsconfig.storybook.json`，並用 `next.config.ts` 的 `typescript.tsconfigPath` 排除它們。
+
 - **網頁版與手機版同步（進行中，2026-11-11）** —— 分支 `feature/web-mobile-parity`，
-  尚未 commit／開 PR。已移植：理財規劃模式、資產頁（市值、納入圖表規則、漩渦空狀態、
+  已合進 develop（#179），還沒上 main。已移植：理財規劃模式、資產頁（市值、納入圖表規則、漩渦空狀態、
   排序、進場動畫）、新增流程（輪番卡、新增記錄／編輯帳戶／貸款編輯三種模式、依金額＋
   換匯計算機、pricePerShare）、詳情頁（交錯卡片、股息 2×2 卡、日曆選日期、台股紅漲綠跌）、
   資產損益頁（折線圖＋tooltip、分段切換動畫、台股／美股比例）、設定頁、保單總覽 3D 卡片、
@@ -243,6 +261,17 @@ effect 另有 `if (!visible) return`）。
       `vitest` 3.2.7 與 `overrides` 修掉其餘（4 critical / 73 high → 0 / 3，另兩個
       是上方待手機驗證的 Clerk）。完整 audit 報告約 500MB，預設 heap 會 OOM，本機
       要加 `NODE_OPTIONS=--max-old-space-size=8192`（CI 已加）。
+      **2026-11-19 重跑：high＋critical 又回到 19 個**，新的公告包括 `next`
+      critical（未驗證 RCE）、`@sentry/nextjs` critical、`tinypool` critical。
+      加 Storybook 前後都是同樣 19 個，不是 Storybook 帶進來的。要另開一個任務處理。
+- [ ] **`@repo/ui` 的 Button 有變體沒有樣式**：`destructive`／`secondary`／`ghost`／
+      `outline` 用到的 `destructive`、`secondary`、`accent` token 不在
+      `app/globals.css` 的 `@theme` 裡，Storybook 的 `Shared UI/Button` 看得到這些
+      變體沒有底色。目前網頁沒有任何地方 import `@repo/ui`，所以不影響使用者。
+- [ ] **`NetWorthChart` 全部為負值時 y 軸刻度錯**：`niceCeil(0)` 回傳 1，所以
+      `yMax = 1`，刻度偏離整數，畫面出現頂端「1」、`-1000k`（被截斷成 `-10…`），
+      `-1.5M` 也被四捨五入成 `-1M`。用 Storybook 的 `Finance/NetWorthChart/Negative`
+      就能重現。手機版是同一份移植過來的邏輯，可能也有這個問題。
 - [ ] **示範模式有兩份計算實作**：後端若改了 `apps/web/services/*` 的計算邏輯，
       `apps/mobile/lib/demo/engine.ts` 要跟著改（見
       `docs/superpowers/specs/2026-09-30-demo-mode-design.md`）。

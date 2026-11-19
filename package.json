@@ -20,6 +20,8 @@
     "type-check": "turbo run type-check",
     "test": "turbo run test",
     "test:coverage": "turbo run test -- --coverage",
+    "storybook": "pnpm --filter @repo/web storybook",
+    "build-storybook": "turbo run build-storybook --filter=@repo/web",
     "db:generate": "pnpm --filter @repo/web db:generate",
     "db:push": "pnpm --filter @repo/web db:push",
     "db:migrate": "pnpm --filter @repo/web db:migrate",
